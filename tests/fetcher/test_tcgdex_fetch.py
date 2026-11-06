@@ -96,6 +96,19 @@ def test_second_run_fetches_no_cards_or_images(tmp_path, calls):
     assert {p for p in tmp_path.rglob("*") if p.is_file()} == set(first)
 
 
+def test_image_missing_on_tcgdex_is_no_image(tmp_path, calls, monkeypatch):
+    """A card can name an image TCGdex does not have (sv10-028 in November 2026)."""
+    stub = tcgdex.get
+
+    def get(url):
+        if url.endswith("/186/low.webp"):
+            raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+        return stub(url)
+
+    monkeypatch.setattr(tcgdex, "get", get)
+    assert run(tmp_path)["cards"]["sv01-186"]["image"] is False
+
+
 def test_http_error_exits_non_zero(tmp_path, monkeypatch):
     def get(url):
         raise urllib.error.HTTPError(url, 404, "Not Found", None, None)

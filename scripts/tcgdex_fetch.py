@@ -6,7 +6,8 @@ Gebruik:
 
 TCGdex is gratis en heeft geen key nodig (ADR 0005). Het script vraagt met 4 tegelijk op, meldt zich met
 de User-Agent MatchupMeta/1.0 (+adres van de site) en probeert het bij 429 en 5xx een paar keer opnieuw.
-Elke andere HTTP-fout stopt het script met een foutcode.
+Elke andere HTTP-fout stopt het script met een foutcode, behalve een 404 op een plaatje: die kaart
+krijgt geen plaatje (en de volgende run probeert het opnieuw).
 
 Een run haalt alleen kaarten en plaatjes op die er nog niet zijn. De setlijsten (welke sets, welke
 kaarten, setgegevens) en de legaliteit van elke kaart (twee lijst-calls) worden wel elke run ververst.
@@ -119,8 +120,14 @@ def fetch_set(set_id, out, legal, pool):
         card["legal"] = {name: brief["id"] in ids for name, ids in legal.items()}
         image = os.path.join(out, set_id, f"{card['localId']}.webp")
         if card.get("image") and not os.path.exists(image):
-            write(image, get(card["image"] + "/low.webp"))
-            new["images"] += 1
+            try:
+                write(image, get(card["image"] + "/low.webp"))
+                new["images"] += 1
+            except urllib.error.HTTPError as e:
+                if e.code != 404:
+                    raise
+                # Een paar kaarten noemen een plaatje dat TCGdex niet heeft: geen plaatje, volgende run opnieuw
+                print(f"  geen plaatje op {card['image']}/low.webp (404)", flush=True)
         return card, os.path.exists(image)
 
     done = list(pool.map(one, info["cards"]))
@@ -150,7 +157,7 @@ def main(argv=None):
                 else:
                     print(f"  {set_id} heeft geen setcode (abbreviation.official)")
     except urllib.error.URLError as e:  # ook HTTPError
-        sys.exit(f"TCGdex: {e}")
+        sys.exit(f"TCGdex: {e} ({getattr(e, 'url', '')})")
 
     for code_sets in sets.values():
         code_sets.sort(key=lambda s: (s["releaseDate"] or "", s["id"]))
