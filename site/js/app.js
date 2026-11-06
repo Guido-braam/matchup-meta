@@ -405,7 +405,7 @@ function labQuick(p) {
   if (!p) return factGroup("Deck Lab", "No list for this deck in the data.");
   const html = q => factGroup("Deck Lab", [
     ["Mulligan chance", q ? pct(q.mullP) : "–"],
-    ["Supporter on turn 1", q?.sup1 == null ? "–" : pct(q.sup1, 0)],
+    ["Supporter on first turn", q?.sup1 == null ? "–" : pct(q.sup1, 0)],
     ["First or second", esc(q?.verdict || "–")],
   ], `Calculated on the ${esc(p.kind)}.`).replace('class="fact-group"', 'class="fact-group" id="lab-quick"');
   const run = ++labQuickRun;
@@ -618,7 +618,7 @@ function copyExport(btn) {
 }
 
 // ---------- Navigatie ----------
-// Twee tabs; het deck is een pagina zonder tab, bereikbaar via de hash.
+// Twee vaste tabs; het deck is een pagina via de hash, met een tijdelijke Deck-tab.
 // My meta en Ask Claude zijn popups (<dialog id="dialog-<naam>">) over de pagina.
 const TABS = ["tierlist", "lab"];
 const PAGES = [...TABS, "deck"];
@@ -628,6 +628,7 @@ function show(page) {
   current = page;
   PAGES.forEach(p => { $("page-" + p).hidden = p !== page; });
   TABS.forEach(t => $("tab-" + t).setAttribute("aria-selected", String(t === page)));
+  $("tab-deck").hidden = page !== "deck"; $("tab-deck").setAttribute("aria-selected", String(page === "deck"));
   if (TABS.includes(page)) storage.write("matchup-meta-tab", page);
   renderCurrent();
 }

@@ -18,6 +18,7 @@
     <nav class="tabs" role="tablist" aria-label="Pages">
       <button role="tab" id="tab-tierlist" data-tab="tierlist" aria-selected="true">Tier list</button>
       <button role="tab" id="tab-lab" data-tab="lab" aria-selected="false">Deck Lab</button>
+      <button role="tab" id="tab-deck" aria-selected="false" hidden>Deck</button>
     </nav>
     <div class="head-actions">
       <button class="btn" type="button" id="open-meta" data-goto="meta" aria-haspopup="dialog">My meta</button>
@@ -44,14 +45,12 @@
   </section>
 
   <section id="page-lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
-    <div class="toolbar" style="margin-bottom:10px">
-      <div class="left">
+    <!-- Deck Lab draait in een shadow root; de deckkeuze komt erin via slots. -->
+    <div id="lab-host">
+      <div slot="load" class="lab-load">
         <select id="lab-select" aria-label="Load a deck into Deck Lab" hidden></select>
         <button class="btn picker-btn" type="button" data-picker="lab-select" data-title="Load a deck into Deck Lab" data-placeholder="Load a deck…" aria-haspopup="dialog">Load a deck…</button>
-        <span class="sub">Loads the Recommended list for My meta, or else the Consensus list.</span>
-      </div>
-    </div>
-    <div id="lab-host"></div>
+      </div>    </div>
   </section>
 
   <dialog class="modal" id="dialog-advice" aria-labelledby="advice-title">

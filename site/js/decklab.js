@@ -3,34 +3,6 @@
 import { findCard, loadCardIndex, cardTile } from "./cards.js";
 
 export const DeckLab = (() => {
-  const SAMPLE = `Pokémon: 8
-4 Applin DRI 16
-4 Cottonee WHT 4
-4 Spinarak TWM 4
-3 Frillish WHT 44
-2 Sizzlipede PBL 9
-4 Dipplin SCR 13
-3 Jellicent ex WHT 45
-2 Ariados POR 2
-
-Trainer: 10
-3 Hilda WHT 171
-4 Lillie's Determination ASC 192
-1 Boss's Orders ASC 256
-3 Night Stretcher SFA 61
-3 Perrin TWM 160
-4 Buddy-Buddy Poffin ASC 184
-3 Pokégear 3.0 SSH 174
-1 Boss's Orders PR-SW 251
-4 Poké Pad POR 81
-2 Kofu SCR 138
-
-Energy: 2
-1 Legacy Energy TWM 167
-5 Basic {G} Energy MEE 1
-
-Total Cards: 60`;
-
   // Items (en Artazon) waarmee je zonder Supporter Pokémon op je bank krijgt.
   // Dit is strategie, geen kaartdata: de Card index zegt niet welke Items Pokémon zoeken, dus deze lijst blijft.
   const SETUP_ITEMS = new Set(["buddy-buddy poffin","nest ball","ultra ball","poké pad","battle vip pass","level ball","hisuian heavy ball","great ball","quick ball","evolution incense","mysterious treasure","techno radar","poké ball","timer ball","capturing aroma","secret box","master ball","artazon","bug catching set"]);
@@ -180,8 +152,7 @@ button{cursor:pointer}
 .layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px;align-items:start}
 @media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
 .panel{background:var(--surface);border-radius:var(--r);padding:16px}
-.side{display:flex;flex-direction:column;gap:14px;position:sticky;top:12px}
-@media (max-width:900px){.side{position:static}}
+.side{display:flex;flex-direction:column;gap:14px}
 .col{display:flex;flex-direction:column;gap:10px}
 .label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
 textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line);border-radius:8px;background:var(--sunk);padding:10px;font-family:var(--f-mono);font-size:12px;line-height:1.55}
@@ -189,20 +160,35 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;font-weight:600;font-size:13px}
 .btn:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.cardlist{display:flex;flex-direction:column;gap:2px;max-height:52vh;overflow:auto;margin:0 -6px;padding:0 6px}
+.cardlist{display:flex;flex-direction:column;gap:2px}
 .cl-head{display:flex;justify-content:space-between;margin-top:10px;padding-bottom:4px;border-bottom:1px solid var(--line)}
 .cl-head:first-child{margin-top:0}
-.cl-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center;padding:3px 0;font-size:13px}
-.cl-row .n{font-family:var(--f-mono);color:var(--muted);text-align:right}
-.cl-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chip{border:1px solid var(--line);background:var(--sunk);border-radius:999px;font-size:11px;padding:1px 8px;font-weight:600;white-space:nowrap}
-.chip.ace{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.count-bar{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad);border-radius:8px;padding:8px 12px;font-weight:600;font-size:13px}
+.count-bar[hidden]{display:none}
+.cl-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;margin-top:6px}
+.cl-row .nm{font-size:8.5px}
+.cl-row .art{font-size:14px}
+.cl-row .ft{display:none}
+.cl-row .cnt{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);min-width:15px;height:15px;padding:0 4px;border-radius:99px;background:var(--accent);color:var(--accent-ink);font:700 10px/15px var(--f-body);text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.field{position:relative}
+/* Tekst en knop midden in het veld; ernaast klikken gaat door naar het veld (typen of Ctrl+V). */
+.paste{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;pointer-events:none}
+.paste .hint{font-size:14px}
+.paste button{pointer-events:auto}
+textarea:focus+.paste,textarea:not(:placeholder-shown)+.paste{display:none}
+/* Zonder lijst: alleen het veld en de deckkeuze, midden op de pagina. */
+:host(.empty) .layout{grid-template-columns:minmax(0,520px);justify-content:center;padding-top:8vh}
+:host(.empty) .side>.panel:last-child,:host(.empty) main,:host(.empty) .full-only{display:none}
+:host(.empty) .side>.panel{background:none;padding:0}
+.or{text-align:center;font-size:14px}
+:host(:not(.empty)) .or,:host(:not(.empty)) .empty-only{display:none}
+:host(.empty) textarea{min-height:120px;height:120px}
 .hint{font-size:12px;color:var(--muted);margin:0}
 .stack{display:flex;flex-direction:column;gap:18px}
-.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-@media (max-width:1100px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .tile{background:var(--surface);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:4px}
 .tile .big{font-family:var(--f-display);font-weight:800;font-size:32px;line-height:1.05;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+@media (max-width:560px){.tiles{gap:8px}.tile{padding:10px}.tile .big{font-size:24px}}
 .tile .sub{font-size:12px;color:var(--muted)}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 9px;width:fit-content}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
@@ -264,7 +250,7 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
 /* Kaarttegel van cardTile() (cards.js); zelfde regels als .ctile in style.css, die de shadow root niet bereikt. */
 .ctile{position:relative;aspect-ratio:63/88;border-radius:6px;overflow:hidden}
 .ctile img{display:block;width:100%;height:100%;object-fit:cover}
-.ctile:not(.ph)>span{display:none}
+.ctile:not(.ph)>span:not(.cnt){display:none}
 .ctile.ph{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);font-size:10px;line-height:1.2;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .ctile .band{height:5px;flex:none}
 .ctile .nm{font-weight:600;padding:4px 5px 2px;font-size:10.5px;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -278,19 +264,14 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
 <div class="layout">
   <aside class="side">
     <div class="panel col">
-      <label class="label" for="deck">List (PTCG Live format)</label>
-      <textarea id="deck" spellcheck="false"></textarea>
-      <div class="row">
-        <button class="btn primary" id="btn-parse">Check list</button>
-        <button class="btn" id="btn-sample">Example</button>
-      </div>
+      <div class="count-bar full-only" id="total-badge" role="status" hidden></div>
+      <div class="row full-only" style="justify-content:space-between"><label class="label" for="deck">List (PTCG Live format)</label><button class="btn" type="button" id="btn-reset">Reset</button></div>
+      <div class="field"><textarea id="deck" spellcheck="false" placeholder=" "></textarea><div class="paste"><span class="hint">PTCGL list</span><button class="btn primary" type="button" id="btn-paste">Paste from clipboard</button></div></div>
+      <p class="hint or">or</p>
+      <div class="empty-only"><slot name="load"></slot></div>
       <p class="hint" id="src"></p>
     </div>
     <div class="panel">
-      <div class="row" style="justify-content:space-between;margin-bottom:8px">
-        <span class="label">In your list</span>
-        <span class="num" id="total-badge"></span>
-      </div>
       <div class="cardlist" id="cardlist"></div>
     </div>
   </aside>
@@ -302,15 +283,17 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
 
   function renderList(){
     const total = totalOf(entries);
-    const tb = $("#total-badge"); tb.textContent = total + " / 60"; tb.style.color = total === 60 ? "var(--good)" : "var(--bad)";
+    // Alleen een balk als de lijst niet op 60 uitkomt.
+    const tb = $("#total-badge"); tb.hidden = total === 60 || !$("#deck").value.trim(); tb.textContent = `${total} / 60 cards. A deck needs exactly 60.`;
     let html = "";
     for (const cat of ["pokemon","trainer","energy",null]){
       const list = entries.filter(e => e.cat === cat); if (!list.length) continue;
       html += `<div class="cl-head"><span class="label" style="color:${cat ? catColor(cat) : "var(--bad)"}">${cat ? CAT_LABEL[cat] : "Not recognized"}</span><span class="num label">${count(list, () => true)}</span></div>`;
-      for (const e of list){
-        const tag = `<span class="chip">${cat ? tagOf(e) : "card not recognized"}</span>`;
-        html += `<div class="cl-row"><span class="n">${e.count}</span><span class="nm" title="${esc(e.prints.join(", "))}">${esc(e.name)}</span><span class="row" style="gap:4px">${e.ace ? '<span class="chip ace">ACE SPEC</span>' : ""}${tag}</span></div>`;
-      }
+      // Kleine kaarttegels met het aantal; stage/type en ACE SPEC staan in de note (verborgen) en de tooltip.
+      html += `<div class="cl-grid">${list.map(e => {
+        const note = cat ? (e.ace ? "ACE SPEC · " : "") + tagOf(e) : "card not recognized";
+        return `<div class="cl-row" title="${esc([e.name, note, ...e.prints].join(" · "))}">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}</div>`;
+      }).join("")}</div>`;
     }
     $("#cardlist").innerHTML = html || '<p class="hint">No cards recognized yet. Paste a list with lines like <span class="num">4 Applin DRI 16</span>.</p>';
   }
@@ -352,8 +335,7 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
     let html = `<div class="tiles">
       <div class="tile"><span class="label">Mulligan chance</span><span class="big">${pct(mullP,1)}</span><span class="pill ${tone(mullP)}">${mullP > .25 ? "High" : mullP > .18 ? "Average" : "Low"}</span><span class="sub">${expMull.toFixed(2)} mulligans per game on average</span></div>
       <div class="tile"><span class="label">Basics in opening hand</span><span class="big">${st ? avgBasics.toFixed(2) : "–"}</span><span class="sub">${nBasic} Basic Pokémon in the list</span><span class="sub">${st ? pct(1 - st.basicsDist[1]) + " chance of 2 or more" : ""}</span></div>
-      <div class="tile"><span class="label">Supporter on turn 1</span><span class="big">${st ? pct(st.supT[1]) : "–"}</span><span class="sub">Opening hand + 1 drawn card</span><span class="sub">${nSup} Supporters in the list</span></div>
-      <div class="tile"><span class="label">Card count</span><span class="big">${total}</span><span class="pill ${total === 60 ? "good" : "bad"}">${total === 60 ? "Legal count" : "Must be 60"}</span><span class="sub">${by("pokemon")} Pokémon · ${by("trainer")} Trainer · ${by("energy")} Energy${by(null) ? ` · ${by(null)} not recognized` : ""}</span></div>
+      <div class="tile"><span class="label">Supporter on first turn</span><span class="big">${st ? pct(st.supT[1]) : "–"}</span><span class="sub">Opening hand + 1 drawn card</span><span class="sub">${nSup} Supporters in the list</span></div>
     </div>`;
 
     const seg = (c, n) => n ? `<div style="flex:${n};background:${catColor(c)}" title="${CAT_LABEL[c]}: ${n}">${CAT_LABEL[c]} ${n}</div>` : "";
@@ -372,6 +354,7 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
         <div class="bars">${st.basicsDist.slice(1).map(p => `<div class="b"><em>${p >= .005 ? pct(p) : "<1%"}</em><i style="height:${maxB ? p/maxB*100 : 0}%"></i></div>`).join("")}</div>
         <div class="axis">${[1,2,3,4,5,6,7].map(n => `<span>${n}</span>`).join("")}</div></div>`;
 
+      html += `<div class="panel"><div class="sec-head"><div><h2>Test hand</h2><p>A shuffled deck: your opening hand after any mulligans, your 6 Prize cards and the cards you draw next.</p></div><button class="btn primary" id="th-new">New hand</button></div><div class="th" id="th-body"></div></div>`;
       const opts = sel => entries.map((e,i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${esc(e.name)} (${e.count})</option>`).join("");
       const a0 = Math.max(0, entries.findIndex(isBasicEntry)), b0 = Math.max(0, entries.findIndex(e => e.sub === "supporter"));
       html += `<div class="panel"><div class="sec-head"><h2>Combo check</h2><p>How often do you have two cards at once? Pick the same card twice to check for 2 copies.</p></div>
@@ -379,7 +362,6 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
         <select id="cb-t" aria-label="When">${["Opening hand","Turn 1","Turn 2","Turn 3","Turn 4","Turn 5"].map((l,i) => `<option value="${i}" ${i === 1 ? "selected" : ""}>${l}</option>`).join("")}</select></div>
         <div class="combo-out"><span class="big" id="cb-out">–</span><span class="hint" id="cb-txt"></span></div></div>`;
       const fs = firstSecond(entries); if (fs) html += fsHTML(fs);
-      html += `<div class="panel"><div class="sec-head"><div><h2>Sample hand</h2><p>A shuffled deck: your opening hand after any mulligans, your 6 Prize cards and the cards you draw next.</p></div><button class="btn primary" id="th-new">New hand</button></div><div class="th" id="th-body"></div></div>`;
     }
     view.innerHTML = html;
     if (st){
@@ -428,29 +410,35 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
   // Async: de Card index wordt bij het eerste gebruik geladen (één keer per pagina). Mislukt dat, dan is elke regel onbekend.
   async function load(){
     const text = $("#deck").value;
+    if (!text.trim()) srcLabel = ""; // leeg = opnieuw beginnen
     try { localStorage.setItem("decklab.deck", text); localStorage.setItem("decklab.src", srcLabel); } catch {}
     $("#src").textContent = srcLabel;
     const index = await loadCardIndex();
     entries = parse(text, index);
+    root.host.classList.toggle("empty", !text.trim());
     TH = null; renderList(); renderAnalysis();
   }
   function mount(host, skipLoad = false){
     if (root) return;
     root = host.attachShadow({mode: "open"});
     root.innerHTML = `<style>${CSS}</style>${MARKUP}`;
-    $("#btn-parse").onclick = load;
-    $("#btn-sample").onclick = () => { $("#deck").value = SAMPLE; srcLabel = "Example list"; load(); };
+    // Het klembord lezen kan geweigerd worden; dan het veld in, zodat Ctrl+V werkt.
+    $("#btn-paste").onclick = async () => {
+      try { const t = await navigator.clipboard.readText(); if (t.trim()) { $("#deck").value = t; srcLabel = "Pasted list"; return load(); } } catch {}
+      $("#deck").focus(); $("#src").textContent = "Press Ctrl+V to paste your list.";
+    };
+    $("#btn-reset").onclick = () => { $("#deck").value = ""; load(); };
     let deb; $("#deck").addEventListener("input", () => {
       if (srcLabel && !srcLabel.endsWith("(edited)")) srcLabel += " (edited)";
-      clearTimeout(deb); deb = setTimeout(load, 600);
+      clearTimeout(deb); deb = setTimeout(load, 150); // na elke toetsaanslag; de korte wachttijd houdt snel typen vlot
     });
     let saved = null;
     try { saved = localStorage.getItem("decklab.deck"); srcLabel = localStorage.getItem("decklab.src") || ""; } catch {}
     // Labels die eerder in het Nederlands zijn bewaard.
     srcLabel = srcLabel.replace(/^Voorbeeldlijst/, "Example list").replace(/ \(aangepast\)$/, " (edited)")
       .replace(/ · aanbevolen lijst uit Matchup Meta/, " · recommended list from Matchup Meta").replace(/ · consensuslijst uit Matchup Meta/, " · consensus list from Matchup Meta");
-    if (!saved) srcLabel = "Example list";
-    $("#deck").value = saved || SAMPLE;
+    if (!saved) srcLabel = "";
+    $("#deck").value = saved || "";
     if (!skipLoad) load();
   }
   function open(host, text, label){

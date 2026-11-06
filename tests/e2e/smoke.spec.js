@@ -353,9 +353,8 @@ test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   const lab = page.locator("#lab-host"); // Deck Lab lives in an open shadow root; locators pierce it.
 
   await lab.locator("#deck").fill(PASTED_LIST);
-  await lab.locator("#btn-parse").click();
 
-  await expect(lab.locator("#total-badge")).toHaveText("60 / 60");
+  await expect(lab.locator("#total-badge")).toBeHidden(); // 60 cards: no count bar
   await expect(lab.locator("#cardlist")).toContainText("Dragapult ex");
   await expect(lab.locator("#cardlist")).not.toContainText("Jellicent ex"); // Deck Lab's own sample is gone
   await expect(lab.locator("#view")).not.toBeEmpty();
@@ -364,7 +363,16 @@ test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   await expect(lab.locator(".cl-row", { hasText: "Drakloak" })).toContainText("Stage 1");
   await expect(lab.locator(".cl-row", { hasText: "Unfair Stamp" })).toContainText("ACE SPEC");
   await expect(lab.locator(".cl-row", { hasText: "Dudunsparce" })).toContainText("card not recognized");
-  await expect(lab.locator(".tile", { hasText: "Card count" })).toContainText("19 Pokémon · 32 Trainer · 8 Energy · 1 not recognized");
+  await expect(lab.locator(".compbar")).toHaveText(/Pokémon 19.*Trainer 32.*Energy 8/);
+  // One card short: the count bar shows up.
+  await lab.locator("#deck").fill(PASTED_LIST.replace(/^4 /m, "3 "));
+  await expect(lab.locator("#total-badge")).toHaveText("59 / 60 cards. A deck needs exactly 60.");
+  // Reset empties the list: the bar goes away and the start screen with Load a deck is back.
+  await lab.locator("#btn-reset").click();
+  await expect(lab.locator("#deck")).toHaveValue("");
+  await expect(lab.locator("#total-badge")).toBeHidden();
+  await expect(lab.locator("#btn-paste")).toBeVisible();
+  await expect(page.locator("button[data-picker=lab-select]")).toBeVisible();
   expect(consoleErrors).toEqual([]);
 });
 
@@ -382,15 +390,14 @@ test("Deck Lab classifies lines without set code by name and draws a test hand w
   expect(BY_NAME_LIST).toContain("\n1 kofu\n");
   expect(BY_NAME_LIST).toContain("\n4 Crushing Hammer\n");
   await lab.locator("#deck").fill(BY_NAME_LIST);
-  await lab.locator("#btn-parse").click();
 
-  await expect(lab.locator("#total-badge")).toHaveText("60 / 60");
+  await expect(lab.locator("#total-badge")).toBeHidden(); // 60 cards: no count bar
   await expect(lab.locator(".cl-row", { hasText: "Kofu" })).toContainText("Supporter");
   await expect(lab.locator(".cl-row", { hasText: "Basic Darkness Energy" })).toContainText("Basic");
   await expect(lab.locator(".cl-row", { hasText: "Dreepy" })).toContainText("Basic");
-  await expect(lab.locator(".tile", { hasText: "Card count" })).toContainText("19 Pokémon · 32 Trainer · 8 Energy · 1 not recognized");
+  await expect(lab.locator(".compbar")).toHaveText(/Pokémon 19.*Trainer 32.*Energy 8/);
   // Lillie's Determination 4, Boss's Orders 3, Crispin 2, Kofu 1, Rosa's Encouragement 1.
-  await expect(lab.locator(".tile", { hasText: "Supporter on turn 1" })).toContainText("11 Supporters in the list");
+  await expect(lab.locator(".tile", { hasText: "Supporter on first turn" })).toContainText("11 Supporters in the list");
   // The basics: 4 Dreepy, 2 Budew, 2 Munkidori, Dunsparce, Fezandipiti ex, Meowth ex, Moltres. Dudunsparce is not one.
   await expect(lab.locator(".tile", { hasText: "Basics in opening hand" })).toContainText("12 Basic Pokémon in the list");
 
