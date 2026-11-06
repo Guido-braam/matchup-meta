@@ -34,6 +34,7 @@ Schrijft naar <out>:
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -47,6 +48,7 @@ API = "https://api.tcgdex.net/v2/en"
 SERIES = ("sv", "me")
 DROP = {"pricing", "updated"}
 # Full art, gold en andere luxe versies; een Trainer of Energy zonder plaatje leent liever een gewone versie.
+BASIC_ENERGY = re.compile(r"(Basic )?(Grass|Fire|Water|Lightning|Psychic|Fighting|Darkness|Metal|Fairy) Energy")
 FANCY = {"Ultra Rare", "Special illustration rare", "Hyper rare"}
 # Basis-Energy heeft in sv en me alleen plaatjes van de secret rare versie. De nieuwste gewone versie met
 # een Engels plaatje komt uit Crown Zenith; die plaatjes gebruikt de site voor basis-Energy zonder plaatje.
@@ -113,6 +115,10 @@ def index_entry(card, has_image):
     for k in ("stage", "trainerType", "energyType"):
         if card.get(k):
             e[k] = card[k]
+    # TCGdex zet een deel van de special Energy op "Normal" (Prism, Reversal, Team Rocket's, Growing Grass, ...);
+    # alleen "(Basic) <type> Energy" is basis-Energy.
+    if card.get("category") == "Energy":
+        e["energyType"] = "Normal" if BASIC_ENERGY.fullmatch(card["name"]) else "Special"
     if card.get("rarity") == "ACE SPEC Rare":
         e["aceSpec"] = True
     if card.get("rarity") in FANCY:

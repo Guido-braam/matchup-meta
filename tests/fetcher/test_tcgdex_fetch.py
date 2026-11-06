@@ -144,3 +144,12 @@ def test_check_labs_one_unknown_card_one_warning(tmp_path, capsys):
 
 def test_check_labs_unknown_set_code(tmp_path, capsys):
     assert len(check_labs(tmp_path, capsys, [["Ditto", "NEW", "1", 0]])) == 1
+
+
+def test_only_basic_energy_names_are_normal_energy():
+    entry = lambda name, kind: tcgdex.index_entry({"name": name, "category": "Energy", "energyType": kind}, True)
+    assert entry("Grass Energy", "Normal")["energyType"] == "Normal"
+    assert entry("Basic Darkness Energy", "Normal")["energyType"] == "Normal"
+    assert entry("Prism Energy", "Normal")["energyType"] == "Special"  # TCGdex says Normal
+    assert entry("Growing Grass Energy", "Normal")["energyType"] == "Special"
+    assert entry("Mist Energy", "Special")["energyType"] == "Special"
