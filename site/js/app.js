@@ -400,14 +400,19 @@ function factGroup(title, rows, foot = "", tip = "") {
     : `<p class="note">${rows}</p>`;
   return `<div class="fact-group"${tip ? ` title="${esc(tip)}"` : ""}><h4>${title}</h4>${body}${foot ? `<p class="note">${foot}</p>` : ""}</div>`;
 }
+// Deck Lab heeft de Card index nodig, dus eerst streepjes; de cijfers komen erin zodra quick() klaar is.
+let labQuickRun = 0;
 function labQuick(p) {
   if (!p) return factGroup("Deck Lab", "No list for this deck in the data.");
-  const q = DeckLab.quick(p.text);
-  return factGroup("Deck Lab", [
-    ["Mulligan chance", pct(q.mullP)],
-    ["Supporter on turn 1", q.sup1 == null ? "–" : pct(q.sup1, 0)],
-    ["First or second", esc(q.verdict || "–")],
-  ], `Calculated on the ${esc(p.kind)}.`);
+  const html = q => factGroup("Deck Lab", [
+    ["Mulligan chance", q ? pct(q.mullP) : "–"],
+    ["Supporter on turn 1", q?.sup1 == null ? "–" : pct(q.sup1, 0)],
+    ["First or second", esc(q?.verdict || "–")],
+  ], `Calculated on the ${esc(p.kind)}.`).replace('class="fact-group"', 'class="fact-group" id="lab-quick"');
+  const run = ++labQuickRun;
+  // Alleen invullen als de pagina intussen niet opnieuw is getekend.
+  DeckLab.quick(p.text).then(q => { const el = $("lab-quick"); if (run === labQuickRun && el) el.outerHTML = html(q); });
+  return html(null);
 }
 
 // share: het aandeel voor het gekozen continent, zoals in Mijn meta.
