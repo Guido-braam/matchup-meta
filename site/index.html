@@ -57,7 +57,7 @@
   <dialog class="modal" id="dialog-advice" aria-labelledby="advice-title">
     <form method="dialog" class="modal-head">
       <h2 id="advice-title">Ask Claude</h2>
-      <button class="btn modal-close" aria-label="Close">×</button>
+      <button class="dlg-x" aria-label="Close">×</button>
     </form>
     <div class="panel data-panel key-panel" id="ai-key">
       <div id="key-off">
@@ -106,16 +106,15 @@
     <div class="toolbar" style="margin-bottom:10px">
       <div class="left">
         <input type="search" id="meta-search" placeholder="Search for a deck" aria-label="Search for a deck">
-        <label class="check"><input type="checkbox" id="only-changed"> Only changed</label>
         <label class="check">Start from <select id="continent"></select></label>
       </div>
     </div>
     <p class="note" id="continent-note" style="margin-bottom:10px" hidden></p>
-    <div class="legend" id="weight-legend" style="margin-bottom:10px"></div>
-    <div class="panel meta-list" id="meta-list"></div>
+    <div class="board" id="meta-board"></div>
+    <div class="meta-menu" id="meta-menu" popover></div>
     <details class="how">
       <summary>How is this calculated?</summary>
-      <p class="note">The default frequency level (dot under the button) follows the deck's share at Regionals, with recent Regionals counting more and Regionals on your continent 1.5 times. Decks not played there follow their share on Trainerhill. The continent does not change the lists on a deck page. What you change is saved in this browser; Reset puts a deck back to its default. Export saves your continent and frequencies to a file you can import in another browser; your API key, Advice, Deck chat and Deck Lab stay out of it.</p>
+      <p class="note">The default frequency level (labelled "default" in a deck's menu) follows the deck's share at Regionals, with recent Regionals counting more and Regionals on your continent 1.5 times. Decks not played there follow their share on Trainerhill. The continent does not change the lists on a deck page. What you change is saved in this browser; Reset puts a deck back to its default. Export saves your continent and frequencies to a file you can import in another browser; your API key, Advice, Deck chat and Deck Lab stay out of it.</p>
     </details>
   </div>
   <div class="dlg-foot">
