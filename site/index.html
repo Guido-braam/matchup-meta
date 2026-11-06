@@ -29,11 +29,14 @@
   <section id="page-tierlist" role="tabpanel" aria-labelledby="tab-tierlist">
     <p class="sub tier-basis" id="tier-basis"></p>
     <div class="tiers" id="tiers"><div class="state">Loading data…</div></div>
+    <p class="note never-line" id="tier-never" hidden></p>
     <div class="tier-foot">
       <div class="legend tier-legend" id="tier-legend"></div>
-      <label class="check"><input type="checkbox" id="show-never"> Also show decks I never meet</label>
     </div>
-    <p class="note" style="margin-top:10px">The tier follows from the expected winrate: the average of all matchups, weighted by how often you meet each deck (set this in <a href="#meta" data-goto="meta">My meta</a>). The cut-offs scale with your meta: the decks you meet are ranked (equal winrates share a place), the top 10% is S, the next 15% A, then 25% B, 25% C, 15% D and the bottom 10% E. Within a tier the highest winrate comes first. Matchups with few games are pulled towards 50%. Click a deck to see its matchups.</p>  </section>
+    <details class="how"><summary>How is this calculated?</summary>
+    <p class="note">The tier follows from the expected winrate: the average of all matchups, weighted by how often you meet each deck (set this in <a href="#meta" data-goto="meta">My meta</a>). The cut-offs scale with your meta: the decks you meet are ranked (equal winrates share a place), the top 10% is S, the next 15% A, then 25% B, 25% C, 15% D and the bottom 10% E. Within a tier the highest winrate comes first. Matchups with few games are pulled towards 50%. Click a deck to see its matchups.</p>
+    </details>
+  </section>
 
   <section id="page-meta" aria-label="My meta" hidden>
     <div class="toolbar" style="margin-bottom:10px">
@@ -58,11 +61,6 @@
 
   <section id="page-deck" aria-label="Deck" hidden>
     <a class="back-link" href="#tierlist">← Back to tier list</a>
-    <div class="toolbar" style="margin-bottom:10px">
-      <div class="left">
-        <label class="check"><input type="checkbox" id="hide-never-opp" checked> Hide opponents I never meet</label>
-      </div>
-    </div>
     <div class="deck-blocks" id="deck-detail"><div class="panel state">Choose a deck.</div></div>
     <section class="panel chat" id="deck-chat" aria-label="Deck chat" hidden></section>
   </section>
