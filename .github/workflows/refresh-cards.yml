@@ -1,0 +1,59 @@
+# Downloads new cards from TCGdex into site/cards/ and commits them when anything changed (ADR 0005).
+# Only by hand (the "Run workflow" button in the Actions tab): when a new set is out, or when the
+# scheduled data refresh warns that a list uses a card the card index does not know. The script only
+# downloads cards it does not have yet; set lists and legality are refreshed on every run.
+name: Refresh cards
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-cards
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # A run from scratch fetches about 10,000 files; a run with everything present takes a minute.
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Fetch cards from TCGdex
+        run: python -I scripts/tcgdex_fetch.py --out site/cards
+
+      - name: Commit the cards
+        id: commit
+        run: |
+          git add site/cards
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No card changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Refresh cards ($(date -u +%Y-%m-%d))"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  # A push made with GITHUB_TOKEN does not start the push-based deploy, so call it here.
+  deploy:
+    needs: refresh
+    if: needs.refresh.outputs.changed == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

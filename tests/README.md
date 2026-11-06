@@ -31,6 +31,8 @@ MATCHUP_META_TODAY=2027-08-01 python -I scripts/limitless_labs_fetch.py --offlin
 python -I scripts/trainerhill_fetch.py --app-dir site --dry-run
 ```
 
+`fetcher/test_tcgdex_fetch.py` runs `scripts/tcgdex_fetch.py` (ADR 0005) on `fixtures/tcgdex.json`, cut-down TCGdex responses keyed by API path, by replacing the script's one network function `get` with a stub that records every URL. It checks that `pricing` and `updated` are stripped at every level, the card index format, the set code 30C mapping to two sets, a card without image recorded as such, legality taken from the legal lists, a second run that fetches no card or image, and a non-zero exit on an HTTP error.
+
 Run locally (Python 3.14; `.venv/` is gitignored):
 
 ```bash
