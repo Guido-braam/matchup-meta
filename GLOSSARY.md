@@ -14,6 +14,14 @@ _Avoid_: archetype (in the UI), build
 One concrete 60-card list for a deck.
 _Avoid_: decklist variant, build
 
+**Card**:
+One printed card, identified by its set code and number, for example MEG 104. Two cards with the same name but a different set or number are different cards.
+_Avoid_: print, printing
+
+**Card index**:
+The small file the site loads to turn a card's set code and number, or its name, into its image and its category, stage and trainer type.
+_Avoid_: card database, lookup
+
 **Consensus list**:
 The list that reflects the cards most players of a deck run, across all events worldwide.
 _Avoid_: standard list, stock list
