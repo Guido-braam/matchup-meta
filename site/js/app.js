@@ -563,9 +563,10 @@ function copyExport(btn) {
 }
 
 // ---------- Navigatie ----------
-// Twee tabs; het deck, My meta en Advice zijn pagina's zonder tab, bereikbaar via de hash.
+// Twee tabs; het deck en My meta zijn pagina's zonder tab, bereikbaar via de hash.
+// Ask Claude is een dialog (#dialog-advice) over de pagina.
 const TABS = ["tierlist", "lab"];
-const PAGES = [...TABS, "deck", "meta", "advice"];
+const PAGES = [...TABS, "deck", "meta"];
 let current = "tierlist";
 function show(page) {
   if (!PAGES.includes(page)) page = "tierlist";
@@ -575,11 +576,19 @@ function show(page) {
   if (TABS.includes(page)) storage.write("matchup-meta-tab", page);
   renderCurrent();
 }
-// De hash bepaalt de pagina: #deck/<deck id>, #lab, #meta, #advice; zonder hash de onthouden tab.
+// Een dialog openen op naam (#dialog-<naam>); sluiten gaat met × of Esc, de focus gaat terug.
+const openDialog = name => { const d = $("dialog-" + name); if (!d?.open) d?.showModal(); };
+// De hash bepaalt de pagina: #deck/<deck id>, #lab, #meta; zonder hash de onthouden tab.
+// Een hash met een dialog (oude bladwijzer #advice) opent die over de tier list.
 // Een onbekend deck of een onbekende hash geeft de tier list.
 function route() {
   let h;
   try { h = decodeURIComponent(location.hash.slice(1)); } catch { h = ""; }
+  if (h && $("dialog-" + h)) {
+    history.replaceState(null, "", "#tierlist");
+    show("tierlist"); openDialog(h);
+    return;
+  }
   if (h.split("/")[0] === "deck") {
     if (!D) return; // start() routeert opnieuw als de data er is
     const i = D.archetypes.findIndex(a => a.id === h.slice(5));
@@ -603,7 +612,7 @@ function renderCurrent() {
   if (current === "tierlist") renderTiers();
   else if (current === "meta") renderMeta();
   else if (current === "deck") renderDeck();
-  else if (current === "advice") renderAdvice();
+  renderAdvice(); // de dialog kan over elke pagina open zijn
 }
 const renderAll = renderCurrent;
 const openDeck = i => go("deck/" + encodeURIComponent(D.archetypes[i].id));
@@ -614,7 +623,7 @@ document.querySelector("nav.tabs").addEventListener("click", e => {
 });
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-goto]");
-  if (g) { e.preventDefault(); go(g.dataset.goto); return; }
+  if (g) { e.preventDefault(); $("dialog-" + g.dataset.goto) ? openDialog(g.dataset.goto) : go(g.dataset.goto); return; }
   const jb = e.target.closest("button[data-jump]");
   if (jb) { document.querySelector(jb.dataset.jump)?.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
   const x = e.target.closest("button[data-export]");
@@ -1306,7 +1315,7 @@ function renderChat() {
   chatSig = sig;
   box.hidden = false;
   if (!chatOn()) {
-    box.innerHTML = `<div class="chat-head"><h2>Deck chat: ${esc(a.name)}</h2></div><p class="note">Deck chat is off: it uses Claude with your own Anthropic API key. <a href="#advice" data-goto="advice">Add your API key</a> on the Advice page to turn it on.</p>`;
+    box.innerHTML = `<div class="chat-head"><h2>Deck chat: ${esc(a.name)}</h2></div><p class="note">Deck chat is off: it uses Claude with your own Anthropic API key. <a href="#advice" data-goto="advice">Add your API key</a> in Ask Claude to turn it on.</p>`;
     return;
   }
   const c = chatOf(a.id), busy = chatRun?.id === a.id;

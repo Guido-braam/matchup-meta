@@ -78,7 +78,11 @@
     <div id="lab-host"></div>
   </section>
 
-  <section id="page-advice" aria-label="Ask Claude" hidden>
+  <dialog class="modal" id="dialog-advice" aria-labelledby="advice-title">
+    <form method="dialog" class="modal-head">
+      <h2 id="advice-title">Ask Claude</h2>
+      <button class="btn modal-close" aria-label="Close">×</button>
+    </form>
     <div class="panel data-panel key-panel" id="ai-key">
       <div id="key-off">
         <h2>Advice and Deck chat are off</h2>
@@ -107,7 +111,7 @@
       </div>
     </div>
     <div id="advice-result"></div>
-  </section>
+  </dialog>
 
   <footer class="site-foot" id="site-foot">
     <p>Unofficial fan site. Not affiliated with or endorsed by Nintendo, The Pokémon Company or Creatures.</p>
