@@ -153,6 +153,43 @@ test("a deck page has its own address: back returns to the tier list", async ({ 
   expect(consoleErrors).toEqual([]);
 });
 
+test("decks you never meet are left out until you show them, on the deck page and the tier list", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+  await expect(page.locator("#tier-never")).toBeHidden(); // nothing is Never by default
+  await expect(page.locator("#page-tierlist details.how summary")).toHaveText("How is this calculated?");
+  await expect(page.locator("#page-tierlist details.how .note")).toBeHidden();
+  await expect(page.locator("input[type=checkbox]#show-never, input[type=checkbox]#hide-never-opp")).toHaveCount(0);
+
+  // The frequency label on a matchup row still sets the level.
+  await openDeck(page, "Crustle");
+  await expect(page.locator("#deck-never")).toHaveCount(0);
+  const row = page.locator("#deck-detail .mu", { hasText: "Dragapult" });
+  await row.locator(".freq-select").selectOption("0");
+  const deckLine = page.locator("#deck-never");
+  await expect(deckLine).toHaveText("1 deck you never meet is left out. Show them");
+  await expect(row).toHaveCount(0);
+  await deckLine.getByRole("button", { name: "Show them" }).click();
+  await expect(deckLine).toHaveText("1 deck you never meet is shown. Hide them");
+  await expect(page.locator("#deck-detail .mu.never")).toContainText("Dragapult");
+  await deckLine.getByRole("button", { name: "Hide them" }).click();
+  await expect(row).toHaveCount(0);
+
+  await page.locator("#tab-tierlist").click();
+  const tierLine = page.locator("#tier-never");
+  const tile = page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" });
+  await expect(tierLine).toHaveText("1 deck you never meet is left out. Show them");
+  await expect(tile).toHaveCount(0);
+  await tierLine.getByRole("button", { name: "Show them" }).click();
+  await expect(tierLine).toHaveText("1 deck you never meet is shown. Hide them");
+  await expect(tile).toHaveClass(/never/);
+
+  // The choice is not stored: a reload starts hidden again.
+  await page.reload();
+  await expect(tierLine).toHaveText("1 deck you never meet is left out. Show them");
+  await expect(tile).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+});
+
 test("a deck page loads directly from its address, with every block and the section links", async ({ page, consoleErrors }) => {
   await page.goto("/#deck/dragapult-ex");
   const detail = page.locator("#deck-detail");

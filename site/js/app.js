@@ -83,18 +83,23 @@ function renderContinentNote() {
 // Andere standaardniveaus, dezelfde local frequencies.
 $("continent").addEventListener("change", e => { continent = e.target.value; saveSettings(); renderAll(); });
 
+// "N decks you never meet are left out. Show them": per pagina, standaard verborgen, niet bewaard.
+const showNever = { tiers: false, deck: false };
+const neverLine = (key, n) => !n ? "" : `${n} deck${n === 1 ? "" : "s"} you never meet ${n === 1 ? "is" : "are"} ${showNever[key] ? "shown" : "left out"}. `
+  + `<button type="button" class="link-btn" data-never="${key}">${showNever[key] ? "Hide" : "Show"} them</button>`;
+
 // ---------- Tier list ----------
 function renderTiers() {
   const n = Object.keys(localFrequencies).length;
   $("tier-basis").textContent = `Expected winrate against your meta: ${CONTINENT_NAME[continent]}, ${n} change${n === 1 ? "" : "s"}`;
-  const showNever = $("show-never").checked;
   const T = meta.tiers;
   const groups = Object.fromEntries(T.map(t => [t.tier, []]));
+  let nNever = 0;
   D.archetypes.forEach((a, i) => {
     if (!isDeck(i)) return;
-    if (!showNever && level(i) === 0) return;
     const r = rating(i);
     if (!r) return;
+    if (level(i) === 0 && (nNever++, !showNever.tiers)) return;
     groups[tierOf(i)].push({ i, a, e: r.exp });
   });
   $("tiers").innerHTML = T.map(({ tier: t, min }, k) => {
@@ -108,6 +113,8 @@ function renderTiers() {
         : `<span class="empty-tier">No decks in this tier</span>`}</div>
     </div>`;
   }).join("");
+  $("tier-never").innerHTML = neverLine("tiers", nNever);
+  $("tier-never").hidden = !nNever;
 }
 
 // ---------- Mijn meta ----------
@@ -154,12 +161,12 @@ function renderDeck() {
   if (selected == null) { labPick = null; $("deck-detail").innerHTML = `<div class="panel state">Click a deck in the tier list.</div>`; renderChat(); return; }
 
   const n = D.archetypes.length, a = D.archetypes[selected], r = rating(selected);
-  const hideNever = $("hide-never-opp").checked;
   const good = [], bad = [];
+  let nNever = 0;
   for (let j = 0; j < n; j++) {
     const m = matchup(selected, j);
     if (!m) continue;
-    if (hideNever && level(j) === 0) continue;
+    if (level(j) === 0 && (nNever++, !showNever.deck)) continue;
     const w = weight(j);
     // Sorteerscore (niet getoond): hoe vaak x winrate, en aan de ongunstige kant hoe vaak x verliesrate.
     if (m.p >= 0.5) good.push({ j, o: D.archetypes[j], m, score: w * m.pa });
@@ -222,6 +229,7 @@ function renderDeck() {
         ${col("Favorable", "is-good", "good", good, "No favorable matchups.")}
         ${col("Unfavorable", "is-bad", "bad", bad, "No unfavorable matchups.")}
       </div>
+      ${nNever ? `<p class="note never-line" id="deck-never" style="padding:0 16px">${neverLine("deck", nNever)}</p>` : ""}
       <p class="note" style="padding:0 16px 14px">Sorted by what matters most: how often you meet the opponent times your chance to win (left) or lose (right). The dots show confidence: the more games played, the more reliable the percentage.</p>
     </div>
     ${chatOn() ? `<section class="panel ask-block">
@@ -664,8 +672,15 @@ $("lab-select").addEventListener("change", e => {
   labSel = i;
   DeckLab.open($("lab-host"), p.text, p.label);
 });
-["show-never", "hide-never-opp"].forEach(id => $(id).addEventListener("change", renderCurrent));
 $("only-changed").addEventListener("change", renderMeta);
+document.addEventListener("click", e => {
+  const b = e.target.closest("button[data-never]");
+  if (!b) return;
+  const key = b.dataset.never;
+  showNever[key] = !showNever[key];
+  renderCurrent();
+  document.querySelector(`button[data-never="${key}"]`)?.focus(); // de knop is opnieuw getekend
+});
 $("meta-search").addEventListener("input", renderMeta);
 let resetArmed = false;
 $("reset").addEventListener("click", e => {

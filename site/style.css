@@ -127,8 +127,15 @@ input[type="search"], select {
 .sprites .ph { width: 32px; height: 32px; border-radius: 50%; background: var(--line); display: grid; place-items: center; font-weight: 700; font-size: 0.75rem; color: var(--muted); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 0.82rem; }
 .legend b { color: var(--fg); font-weight: 600; }
-/* Onder de tier list: legenda op één regel (schuift zijwaarts als het scherm te smal is), daaronder de checkbox */
+/* Onder de tier list: legenda op één regel (schuift zijwaarts als het scherm te smal is) */
 .tier-foot { display: grid; gap: 8px; margin-top: 10px; }
+.never-line { margin-top: 10px; }
+.link-btn { all: unset; cursor: pointer; color: var(--accent); font-weight: 600; }
+.link-btn:hover { text-decoration: underline; }
+.link-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+details.how { margin-top: 10px; }
+details.how summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+details.how .note { margin-top: 6px; }
 .tier-legend { flex-wrap: nowrap; white-space: nowrap; overflow-x: auto; scrollbar-width: none; font-variant-numeric: tabular-nums; }
 .tier-legend::-webkit-scrollbar { display: none; }
 .tier-legend span { flex: none; }
@@ -239,7 +246,9 @@ td .opp button:hover { color: var(--accent); }
 .bar::before { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); opacity: 0.6; }
 .bar span { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
 .pos { color: var(--good); } .neg { color: var(--bad); }
-.freq-select { font-size: 0.8rem; padding: 3px 6px; }
+/* Secundair: klein gestippeld label, blijft een native select */
+.freq-select { font-size: 0.74rem; padding: 1px 4px; color: var(--muted); background: transparent; border: 1px dashed var(--line); border-radius: 6px; cursor: pointer; }
+.freq-select:hover { border-color: var(--accent); color: var(--fg); }
 .mu-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line); }
 .mu-col { min-width: 0; padding: 12px 12px 4px; }
 .mu-col + .mu-col { border-left: 1px solid var(--line); }
