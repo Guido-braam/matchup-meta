@@ -24,7 +24,17 @@ const MAX_DIFF = 0.15;
 // TCGdex-id "<set id>-<localId>"; set ids kunnen zelf een streepje hebben (30th-c), dus splitsen op het laatste.
 const splitId = id => { const k = id.lastIndexOf("-"); return { setId: id.slice(0, k), localId: id.slice(k + 1) }; };
 
-const withId = (index, id) => ({ id, ...index.cards[id] });
+const imgKey = name => norm(name).replace(/^basic /, "");
+// Een Trainer of Energy zonder plaatje leent het plaatje van een andere Card met dezelfde naam
+// (gameplay gelijk, bijv. Grass Energy MEE 1 -> SVE); imageId wijst dan naar die Card.
+function withId(index, id) {
+  const card = { id, ...index.cards[id] };
+  if (!card.image && card.category !== "Pokemon") {
+    const imgId = byName(index).img.get(imgKey(card.name))?.id;
+    if (imgId) Object.assign(card, { image: true, imageId: imgId });
+  }
+  return card;
+}
 
 // Per index één keer: release date per set id en per genormaliseerde naam de kaart uit de nieuwste set.
 const byNameCache = new WeakMap();
@@ -33,11 +43,15 @@ function byName(index) {
   const released = {};
   for (const sets of Object.values(index.sets)) for (const s of sets) released[s.id] = s.releaseDate || "";
   const names = new Map();
+  names.img = new Map();
   for (const [id, card] of Object.entries(index.cards)) {
     const key = norm(card.name);
     const date = released[splitId(id).setId] ?? "";
     // Bij gelijke datum blijft de eerste staan (laagste nummer in de set).
     if (!names.has(key) || date > names.get(key).date) names.set(key, { id, date });
+    // Nieuwste Card met plaatje per naam; "Basic Grass Energy" en "Grass Energy" zijn dezelfde kaart.
+    const ik = imgKey(card.name), im = names.img.get(ik);
+    if (card.image && (!im || date > im.date)) names.img.set(ik, { id, date });
   }
   byNameCache.set(index, names);
   return names;
@@ -85,7 +99,7 @@ const ART = {
 // Laadt het plaatje niet (error), dan haalt het zichzelf weg en blijft de placeholder staan.
 export function cardTile(card, { name, cat = "pokemon", count = null, note = "" }) {
   const img = card?.image
-    ? `<img loading="lazy" src="${cardImagePath(card.id)}" alt="${esc(name)}" title="${esc(name)}" onerror="this.parentNode.classList.add('ph');this.remove()">` : "";
+    ? `<img loading="lazy" src="${cardImagePath(card.imageId ?? card.id)}" alt="${esc(name)}" title="${esc(name)}" onerror="this.parentNode.classList.add('ph');this.remove()">` : "";
   const art = (ART[cat] || ART.pokemon)(hue(name));
   return `<div class="ctile${img ? "" : " ph"}">${img}<span class="band" style="background:var(--c-${cat === "pokemon" ? "poke" : cat})"></span><span class="nm" title="${esc(name)}">${esc(name)}</span><span class="art" style="background:${art}">${esc(initials(name))}</span><span class="ft">${esc(note)}</span>${count == null ? "" : `<span class="cnt">${count}</span>`}</div>`;
 }

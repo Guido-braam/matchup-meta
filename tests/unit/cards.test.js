@@ -19,6 +19,8 @@ const INDEX = {
     "me01-011": { name: "Crustle ex", category: "Pokemon", stage: "Stage1", image: false },
     "me01-114": { name: "Boss's Orders", category: "Trainer", trainerType: "Supporter", image: true },
     "30th-c-005": { name: "Pikachu", category: "Pokemon", stage: "Basic", image: true },
+    "sv01-257": { name: "Basic Grass Energy", category: "Energy", energyType: "Normal", image: true },
+    "me01-001": { name: "Grass Energy", category: "Energy", energyType: "Normal", image: false },
   },
 };
 const id = (...a) => findCard(INDEX, ...a)?.id ?? null;
@@ -84,6 +86,14 @@ test("the Card index is fetched once and the promise reused", async () => {
   assert.equal(a, b);
   assert.equal(await a, INDEX);
   assert.equal(calls, 1);
+});
+
+test("a Trainer or Energy without image borrows the image of another card with that name; a Pokémon does not", () => {
+  const e = findCard(INDEX, "MEG", "1");
+  assert.equal(e.id, "me01-001");
+  assert.equal(e.imageId, "sv01-257");
+  assert.match(cardTile(e, { name: "Grass Energy", cat: "energy", count: 4 }), /src="cards\/sv01\/257.webp"/);
+  assert.equal(findCard(INDEX, "MEG", "11").image, false);
 });
 
 test("a card tile is the image with a count badge, or the placeholder without an image", () => {
