@@ -441,6 +441,28 @@ test("resetting a local frequency restores the default and removes it from stora
   expect(consoleErrors).toEqual([]);
 });
 
+test("dragging a card to another column sets its level; dragging it back to its default removes it", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+  await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
+  const defaults = await tierList(page);
+  await page.locator("#open-meta").click();
+  const col = level => page.locator(`#meta-board .meta-col[data-level="${level}"]`);
+
+  await metaCard(page, "Dragapult").dragTo(col(0));
+  expect(await columnOf(page, "Dragapult")).toBe("Never");
+  await expect(metaCard(page, "Dragapult").locator(".changed-dot")).toHaveCount(1);
+  await expect(page.locator("#meta-menu")).toBeHidden(); // slepen opent het menu niet
+  expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: { "dragapult-ex": 0 }, continent: "worldwide" });
+  expect(await tierList(page)).not.toEqual(defaults);
+
+  await metaCard(page, "Dragapult").dragTo(col(5)); // Very often is Dragapult's default
+  expect(await columnOf(page, "Dragapult")).toBe("Very often");
+  await expect(metaCard(page, "Dragapult").locator(".changed-dot")).toHaveCount(0);
+  expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: {}, continent: "worldwide" });
+  expect(await tierList(page)).toEqual(defaults);
+  expect(consoleErrors).toEqual([]);
+});
+
 test("My meta is a board: six columns with weights, each deck in one column, search across columns", async ({ page, consoleErrors }) => {
   await page.goto("/#meta");
   const heads = metaDialog(page).locator(".meta-col h3");
