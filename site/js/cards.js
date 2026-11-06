@@ -68,6 +68,28 @@ export function findCard(index, setCode, number, name) {
 // Pad van het plaatje van een Card (id = TCGdex-id), relatief aan de site; alleen geldig als card.image waar is.
 export const cardImagePath = id => { const { setId, localId } = splitId(id); return `cards/${setId}/${localId}.webp`; };
 
+// ---------- Weergave van één Card ----------
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// Kleur en letters van de placeholder, zoals de kaarten in Deck Lab.
+const hue = name => { let h = 0; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 360; };
+const initials = name => name.replace(/\b(ex|V|VSTAR|VMAX|Basic|Energy)\b/g, "").replace(/[^A-Za-zÀ-ÿ ]/g, " ").trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
+const ART = {
+  energy: () => "linear-gradient(135deg, var(--c-energy), color-mix(in oklab, var(--c-energy) 55%, #000))",
+  trainer: () => "linear-gradient(135deg, color-mix(in oklab, var(--c-trainer) 80%, #fff), var(--c-trainer))",
+  pokemon: h => `linear-gradient(140deg, oklch(0.72 0.13 ${h}), oklch(0.5 0.12 ${(h + 50) % 360}))`,
+};
+
+// Eén Card als tegel (class "ctile", CSS in style.css): het plaatje met een rond aantal-badge,
+// of zonder plaatje de placeholder met naam, letters en note. card = uitkomst van findCard (of null);
+// cat = "pokemon" | "trainer" | "energy"; count weglaten = geen badge.
+// Laadt het plaatje niet (error), dan haalt het zichzelf weg en blijft de placeholder staan.
+export function cardTile(card, { name, cat = "pokemon", count = null, note = "" }) {
+  const img = card?.image
+    ? `<img loading="lazy" src="${cardImagePath(card.id)}" alt="${esc(name)}" title="${esc(name)}" onerror="this.parentNode.classList.add('ph');this.remove()">` : "";
+  const art = (ART[cat] || ART.pokemon)(hue(name));
+  return `<div class="ctile${img ? "" : " ph"}">${img}<span class="band" style="background:var(--c-${cat === "pokemon" ? "poke" : cat})"></span><span class="nm" title="${esc(name)}">${esc(name)}</span><span class="art" style="background:${art}">${esc(initials(name))}</span><span class="ft">${esc(note)}</span>${count == null ? "" : `<span class="cnt">${count}</span>`}</div>`;
+}
+
 // De Card index één keer per paginalading ophalen; elke aanroep krijgt dezelfde promise. Mislukt het, dan null.
 let indexReq = null;
 export function loadCardIndex(fetchFn = globalThis.fetch) {

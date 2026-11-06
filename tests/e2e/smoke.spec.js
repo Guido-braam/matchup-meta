@@ -104,6 +104,85 @@ test("a deck page opens from the tier list", async ({ page, consoleErrors }) => 
   expect(consoleErrors).toEqual([]);
 });
 
+// Card images (ADR 0005): fixtures/cards/ holds a Card index of the fixture's cards without Dudunsparce,
+// and images for Dreepy, Drakloak and Dragapult ex (ASC 158-160) only.
+const cardRequests = page => {
+  const urls = [];
+  page.on("request", r => { if (new URL(r.url()).pathname.startsWith("/cards/")) urls.push(r.url()); });
+  return urls;
+};
+const firstPlayedList = page => page.locator("#deck-detail .lists details.list").first();
+
+test("a deck page with every list closed loads no Card index and no card image", async ({ page, consoleErrors }) => {
+  const urls = cardRequests(page);
+  await page.goto("/#deck/dragapult-ex");
+  await expect(page.locator("#deck-detail h2")).toHaveText("Dragapult");
+  await expect(firstPlayedList(page)).toBeAttached();
+  await page.waitForLoadState("networkidle");
+  expect(urls).toEqual([]);
+  await expect(page.locator("#deck-detail .ctile, #deck-detail img[loading]")).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("an opened Played list shows card images with a count badge under the section headers", async ({ page, consoleErrors }) => {
+  const urls = cardRequests(page);
+  await page.goto("/#deck/dragapult-ex");
+  const list = firstPlayedList(page);
+  await list.locator("summary").click();
+  const grid = list.locator(".cgrid").first();
+  await expect(list.locator(".sec-title")).toHaveText(["Pokémon (20)", "Trainer (32)", "Energy (8)"]);
+  await expect(list.locator(".cgrid")).toHaveCount(3);
+  // About eight per row on desktop.
+  expect(await grid.evaluate(g => getComputedStyle(g).gridTemplateColumns.split(" ").length)).toBe(8);
+  // The three cards with an image: the image, with the name as alt and title, and the count; no other text on it.
+  const dragapult = grid.locator(".ctile", { has: page.locator('img[alt="Dragapult ex"]') });
+  await expect(dragapult.locator("img")).toHaveAttribute("title", "Dragapult ex");
+  await expect(dragapult.locator("img")).toHaveAttribute("loading", "lazy");
+  await expect(dragapult.locator(".cnt")).toHaveText("3");
+  await expect(dragapult.locator(".nm")).toBeHidden();
+  await expect(grid.locator("img")).toHaveCount(3);
+  await expect.poll(() => grid.locator("img").evaluateAll(is => is.every(i => i.complete && i.naturalWidth > 0))).toBe(true);
+  // A card in the index without an image: the placeholder with its set and number.
+  const meowth = grid.locator(".ctile.ph", { hasText: "Meowth ex" });
+  await expect(meowth).toContainText("POR 62");
+  await expect(meowth.locator(".cnt")).toHaveText("1");
+  // A card not in the index: the placeholder with "card not recognized".
+  const dud = grid.locator(".ctile.ph", { hasText: "Dudunsparce" });
+  await expect(dud).toContainText("card not recognized");
+  await expect(dud.locator(".cnt")).toHaveText("1");
+  // The index is fetched once; a second list reuses it.
+  await page.locator("#deck-detail .lists details.list").nth(1).locator("summary").click();
+  await expect(page.locator("#deck-detail .lists details.list").nth(1).locator(".cgrid").first()).toBeVisible();
+  expect(urls.filter(u => u.endsWith("/cards/index.json"))).toHaveLength(1);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("the Consensus list shows the same card grid", async ({ page, consoleErrors }) => {
+  await page.goto("/#deck/dragapult-ex");
+  const cons = page.locator("#cons-details");
+  await cons.locator("summary").click();
+  await expect(cons.locator(".sec-title").first()).toHaveText(/^Pokémon \(\d+\)$/);
+  await expect(cons.locator(".cgrid img").first()).toBeVisible();
+  await expect(cons.locator(".ctile .cnt").first()).toBeVisible();
+  // Other choices stay a text list.
+  await expect(page.locator("#deck-detail .cgrid")).toHaveCount(await cons.locator(".cgrid").count());
+  expect(consoleErrors).toEqual([]);
+});
+
+test("an image that fails to load falls back to the placeholder", async ({ page, consoleErrors }) => {
+  await page.route("**/cards/me02.5/160.webp", route => route.fulfill({ status: 200, contentType: "image/webp", body: "not an image" }));
+  await page.goto("/#deck/dragapult-ex");
+  const list = firstPlayedList(page);
+  await list.locator("summary").click();
+  const tile = list.locator(".ctile.ph", { hasText: "Dragapult ex" });
+  await expect(tile).toBeVisible();
+  await expect(tile.locator("img")).toHaveCount(0);
+  await expect(tile.locator(".cnt")).toHaveText("3");
+  await expect(tile).not.toContainText("card not recognized");
+  // A broken image is logged by the browser as a failed resource, not by the page.
+  expect(consoleErrors.filter(e => !e.includes("Failed to load resource"))).toEqual([]);
+});
+
 test("the header has two tabs and two equal buttons for My meta and Ask Claude", async ({ page, consoleErrors }) => {
   await page.goto("/");
   await expect(page.getByRole("tab")).toHaveText(["Tier list", "Deck Lab"]);
@@ -332,6 +411,18 @@ test.describe("at phone width", () => {
     expect(await metaDialog(page).boundingBox()).toEqual({ x: 0, y: 0, width: 375, height: 812 });
     const body = metaDialog(page).locator(".dlg-body");
     expect(await body.evaluate(b => b.scrollHeight > b.clientHeight && b.scrollWidth <= b.clientWidth)).toBe(true);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test("an opened Played list shows about four cards per row, without sideways scroll", async ({ page, consoleErrors }) => {
+    await page.goto("/#deck/dragapult-ex");
+    const list = firstPlayedList(page);
+    await list.locator("summary").click();
+    const grid = list.locator(".cgrid").first();
+    await expect(grid.locator("img").first()).toBeVisible();
+    const cols = await grid.evaluate(g => getComputedStyle(g).gridTemplateColumns.split(" ").length);
+    expect(cols).toBe(4);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     expect(consoleErrors).toEqual([]);
   });
 });

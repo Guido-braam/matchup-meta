@@ -4,6 +4,7 @@ import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS, exportSettings, importS
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
 import { createAI } from "./ai.js";
+import { loadCardIndex, findCard, cardTile } from "./cards.js";
 
 // lv = opgeslagen niveau, w = gewicht in de berekening (uit calc.js).
 const LEVEL_LABELS = { 5: "Very often", 4: "Often", 3: "Regularly", 2: "Sometimes", 1: "Rarely", 0: "Never" };
@@ -435,13 +436,33 @@ function cardRow(k, n, u, R) {
     <span class="tag ${cls}">${label}</span></li>`;
 }
 
-function bySection(cards, row) {
+function bySection(cards, row, box = x => `<ul class="cards">${x}</ul>`) {
   return SECTION_TITLES.map((title, s) => {
     const rows = cards.filter(([k]) => cardOf(k)[3] === s);
     if (!rows.length) return "";
-    return `<div class="sec-title">${title} (${rows.reduce((t, [, c]) => t + c, 0)})</div><ul class="cards">${rows.map(row).join("")}</ul>`;
+    return `<div class="sec-title">${title} (${rows.reduce((t, [, c]) => t + c, 0)})</div>${box(rows.map(row).join(""))}`;
   }).join("");
 }
+
+// ---------- Kaartplaatjes in de lijsten ----------
+// Een lijst als raster van kaartplaatjes per sectie. Zonder Card index (laden mislukt) geen "card not recognized".
+const CATS = ["pokemon", "trainer", "energy"];
+const cardGrid = (cards, index) => bySection(cards, ([k, c]) => {
+  const [name, set, num, s] = cardOf(k), card = findCard(index, set, num, name);
+  return cardTile(card, { name, cat: CATS[s], count: c, note: card || !index ? `${set} ${num}`.trim() : "card not recognized" });
+}, x => `<div class="cgrid">${x}</div>`);
+// Lege plek in een <details>; het raster komt er pas in als de lijst opengaat, zodat een dichte lijst niets laadt.
+const gridSlot = cards => `<div class="mini" data-grid="${esc(JSON.stringify(cards))}"></div>`;
+// De Card index pas bij de eerste geopende lijst laden. "toggle" bubbelt niet, dus capture.
+document.addEventListener("toggle", e => {
+  if (!e.target.matches("details[open]")) return;
+  const slots = e.target.querySelectorAll(":scope > [data-grid]");
+  if (slots.length) loadCardIndex().then(index => slots.forEach(el => {
+    if (!el.dataset.grid) return;
+    el.innerHTML = cardGrid(JSON.parse(el.dataset.grid), index);
+    delete el.dataset.grid;
+  }));
+}, true);
 
 // Tekstformaat zoals Limitless en PTCG Live het gebruiken.
 function exportText(cards) {
@@ -537,7 +558,7 @@ function renderRecommendation(l, R) {
         <p class="rec-num">Expected edge against My meta: <b class="${up >= 0 ? "pos" : "neg"}">${ppTxt(up)}</b> win chance over an average ${esc(l.name)} list <span class="hint">(between ${ppTxt(up - x.se)} and ${ppTxt(up + x.se)})</span></p>
       </div>
       <div>
-        <details class="list" id="rec-details"><summary>View the list</summary><div class="mini">${bySection(x.cards, miniRow)}</div></details>
+        <details class="list" id="rec-details"><summary>View the list</summary>${gridSlot(x.cards)}</details>
         <div data-reveal-for="rec-details" hidden>
           <h4 class="dl-sub">Why this list</h4>
           ${why.length ? `<ul class="why">${why.map(whyRow).join("")}</ul>` : `<div class="note">No card choice stands out.</div>`}
@@ -559,7 +580,7 @@ function renderDecklist(a, R) {
   const others = l.usage.filter(u => !inList.has(u[0])).slice(0, 15);
   const lists = l.lists.map(x => `<details class="list">
       <summary>${x.place ? `${ord(x.place)} of ${nl(x.of)}` : "No finish"} · ${esc(cityOf(x.e))} · ${esc(x.rec)}${x.top ? '<span class="tag core">Top cut</span>' : x.day2 ? '<span class="tag flex">Day 2</span>' : ""}${x.typical ? '<span class="tag typical">Most typical</span>' : ""}</summary>
-      <div class="mini">${bySection(x.cards, miniRow)}</div>
+      ${gridSlot(x.cards)}
       ${exportBtn(x.cards, false, `${a.name} · ${x.place ? `${ord(x.place)} of ${x.of}` : "list"} in ${cityOf(x.e)}`)}
     </details>`).join("");
   const real = `<section class="panel dl">
@@ -569,7 +590,7 @@ function renderDecklist(a, R) {
   const legend = `Core: in 90% or more of lists · Flex: 40 to 90% · Tech: under 40%${R ? " · ▲▼ clear effect per extra copy against My meta" : ""}`;
   const main = `<section class="panel dl">
     ${head}<span class="note" data-reveal-for="cons-details" hidden>${nl(l.lists_n)} lists from ${L.events.length} Regionals · ${legend}</span></div>
-    <details class="list" id="cons-details"><summary>View the list</summary>${bySection(l.consensus, ([k, c]) => cardRow(k, c, use.get(k), R))}</details>
+    <details class="list" id="cons-details"><summary>View the list</summary>${gridSlot(l.consensus)}</details>
     <div>${exportBtn(l.consensus, true, `${a.name} · consensus list from Matchup Meta`)}</div>
     <p class="note">The Consensus list is the average of all lists, with recent Regionals counting more, and may never have been played exactly like this. Open the list to see the other choices too.</p>
   </section>

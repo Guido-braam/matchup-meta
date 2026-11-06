@@ -1,7 +1,7 @@
 // The cards module, on a small fixture Card index in the shape of site/cards/index.json.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { findCard, cardImagePath, loadCardIndex, editDistance } from "../../site/js/cards.js";
+import { findCard, cardImagePath, loadCardIndex, editDistance, cardTile } from "../../site/js/cards.js";
 
 const INDEX = {
   sets: {
@@ -84,4 +84,19 @@ test("the Card index is fetched once and the promise reused", async () => {
   assert.equal(a, b);
   assert.equal(await a, INDEX);
   assert.equal(calls, 1);
+});
+
+test("a card tile is the image with a count badge, or the placeholder without an image", () => {
+  const img = cardTile(findCard(INDEX, "MEG", "114"), { name: "Boss's Orders", cat: "trainer", count: 3 });
+  assert.match(img, /^<div class="ctile">/);
+  assert.match(img, /<img loading="lazy" src="cards\/me01\/114.webp" alt="Boss&#39;s Orders" title="Boss&#39;s Orders"/);
+  assert.match(img, /<span class="cnt">3<\/span>/);
+  const noImg = cardTile(findCard(INDEX, "MEG", "11"), { name: "Crustle ex", count: 1, note: "MEG 11" });
+  assert.match(noImg, /^<div class="ctile ph">/);
+  assert.doesNotMatch(noImg, /<img/);
+  assert.match(noImg, /<span class="ft">MEG 11<\/span>/);
+  const unknown = cardTile(null, { name: "<Mystery>", note: "card not recognized" });
+  assert.match(unknown, /&lt;Mystery&gt;/);
+  assert.match(unknown, /card not recognized/);
+  assert.doesNotMatch(unknown, /class="cnt"/);
 });
