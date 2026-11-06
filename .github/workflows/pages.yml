@@ -37,3 +37,6 @@ jobs:
           path: site
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # ~4800 card images make GitHub's processing step slow at times; the 10 min default ran out
+          timeout: 1800000
