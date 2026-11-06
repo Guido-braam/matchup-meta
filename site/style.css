@@ -386,6 +386,7 @@ details.list[open] summary { margin-bottom: 4px; }
 .ctile .ft { padding: 3px 5px 30px; font-size: 9px; color: var(--muted); text-align: center; }
 .ctile .cnt { position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%); min-width: 24px; height: 24px; padding: 0 6px; border-radius: 99px; background: var(--accent); color: var(--accent-fg); font: 700 0.8rem/24px var(--font-body); text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
 .ctile .nm { overflow-wrap: anywhere; }
+.cpick .inc { display: block; margin-top: 3px; text-align: center; color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) {
   .ctile .nm { font-size: 9px; padding: 3px 4px 1px; }
   .ctile .art { margin: 0 4px; font-size: 14px; }

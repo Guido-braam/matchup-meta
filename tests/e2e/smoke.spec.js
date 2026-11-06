@@ -164,8 +164,11 @@ test("the Consensus list shows the same card grid", async ({ page, consoleErrors
   await expect(cons.locator(".sec-title").first()).toHaveText(/^Pokémon \(\d+\)$/);
   await expect(cons.locator(".cgrid img").first()).toBeVisible();
   await expect(cons.locator(".ctile .cnt").first()).toBeVisible();
-  // Other choices stay a text list.
-  await expect(page.locator("#deck-detail .cgrid")).toHaveCount(await cons.locator(".cgrid").count());
+  // Other choices: one grid of tiles, each with the share of lists under it; no Core/Flex/Tech legend.
+  const picks = page.locator(".cpick");
+  await expect(picks.first().locator(".ctile")).toBeVisible();
+  await expect(picks.first().locator(".inc")).toHaveText(/^\d+%$/);
+  await expect(page.locator("#deck-detail")).not.toContainText("Core: in 90%");
   expect(consoleErrors).toEqual([]);
 });
 

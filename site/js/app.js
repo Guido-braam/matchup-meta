@@ -281,7 +281,6 @@ function renderDeck() {
 }
 
 // ---------- Regionals: resultaten en decklists ----------
-const CORE = 0.9, FLEX = 0.4;
 const SECTION_TITLES = ["Pokémon", "Trainer", "Energy"];
 const nl = x => Number(x).toLocaleString("en-US");
 const times = x => x.toFixed(1) + "×";
@@ -422,20 +421,6 @@ function labsStats(l, share) {
   ], "", labsTitle(l));
 }
 
-function cardRow(k, n, u, R) {
-  const [name, set, num] = cardOf(k);
-  const incl = u ? u[1] : null;
-  const [cls, label] = incl == null ? ["tech", "–"] : incl >= CORE ? ["core", "Core"] : incl >= FLEX ? ["flex", "Flex"] : ["tech", "Tech"];
-  // Markering als het model een duidelijk effect ziet (minstens 2 standaardfouten van 0) tegen jouw meta.
-  const ef = R?.effects.get(k);
-  const mark = ef && Math.abs(ef.e) >= 2 * ef.se
-    ? `<span class="mk ${ef.e > 0 ? "up" : "down"}" title="Each extra copy: ${ppTxt(ef.e)} win chance against My meta (± ${ppTxt(ef.se).slice(1)})">${ef.e > 0 ? "▲" : "▼"}</span>` : "";
-  return `<li class="card"><span class="n">${n}</span>
-    <span class="cn">${esc(name)}${mark}<span class="set">${esc(set)} ${esc(num)}</span></span>
-    <span class="inc" title="In ${incl == null ? "less than 3%" : pct(incl, 0)} of lists">${incl == null ? "–" : pct(incl, 0)}</span>
-    <span class="tag ${cls}">${label}</span></li>`;
-}
-
 function bySection(cards, row, box = x => `<ul class="cards">${x}</ul>`) {
   return SECTION_TITLES.map((title, s) => {
     const rows = cards.filter(([k]) => cardOf(k)[3] === s);
@@ -453,14 +438,21 @@ const cardGrid = (cards, index) => bySection(cards, ([k, c]) => {
 }, x => `<div class="cgrid">${x}</div>`);
 // Lege plek in een <details>; het raster komt er pas in als de lijst opengaat, zodat een dichte lijst niets laadt.
 const gridSlot = cards => `<div class="mini" data-grid="${esc(JSON.stringify(cards))}"></div>`;
+// Other choices: één raster in volgorde van gebruik, met onder elk plaatje het aandeel lijsten dat de kaart speelt.
+const picksGrid = (picks, index) => `<div class="cgrid">${picks.map(([k, c, incl]) => {
+  const [name, set, num, s] = cardOf(k), card = findCard(index, set, num, name);
+  const tile = cardTile(card, { name, cat: CATS[s], count: c, note: card || !index ? `${set} ${num}`.trim() : "card not recognized" });
+  return `<div class="cpick">${tile}<span class="inc" title="In ${pct(incl, 0)} of lists">${pct(incl, 0)}</span></div>`;
+}).join("")}</div>`;
 // De Card index pas bij de eerste geopende lijst laden. "toggle" bubbelt niet, dus capture.
+// Other choices hoort bij de Consensus list (data-reveal-for) en vult zich als die opengaat.
 document.addEventListener("toggle", e => {
   if (!e.target.matches("details[open]")) return;
-  const slots = e.target.querySelectorAll(":scope > [data-grid]");
+  const slots = [...e.target.querySelectorAll(":scope > [data-grid]"),
+    ...(e.target.id ? document.querySelectorAll(`[data-reveal-for="${e.target.id}"] [data-picks]`) : [])];
   if (slots.length) loadCardIndex().then(index => slots.forEach(el => {
-    if (!el.dataset.grid) return;
-    el.innerHTML = cardGrid(JSON.parse(el.dataset.grid), index);
-    delete el.dataset.grid;
+    if (el.dataset.grid) { el.innerHTML = cardGrid(JSON.parse(el.dataset.grid), index); delete el.dataset.grid; }
+    if (el.dataset.picks) { el.innerHTML = picksGrid(JSON.parse(el.dataset.picks), index); delete el.dataset.picks; }
   }));
 }, true);
 
@@ -587,16 +579,15 @@ function renderDecklist(a, R) {
     <div class="dl-head"><h3>Played lists</h3><span class="note">The best-finishing lists from the Regionals, plus the Day 2 list closest to the consensus (most typical).</span></div>
     <div class="lists">${lists}</div>
   </section>`;
-  const legend = `Core: in 90% or more of lists · Flex: 40 to 90% · Tech: under 40%${R ? " · ▲▼ clear effect per extra copy against My meta" : ""}`;
   const main = `<section class="panel dl">
-    ${head}<span class="note" data-reveal-for="cons-details" hidden>${nl(l.lists_n)} lists from ${L.events.length} Regionals · ${legend}</span></div>
+    ${head}<span class="note" data-reveal-for="cons-details" hidden>${nl(l.lists_n)} lists from ${L.events.length} Regionals</span></div>
     <details class="list" id="cons-details"><summary>View the list</summary>${gridSlot(l.consensus)}</details>
     <div>${exportBtn(l.consensus, true, `${a.name} · consensus list from Matchup Meta`)}</div>
     <p class="note">The Consensus list is the average of all lists, with recent Regionals counting more, and may never have been played exactly like this. Open the list to see the other choices too.</p>
   </section>
   <section class="panel dl" data-reveal-for="cons-details" hidden>
-    <div class="dl-head"><h3>Other choices</h3><span class="note">Cards not in the Consensus list but in 3% or more of lists, with the most-played count · ${legend}</span></div>
-    ${others.length ? `<ul class="cards">${others.map(u => cardRow(u[0], u[2], u, R)).join("")}</ul>` : `<div class="note">No other cards in 3% or more of lists.</div>`}
+    <div class="dl-head"><h3>Other choices</h3><span class="note">Cards not in the Consensus list but in 3% or more of lists, with the most-played count and the share of lists that play them</span></div>
+    ${others.length ? `<div class="mini" data-picks="${esc(JSON.stringify(others.map(u => [u[0], u[2], u[1]])))}"></div>` : `<div class="note">No other cards in 3% or more of lists.</div>`}
   </section>`;
   return { real, main };
 }
