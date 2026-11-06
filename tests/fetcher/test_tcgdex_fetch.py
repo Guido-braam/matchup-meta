@@ -70,6 +70,8 @@ def test_index(tmp_path, calls):
     }
     assert (tmp_path / "sv01" / "186.webp").read_bytes() == b"webp:https://assets.tcgdex.net/en/sv/sv01/186/low.webp"
     assert list((tmp_path / "30th-c").iterdir()) == []
+    assert index["energyArt"]["Grass Energy"] == "swsh12.5-152" and len(index["energyArt"]) == 8
+    assert (tmp_path / "swsh12.5" / "152.webp").read_bytes() == b"webp:https://assets.tcgdex.net/en/swsh/swsh12.5/152/low.webp"
 
 
 def test_legal_comes_from_the_legal_lists(tmp_path, calls):

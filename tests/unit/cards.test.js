@@ -19,9 +19,14 @@ const INDEX = {
     "me01-011": { name: "Crustle ex", category: "Pokemon", stage: "Stage1", image: false },
     "me01-114": { name: "Boss's Orders", category: "Trainer", trainerType: "Supporter", image: true },
     "30th-c-005": { name: "Pikachu", category: "Pokemon", stage: "Basic", image: true },
-    "sv01-257": { name: "Basic Grass Energy", category: "Energy", energyType: "Normal", image: true },
+    "sv01-257": { name: "Basic Grass Energy", category: "Energy", energyType: "Normal", fancy: true, image: true },
     "me01-001": { name: "Grass Energy", category: "Energy", energyType: "Normal", image: false },
+    "me01-002": { name: "Fire Energy", category: "Energy", energyType: "Normal", image: false },
+    "sv01-200": { name: "Switch", category: "Trainer", trainerType: "Item", image: true },
+    "me01-200": { name: "Switch", category: "Trainer", trainerType: "Item", fancy: true, image: true },
+    "me01-201": { name: "Switch", category: "Trainer", trainerType: "Item", image: false },
   },
+  energyArt: { "Grass Energy": "swsh12.5-152" },
 };
 const id = (...a) => findCard(INDEX, ...a)?.id ?? null;
 
@@ -91,8 +96,10 @@ test("the Card index is fetched once and the promise reused", async () => {
 test("a Trainer or Energy without image borrows the image of another card with that name; a Pokémon does not", () => {
   const e = findCard(INDEX, "MEG", "1");
   assert.equal(e.id, "me01-001");
-  assert.equal(e.imageId, "sv01-257");
-  assert.match(cardTile(e, { name: "Grass Energy", cat: "energy", count: 4 }), /src="cards\/sv01\/257.webp"/);
+  assert.equal(e.imageId, "swsh12.5-152"); // basis-Energy: het gewone plaatje, niet de secret rare sv01-257
+  assert.match(cardTile(e, { name: "Grass Energy", cat: "energy", count: 4 }), /src="cards\/swsh12.5\/152.webp"/);
+  assert.equal(findCard(INDEX, "MEG", "2").image, false); // geen energyArt en geen andere print
+  assert.equal(findCard(INDEX, "MEG", "201").imageId, "sv01-200"); // gewone Switch boven de nieuwere fancy
   assert.equal(findCard(INDEX, "MEG", "11").image, false);
 });
 

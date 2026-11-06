@@ -25,12 +25,15 @@ const MAX_DIFF = 0.15;
 const splitId = id => { const k = id.lastIndexOf("-"); return { setId: id.slice(0, k), localId: id.slice(k + 1) }; };
 
 const imgKey = name => norm(name).replace(/^basic /, "");
-// Een Trainer of Energy zonder plaatje leent het plaatje van een andere Card met dezelfde naam
-// (gameplay gelijk, bijv. Grass Energy MEE 1 -> SVE); imageId wijst dan naar die Card.
+// Een Trainer of Energy zonder plaatje leent een plaatje van dezelfde kaart (gameplay gelijk): basis-Energy
+// het gewone plaatje uit energyArt (Crown Zenith), anders de nieuwste gewone (niet fancy) Card met die naam.
+// imageId wijst dan naar die Card.
 function withId(index, id) {
   const card = { id, ...index.cards[id] };
   if (!card.image && card.category !== "Pokemon") {
-    const imgId = byName(index).img.get(imgKey(card.name))?.id;
+    const k = imgKey(card.name);
+    const art = Object.entries(index.energyArt || {}).find(([n]) => imgKey(n) === k)?.[1];
+    const imgId = art ?? byName(index).img.get(k)?.id;
     if (imgId) Object.assign(card, { image: true, imageId: imgId });
   }
   return card;
@@ -49,9 +52,10 @@ function byName(index) {
     const date = released[splitId(id).setId] ?? "";
     // Bij gelijke datum blijft de eerste staan (laagste nummer in de set).
     if (!names.has(key) || date > names.get(key).date) names.set(key, { id, date });
-    // Nieuwste Card met plaatje per naam; "Basic Grass Energy" en "Grass Energy" zijn dezelfde kaart.
-    const ik = imgKey(card.name), im = names.img.get(ik);
-    if (card.image && (!im || date > im.date)) names.img.set(ik, { id, date });
+    // Per naam de Card met plaatje om te lenen: gewone versie boven fancy, dan de nieuwste.
+    // "Basic Grass Energy" en "Grass Energy" zijn dezelfde kaart.
+    const ik = imgKey(card.name), im = names.img.get(ik), rank = (card.fancy ? "0" : "1") + date;
+    if (card.image && (!im || rank > im.rank)) names.img.set(ik, { id, rank });
   }
   byNameCache.set(index, names);
   return names;

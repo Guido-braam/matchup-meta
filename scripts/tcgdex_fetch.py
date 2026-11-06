@@ -26,8 +26,10 @@ Schrijft naar <out>:
         sets   setcode (abbreviation.official, bijv. "MEG") -> [{id, releaseDate}], oudste eerst;
                een code kan bij meer sets horen ("30C" -> 30th en 30th-c)
         cards  TCGdex-id ("<set id>-<localId>") -> {name, category, stage, trainerType, energyType,
-               aceSpec, image}; stage, trainerType en energyType alleen als TCGdex ze geeft, aceSpec
-               alleen als true (rarity "ACE SPEC Rare"), image altijd (true als het plaatje er is)
+               aceSpec, fancy, image}; stage, trainerType en energyType alleen als TCGdex ze geeft, aceSpec
+               alleen als true (rarity "ACE SPEC Rare"), fancy alleen als true (rarity in FANCY),
+               image altijd (true als het plaatje er is)
+        energyArt  naam van een basis-Energy -> TCGdex-id van zijn gewone plaatje (ENERGY_ART, Crown Zenith)
 """
 import argparse
 import json
@@ -44,6 +46,13 @@ from matchup_meta import USER_AGENT
 API = "https://api.tcgdex.net/v2/en"
 SERIES = ("sv", "me")
 DROP = {"pricing", "updated"}
+# Full art, gold en andere luxe versies; een Trainer of Energy zonder plaatje leent liever een gewone versie.
+FANCY = {"Ultra Rare", "Special illustration rare", "Hyper rare"}
+# Basis-Energy heeft in sv en me alleen plaatjes van de secret rare versie. De nieuwste gewone versie met
+# een Engels plaatje komt uit Crown Zenith; die plaatjes gebruikt de site voor basis-Energy zonder plaatje.
+ENERGY_ART = {f"swsh12.5-{n}": name for n, name in zip(range(152, 160), (
+    "Grass Energy", "Fire Energy", "Water Energy", "Lightning Energy",
+    "Psychic Energy", "Fighting Energy", "Darkness Energy", "Metal Energy"))}
 WORKERS = 4
 DEFAULT_OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "site", "cards")
 
@@ -106,6 +115,8 @@ def index_entry(card, has_image):
             e[k] = card[k]
     if card.get("rarity") == "ACE SPEC Rare":
         e["aceSpec"] = True
+    if card.get("rarity") in FANCY:
+        e["fancy"] = True
     e["image"] = has_image
     return e
 
@@ -178,12 +189,19 @@ def main(argv=None):
                     sets.setdefault(code, []).append({"id": set_id, "releaseDate": info.get("releaseDate")})
                 else:
                     print(f"  {set_id} heeft geen setcode (abbreviation.official)")
+        for card_id in ENERGY_ART:
+            set_id, local_id = card_id.rsplit("-", 1)
+            image = os.path.join(a.out, set_id, f"{local_id}.webp")
+            if not os.path.exists(image):
+                os.makedirs(os.path.dirname(image), exist_ok=True)
+                write(image, get(f"https://assets.tcgdex.net/en/swsh/{set_id}/{local_id}/low.webp"))
     except urllib.error.URLError as e:  # ook HTTPError
         sys.exit(f"TCGdex: {e} ({getattr(e, 'url', '')})")
 
     for code_sets in sets.values():
         code_sets.sort(key=lambda s: (s["releaseDate"] or "", s["id"]))
-    write_json(os.path.join(a.out, "index.json"), {"sets": dict(sorted(sets.items())), "cards": cards})
+    write_json(os.path.join(a.out, "index.json"), {"sets": dict(sorted(sets.items())), "cards": cards,
+                                                   "energyArt": {name: i for i, name in ENERGY_ART.items()}})
     print(f"index.json: {len(sets)} setcodes, {len(cards)} kaarten, "
           f"{sum(not c['image'] for c in cards.values())} zonder plaatje")
 
