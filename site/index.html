@@ -20,8 +20,7 @@
       <button role="tab" id="tab-lab" data-tab="lab" aria-selected="false">Deck Lab</button>
     </nav>
     <div class="head-actions">
-      <span class="sub" id="save-state"></span>
-      <button class="btn" type="button" id="open-meta" data-goto="meta">My meta</button>
+      <button class="btn" type="button" id="open-meta" data-goto="meta" aria-haspopup="dialog">My meta</button>
       <button class="btn" type="button" id="open-ask" data-goto="advice">Ask Claude</button>
     </div>
   </header>
@@ -34,27 +33,6 @@
       <label class="check"><input type="checkbox" id="show-never"> Also show decks I never meet</label>
     </div>
     <p class="note" style="margin-top:10px">The tier follows from the expected winrate: the average of all matchups, weighted by how often you meet each deck (set this in <a href="#meta" data-goto="meta">My meta</a>). The cut-offs scale with your meta: the decks you meet are ranked (equal winrates share a place), the top 10% is S, the next 15% A, then 25% B, 25% C, 15% D and the bottom 10% E. Within a tier the highest winrate comes first. Matchups with few games are pulled towards 50%. Click a deck to see its matchups.</p>  </section>
-
-  <section id="page-meta" aria-label="My meta" hidden>
-    <div class="toolbar" style="margin-bottom:10px">
-      <div class="left">
-        <input type="search" id="meta-search" placeholder="Search for a deck" aria-label="Search for a deck">
-        <label class="check"><input type="checkbox" id="only-changed"> Only changed</label>
-        <label class="check">Continent <select id="continent"></select></label>
-      </div>
-      <div class="left">
-        <button class="btn" id="export-settings" type="button">Export settings</button>
-        <button class="btn" id="import-settings" type="button">Import settings</button>
-        <input type="file" id="import-file" accept=".json,application/json" hidden>
-        <button class="btn" id="reset">Reset all to default</button>
-      </div>
-    </div>
-    <p class="note" id="import-state" role="status" style="margin-bottom:10px" hidden></p>
-    <p class="note" id="continent-note" style="margin-bottom:10px" hidden></p>
-    <div class="legend" id="weight-legend" style="margin-bottom:10px"></div>
-    <div class="panel meta-list" id="meta-list"></div>
-    <p class="note" style="margin-top:10px">The default frequency level (dot under the button) follows the deck's share at Regionals, with recent Regionals counting more and Regionals on your continent 1.5 times. Decks not played there follow their share on Trainerhill. The continent does not change the lists on a deck page. What you change is saved in this browser; Reset puts a deck back to its default. Export settings saves your continent and frequencies to a file you can import in another browser; your API key, Advice, Deck chat and Deck Lab stay out of it.</p>
-  </section>
 
   <section id="page-deck" aria-label="Deck" hidden>
     <a class="back-link" href="#tierlist">← Back to tier list</a>
@@ -116,6 +94,40 @@
     <p id="foot-updated">Loading data…</p>
   </footer>
 </div>
+
+<dialog class="dlg" id="dlg-meta" aria-labelledby="dlg-meta-title">
+  <div class="dlg-head">
+    <h2 id="dlg-meta-title">My meta</h2>
+    <button class="dlg-x" type="button" data-close aria-label="Close">×</button>
+  </div>
+  <div class="dlg-body">
+    <div class="toolbar" style="margin-bottom:10px">
+      <div class="left">
+        <input type="search" id="meta-search" placeholder="Search for a deck" aria-label="Search for a deck">
+        <label class="check"><input type="checkbox" id="only-changed"> Only changed</label>
+        <label class="check">Start from <select id="continent"></select></label>
+      </div>
+    </div>
+    <p class="note" id="continent-note" style="margin-bottom:10px" hidden></p>
+    <div class="legend" id="weight-legend" style="margin-bottom:10px"></div>
+    <div class="panel meta-list" id="meta-list"></div>
+    <details class="how">
+      <summary>How is this calculated?</summary>
+      <p class="note">The default frequency level (dot under the button) follows the deck's share at Regionals, with recent Regionals counting more and Regionals on your continent 1.5 times. Decks not played there follow their share on Trainerhill. The continent does not change the lists on a deck page. What you change is saved in this browser; Reset puts a deck back to its default. Export saves your continent and frequencies to a file you can import in another browser; your API key, Advice, Deck chat and Deck Lab stay out of it.</p>
+    </details>
+  </div>
+  <div class="dlg-foot">
+    <div class="links">
+      <button class="link-btn" type="button" id="reset">Reset to default</button>
+      <button class="link-btn" type="button" id="export-settings">Export</button>
+      <button class="link-btn" type="button" id="import-settings">Import</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+    </div>
+    <p class="note" id="save-state" role="status"></p>
+    <p class="note" id="import-state" role="status" hidden></p>
+    <button class="btn primary" type="button" data-close>Done</button>
+  </div>
+</dialog>
 
 <div class="picker" id="picker" role="dialog" aria-modal="true" aria-labelledby="pk-title" hidden>
   <div class="pk-head">

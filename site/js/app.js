@@ -563,9 +563,10 @@ function copyExport(btn) {
 }
 
 // ---------- Navigatie ----------
-// Twee tabs; het deck, My meta en Advice zijn pagina's zonder tab, bereikbaar via de hash.
+// Twee tabs; het deck en Advice zijn pagina's zonder tab, bereikbaar via de hash. My meta is een popup.
 const TABS = ["tierlist", "lab"];
-const PAGES = [...TABS, "deck", "meta", "advice"];
+const PAGES = [...TABS, "deck", "advice"];
+const DIALOGS = ["meta"];
 let current = "tierlist";
 function show(page) {
   if (!PAGES.includes(page)) page = "tierlist";
@@ -575,11 +576,27 @@ function show(page) {
   if (TABS.includes(page)) storage.write("matchup-meta-tab", page);
   renderCurrent();
 }
-// De hash bepaalt de pagina: #deck/<deck id>, #lab, #meta, #advice; zonder hash de onthouden tab.
-// Een onbekend deck of een onbekende hash geeft de tier list.
+// Popup <dialog id="dlg-<naam>"> over de huidige pagina; sluit met ×, Done of Esc en geeft de focus terug.
+function openDialog(name) {
+  const d = $("dlg-" + name);
+  if (!d.open) d.showModal();
+  renderDialogs();
+}
+function renderDialogs() {
+  if (D && $("dlg-meta").open) renderMeta();
+}
+document.querySelectorAll("dialog").forEach(d => {
+  d.addEventListener("click", e => { if (e.target.closest("[data-close]")) d.close(); });
+  // Dicht na een directe link (#meta): de hash wijst weer naar de tier list eronder.
+  d.addEventListener("close", () => { if (location.hash === "#" + d.id.slice(4)) history.replaceState(null, "", "#tierlist"); });
+});
+// De hash bepaalt de pagina: #deck/<deck id>, #lab, #advice; zonder hash de onthouden tab.
+// #meta opent de popup over de tier list. Een onbekend deck of een onbekende hash geeft de tier list.
 function route() {
   let h;
   try { h = decodeURIComponent(location.hash.slice(1)); } catch { h = ""; }
+  document.querySelectorAll("dialog[open]").forEach(d => { if (d.id !== "dlg-" + h) d.close(); });
+  if (DIALOGS.includes(h)) { show("tierlist"); openDialog(h); return; }
   if (h.split("/")[0] === "deck") {
     if (!D) return; // start() routeert opnieuw als de data er is
     const i = D.archetypes.findIndex(a => a.id === h.slice(5));
@@ -601,11 +618,11 @@ function renderCurrent() {
   if (!D) return;
   recompute();
   if (current === "tierlist") renderTiers();
-  else if (current === "meta") renderMeta();
   else if (current === "deck") renderDeck();
   else if (current === "advice") renderAdvice();
 }
-const renderAll = renderCurrent;
+// De pagina achter een open popup rekent meteen mee.
+const renderAll = () => { renderCurrent(); renderDialogs(); };
 const openDeck = i => go("deck/" + encodeURIComponent(D.archetypes[i].id));
 
 document.querySelector("nav.tabs").addEventListener("click", e => {
@@ -614,7 +631,7 @@ document.querySelector("nav.tabs").addEventListener("click", e => {
 });
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-goto]");
-  if (g) { e.preventDefault(); go(g.dataset.goto); return; }
+  if (g) { e.preventDefault(); DIALOGS.includes(g.dataset.goto) ? openDialog(g.dataset.goto) : go(g.dataset.goto); return; }
   const jb = e.target.closest("button[data-jump]");
   if (jb) { document.querySelector(jb.dataset.jump)?.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
   const x = e.target.closest("button[data-export]");
@@ -646,17 +663,18 @@ $("lab-select").addEventListener("change", e => {
   labSel = i;
   DeckLab.open($("lab-host"), p.text, p.label);
 });
-["show-never", "only-changed", "hide-never-opp"].forEach(id => $(id).addEventListener("change", renderCurrent));
+["show-never", "hide-never-opp"].forEach(id => $(id).addEventListener("change", renderCurrent));
+$("only-changed").addEventListener("change", renderMeta);
 $("meta-search").addEventListener("input", renderMeta);
 let resetArmed = false;
 $("reset").addEventListener("click", e => {
   if (!Object.keys(localFrequencies).length) return;
   if (!resetArmed) {
     resetArmed = true; e.target.textContent = "Click again to reset"; e.target.classList.add("danger-confirm");
-    setTimeout(() => { resetArmed = false; e.target.textContent = "Reset all to default"; e.target.classList.remove("danger-confirm"); }, 3000);
+    setTimeout(() => { resetArmed = false; e.target.textContent = "Reset to default"; e.target.classList.remove("danger-confirm"); }, 3000);
     return;
   }
-  resetArmed = false; e.target.textContent = "Reset all to default"; e.target.classList.remove("danger-confirm");
+  resetArmed = false; e.target.textContent = "Reset to default"; e.target.classList.remove("danger-confirm");
   localFrequencies = {}; saveSettings(); renderAll();
 });
 
