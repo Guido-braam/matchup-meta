@@ -142,27 +142,34 @@ details.how .note { margin-top: 6px; }
 
 /* Mijn meta */
 .panel { background: var(--surface); border-radius: var(--radius); }
-.meta-list { display: grid; }
-.meta-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); }
-.meta-row:first-child { border-top: 0; }
-.meta-row .nm { font-weight: 600; min-width: 0; }
-.meta-row .nm .sub { font-weight: 500; font-size: 0.8rem; }
-.meta-row .nm button { all: unset; cursor: pointer; }
-.meta-row .nm button:hover { color: var(--accent); }
-.meta-row .nm .reset-one { color: var(--accent); text-decoration: underline; }
-.seg { display: inline-flex; background: var(--surface-2); border-radius: 8px; padding: 3px; gap: 2px; }
-.seg button {
-  font: 600 0.78rem var(--font-body); color: var(--muted); background: transparent; border: 0;
-  border-radius: 6px; padding: 6px 9px; cursor: pointer; white-space: nowrap; position: relative;
-}
-.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
-.seg button.is-default:not([aria-pressed="true"])::after {
-  content: ""; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--muted);
-}
+/* Bord: zes kolommen (één per frequency level), op een smal scherm onder elkaar. */
+.board { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 900px) { .board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.meta-col { background: var(--surface); border-radius: var(--radius); min-width: 0; }
+.meta-col h3 { margin: 0; padding: 8px 10px; font-size: 0.85rem; border-bottom: 1px solid var(--line); }
+.meta-col h3 .w { color: var(--muted); font-weight: 500; }
+.meta-col .cards { display: flex; flex-direction: column; gap: 4px; padding: 6px; }
+.meta-card { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; font: 600 0.8rem var(--font-body); color: var(--fg);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; cursor: pointer; }
+.meta-card:hover { border-color: var(--accent); }
+.meta-card .sprites { flex: none; }
+.meta-card .name { min-width: 0; overflow-wrap: anywhere; }
+.meta-card .changed-dot { flex: none; margin-left: auto; }
+/* Menu bij een kaart (popover; plek gezet door openMenu). */
+.meta-menu { position: fixed; inset: auto; margin: 0; padding: 6px; min-width: 200px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--fg); box-shadow: 0 8px 24px rgb(0 0 0 / 0.25); }
+.meta-menu:popover-open { display: grid; gap: 2px; }
+.mm-head { display: grid; padding: 4px 8px 6px; font-size: 0.85rem; }
+.mm-head .note { margin: 0; font-size: 0.78rem; }
+.meta-menu button { font: 600 0.85rem var(--font-body); color: var(--fg); background: transparent; border: 0; border-radius: 6px; padding: 7px 8px 7px 26px; text-align: left; cursor: pointer; position: relative; }
+.meta-menu button:hover, .meta-menu button:focus-visible { background: var(--surface-2); }
+.meta-menu button[aria-pressed="true"]::before { content: "✓" / ""; position: absolute; left: 9px; color: var(--accent); }
+.meta-menu small { color: var(--muted); font-weight: 500; margin-left: 4px; }
+.meta-menu .mm-reset { color: var(--accent); border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; margin-top: 2px; }
 .changed-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: middle; }
 
 /* Popups (<dialog>): kop en voet vast, de inhoud scrolt; op een smal scherm schermvullend. */
-.dlg { width: min(900px, calc(100% - 32px)); max-width: none; max-height: calc(100% - 32px); padding: 0; border: 1px solid var(--line);
+.dlg { width: min(1180px, calc(100% - 32px)); max-width: none; max-height: calc(100% - 32px); padding: 0; border: 1px solid var(--line);
   border-radius: var(--radius); background: var(--bg); color: var(--fg); font-family: var(--font-body); box-shadow: 0 12px 40px rgb(0 0 0 / 0.25); }
 .dlg[open] { display: flex; flex-direction: column; }
 .dlg::backdrop { background: rgb(0 0 0 / 0.45); }
@@ -412,9 +419,9 @@ textarea.copy-fallback { font: 0.78rem/1.4 ui-monospace, "Cascadia Mono", Consol
   .tier { grid-template-columns: 48px 1fr; }
   .tier-label { font-size: 1.5rem; }
   .tile { width: 84px; }
-  .meta-row { grid-template-columns: 56px minmax(0, 1fr); }
-  /* Telefoon: de zes frequency levels in 2 rijen van 3, zodat ze allemaal zichtbaar zijn */
-  .meta-row .seg { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .board { grid-template-columns: minmax(0, 1fr); }
+  .meta-col .cards { flex-flow: row wrap; }
+  .meta-card { width: auto; }
   .deck-head { grid-template-columns: auto minmax(0, 1fr); }
   .deck-head .badge { grid-row: 1; grid-column: 2; justify-self: end; }
   .deck-head .info { grid-column: 1 / -1; }
@@ -440,7 +447,6 @@ dialog.modal {
 }
 dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.modal-close { font-size: 1.2rem; line-height: 1; padding: 6px 11px; }
 @media (max-width: 640px) {
   dialog.modal { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border-radius: 0;
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }

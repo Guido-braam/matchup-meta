@@ -123,7 +123,7 @@ test("the tier list says what it is based on", async ({ page, consoleErrors }) =
   await page.goto("/");
   await expect(page.locator("#tier-basis")).toHaveText("Expected winrate against your meta: Worldwide, 0 changes");
   await page.locator("#open-meta").click();
-  await metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true }).click();
+  await chooseLevel(page, "Dragapult", "Never");
   await page.locator("#continent").selectOption("eu");
   await expect(page.locator("#tier-basis")).toHaveText("Expected winrate against your meta: Europe, 1 change");
   expect(consoleErrors).toEqual([]);
@@ -340,7 +340,24 @@ test.describe("at phone width", () => {
 const tierList = page => page.locator("#tiers .tier").evaluateAll(ts =>
   ts.map(t => `${t.querySelector(".tier-label").firstChild.textContent}: ${[...t.querySelectorAll(".tile .name")].map(n => n.textContent).join(", ")}`));
 const storedSettings = page => page.evaluate(() => JSON.parse(localStorage.getItem("matchup-meta-settings")));
-const metaRow = (page, name) => page.locator(".meta-row", { has: page.getByRole("button", { name, exact: true }) });
+// My meta is a board: a column per frequency level, a card per deck, a menu per card.
+const metaCard = (page, name) => page.locator("#meta-board .meta-card", { has: page.getByText(name, { exact: true }) });
+const metaMenu = page => page.locator("#meta-menu");
+const menuItem = (page, label) => metaMenu(page).getByRole("button", { name: new RegExp(`^${label}( default)?$`) });
+const columnOf = (page, name) => metaCard(page, name).evaluate(c => c.closest(".meta-col").querySelector("h3").firstChild.textContent.trim());
+async function chooseLevel(page, name, label) {
+  await metaCard(page, name).click();
+  await menuItem(page, label).click();
+  await expect(metaMenu(page)).toBeHidden();
+}
+// The default level as the card's menu labels it; the menu is closed again afterwards.
+async function defaultOf(page, name) {
+  await metaCard(page, name).click();
+  const text = await metaMenu(page).locator("button", { has: page.locator("small", { hasText: "default" }) }).evaluate(b => b.firstChild.textContent.trim());
+  await page.keyboard.press("Escape");
+  await expect(metaMenu(page)).toBeHidden();
+  return text;
+}
 
 test("My meta is a popup: ×, Done and Esc close it and focus returns to the button", async ({ page, consoleErrors }) => {
   await page.goto("/");
@@ -368,7 +385,7 @@ test("changing a level in My meta updates the tier list behind it and shows the 
   await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
   const before = await tierList(page);
   await page.locator("#open-meta").click();
-  await metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true }).click();
+  await chooseLevel(page, "Dragapult", "Never");
   await expect(metaDialog(page)).toBeVisible();
   await expect(metaDialog(page).locator(".dlg-foot #save-state")).toHaveText("Settings saved");
   expect(await tierList(page)).not.toEqual(before);
@@ -391,7 +408,7 @@ test("a local frequency is still there after a reload", async ({ page, consoleEr
   const defaults = await tierList(page);
 
   await page.locator("#open-meta").click();
-  await metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true }).click();
+  await chooseLevel(page, "Dragapult", "Never");
   await page.keyboard.press("Escape");
   const changed = await tierList(page);
   expect(changed).not.toEqual(defaults); // Dragapult, a third of the Regionals, no longer counts
@@ -401,24 +418,72 @@ test("a local frequency is still there after a reload", async ({ page, consoleEr
   await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
   expect(await tierList(page)).toEqual(changed);
   await page.locator("#open-meta").click();
-  await expect(metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await columnOf(page, "Dragapult")).toBe("Never");
   expect(consoleErrors).toEqual([]);
 });
 
 test("resetting a local frequency restores the default and removes it from storage", async ({ page, consoleErrors }) => {
   await page.goto("/#meta");
-  const row = metaRow(page, "Dragapult");
-  await row.getByRole("button", { name: "Rarely", exact: true }).click();
+  await chooseLevel(page, "Dragapult", "Rarely");
   expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: { "dragapult-ex": 1 }, continent: "worldwide" });
+  await expect(metaCard(page, "Dragapult").locator(".changed-dot")).toHaveCount(1);
 
-  await row.getByRole("button", { name: "Reset Dragapult to default" }).click();
+  await chooseLevel(page, "Dragapult", "Reset to default");
   // Dragapult's default is Very often: a third of the fixture Regionals.
-  await expect(row.getByRole("button", { name: "Very often", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(row.getByRole("button", { name: "Reset Dragapult to default" })).toHaveCount(0);
+  expect(await columnOf(page, "Dragapult")).toBe("Very often");
+  await expect(metaCard(page, "Dragapult").locator(".changed-dot")).toHaveCount(0);
+  await metaCard(page, "Dragapult").click();
+  await expect(menuItem(page, "Reset to default")).toHaveCount(0);
   expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: {}, continent: "worldwide" });
 
   await page.reload();
-  await expect(metaRow(page, "Dragapult").getByRole("button", { name: "Very often", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await columnOf(page, "Dragapult")).toBe("Very often");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("My meta is a board: six columns with weights, each deck in one column, search across columns", async ({ page, consoleErrors }) => {
+  await page.goto("/#meta");
+  const heads = metaDialog(page).locator(".meta-col h3");
+  await expect(heads).toHaveText(["Very often ×81", "Often ×27", "Regularly ×9", "Sometimes ×3", "Rarely ×1", "Never ×0"]);
+  await expect(page.locator("#only-changed, #weight-legend")).toHaveCount(0);
+  const names = await metaDialog(page).locator(".meta-card .name").allTextContents();
+  expect(new Set(names).size).toBe(names.length);
+  expect(names.length).toBe(fixture("data.json").archetypes.length);
+
+  // A level chosen from the menu moves the card and marks it changed; the menu marks the current and the default level.
+  await chooseLevel(page, "Dragapult", "Never");
+  expect(await columnOf(page, "Dragapult")).toBe("Never");
+  await expect(metaCard(page, "Dragapult").locator(".changed-dot")).toHaveCount(1);
+  await expect(page.locator("#tiers .tile", { hasText: "Dragapult" })).toHaveCount(0); // the tier list behind leaves it out
+  await metaCard(page, "Dragapult").click();
+  await expect(menuItem(page, "Never")).toHaveAttribute("aria-pressed", "true");
+  await expect(metaMenu(page).getByRole("button", { name: "Very often default" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.locator("#meta-search").fill("drag");
+  await expect(metaDialog(page).locator(".meta-card")).toHaveCount(1);
+  expect(await columnOf(page, "Dragapult")).toBe("Never");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("the card menu works with the keyboard only; Esc closes the menu, not My meta", async ({ page, consoleErrors }) => {
+  await page.goto("/#meta");
+  await metaCard(page, "Dragapult").focus();
+  await page.keyboard.press("Enter");
+  await expect(metaMenu(page)).toBeVisible();
+  await expect(menuItem(page, "Very often")).toBeFocused(); // the current level
+  await page.keyboard.press("Escape");
+  await expect(metaMenu(page)).toBeHidden();
+  await expect(metaDialog(page)).toBeVisible();
+  await expect(metaCard(page, "Dragapult")).toBeFocused();
+
+  await page.keyboard.press("Space");
+  await page.keyboard.press("Tab"); // Often
+  await page.keyboard.press("Enter");
+  await expect(metaMenu(page)).toBeHidden();
+  expect(await columnOf(page, "Dragapult")).toBe("Often");
+  await expect(metaCard(page, "Dragapult")).toBeFocused();
+  expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: { "dragapult-ex": 4 }, continent: "worldwide" });
   expect(consoleErrors).toEqual([]);
 });
 
@@ -438,7 +503,7 @@ test("export then import restores the same Settings, without the API key or hist
     localStorage.setItem("matchup-meta-advice", JSON.stringify([{ result: { summary: "secret advice" }, createdAt: "2026-11-01T10:00:00Z" }]));
   });
   await page.goto("/#meta");
-  await metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true }).click();
+  await chooseLevel(page, "Dragapult", "Never");
   await page.locator("#continent").selectOption("oce");
   const exported = await tierList(page); // the tier list behind the dialog
   const saved = await storedSettings(page);
@@ -451,8 +516,8 @@ test("export then import restores the same Settings, without the API key or hist
 
   // Change everything, then import the file.
   await page.locator("#continent").selectOption("eu");
-  await metaRow(page, "Dragapult").getByRole("button", { name: "Reset Dragapult to default" }).click();
-  await metaRow(page, "Crustle").getByRole("button", { name: "Rarely", exact: true }).click();
+  await chooseLevel(page, "Dragapult", "Reset to default");
+  await chooseLevel(page, "Crustle", "Rarely");
   await importFile(page, file.text);
   await expect(page.locator("#import-state")).toHaveText("Settings imported from settings.json.");
   expect(await storedSettings(page)).toEqual(saved);
@@ -467,14 +532,14 @@ test("export then import restores the same Settings, without the API key or hist
 
 test("an invalid settings file shows a message and changes nothing", async ({ page, consoleErrors }) => {
   await page.goto("/#meta");
-  await metaRow(page, "Dragapult").getByRole("button", { name: "Rarely", exact: true }).click();
+  await chooseLevel(page, "Dragapult", "Rarely");
   const before = await storedSettings(page);
   await importFile(page, JSON.stringify({ version: 1, continent: "eu", localFrequencies: { "dragapult-ex": 9 } }));
   await expect(page.locator("#import-state")).toContainText("Not imported, your settings are unchanged.");
   await expect(page.locator("#import-state")).toContainText("dragapult-ex");
   expect(await storedSettings(page)).toEqual(before);
   await expect(page.locator("#continent")).toHaveValue("worldwide");
-  await expect(metaRow(page, "Dragapult").getByRole("button", { name: "Rarely", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await columnOf(page, "Dragapult")).toBe("Rarely");
   expect(consoleErrors).toEqual([]);
 });
 
@@ -487,7 +552,6 @@ const morePlayers = page => page.route("**/labs.json", route => {
   labs.events = labs.events.map(e => ({ ...e, players: 16 }));
   return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(labs) });
 });
-const defaultLevel = row => row.locator(".seg button.is-default");
 
 test("changing continent changes default levels and the tier list, not local frequencies", async ({ page, consoleErrors }) => {
   await morePlayers(page);
@@ -496,15 +560,14 @@ test("changing continent changes default levels and the tier list, not local fre
   const worldwide = await page.locator("#tier-legend").textContent();
 
   await page.locator("#open-meta").click();
-  await metaRow(page, "Dragapult").getByRole("button", { name: "Rarely", exact: true }).click();
-  const crustle = metaRow(page, "Crustle");
-  await expect(defaultLevel(crustle)).toHaveText("Regularly");
-  await expect(crustle.getByRole("button", { name: "Regularly", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await chooseLevel(page, "Dragapult", "Rarely");
+  expect(await defaultOf(page, "Crustle")).toBe("Regularly");
+  expect(await columnOf(page, "Crustle")).toBe("Regularly");
 
   await page.getByLabel("Start from").selectOption("Oceania");
-  await expect(defaultLevel(crustle)).toHaveText("Often");
-  await expect(crustle.getByRole("button", { name: "Often", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(metaRow(page, "Dragapult").getByRole("button", { name: "Rarely", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await defaultOf(page, "Crustle")).toBe("Often");
+  expect(await columnOf(page, "Crustle")).toBe("Often");
+  expect(await columnOf(page, "Dragapult")).toBe("Rarely");
   await expect(page.locator("#continent-note")).toBeHidden();
   expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: { "dragapult-ex": 1 }, continent: "oce" });
 
@@ -514,7 +577,7 @@ test("changing continent changes default levels and the tier list, not local fre
   await page.reload();
   await page.locator("#open-meta").click();
   await expect(page.getByLabel("Start from")).toHaveValue("oce");
-  await expect(defaultLevel(metaRow(page, "Crustle"))).toHaveText("Often");
+  expect(await defaultOf(page, "Crustle")).toBe("Often");
   expect(consoleErrors).toEqual([]);
 });
 
@@ -527,7 +590,7 @@ test("a continent without Regionals shows a note and uses Worldwide", async ({ p
   await page.getByLabel("Start from").selectOption("Latin America");
   await expect(note).toBeVisible();
   await expect(note).toHaveText(`There are no Regionals in Latin America in season ${fixture("labs.json").season}, so the defaults use Worldwide.`);
-  await expect(defaultLevel(metaRow(page, "Crustle"))).toHaveText("Regularly");
+  expect(await defaultOf(page, "Crustle")).toBe("Regularly");
   expect(consoleErrors).toEqual([]);
 });
 
@@ -548,7 +611,7 @@ test("the lists on a deck page do not change with the continent", async ({ page,
 
   await page.locator("#open-meta").click();
   await page.getByLabel("Start from").selectOption("Oceania");
-  await expect(defaultLevel(metaRow(page, "Crustle"))).toHaveText("Often");
+  expect(await defaultOf(page, "Crustle")).toBe("Often");
   await page.keyboard.press("Escape");
   expect(await lists()).toEqual(worldwide);
   await expect(share()).toContainText("Share2.8%");
@@ -569,9 +632,8 @@ for (const [name, unavailable] of Object.entries(UNAVAILABLE)) {
     await expect(page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" })).toBeVisible();
 
     await page.locator("#open-meta").click();
-    const never = metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true });
-    await never.click();
-    await expect(never).toHaveAttribute("aria-pressed", "true"); // still works for this visit
+    await chooseLevel(page, "Dragapult", "Never");
+    expect(await columnOf(page, "Dragapult")).toBe("Never"); // still works for this visit
     await expect(page.locator("#save-state")).toHaveText("Could not save; your changes only apply to this session");
     expect(consoleErrors).toEqual([]);
   });

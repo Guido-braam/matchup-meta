@@ -118,24 +118,42 @@ function renderTiers() {
 }
 
 // ---------- Mijn meta ----------
+// Bord: per frequency level een kolom met de decks als kaarten. Een kaart opent een menu met de zes levels.
 function renderMeta() {
   const q = $("meta-search").value.trim().toLowerCase();
-  const onlyChanged = $("only-changed").checked;
-  const rows = D.archetypes.map((a, i) => ({ a, i }))
-    .filter(({ a }) => (!q || a.name.toLowerCase().includes(q)) && (!onlyChanged || a.id in localFrequencies));
-  $("meta-list").innerHTML = rows.length ? rows.map(({ a, i }) => {
-    const cur = level(i), { defaultLevel: def, defaultShare: ds } = meta.decks[i];
-    return `<div class="meta-row">
-      ${spritesHtml(a, "sm")}
-      <div class="nm"><button data-deck="${i}">${esc(a.name)}</button>${a.id in localFrequencies ? '<span class="changed-dot" title="Local frequency"></span>' : ""}
-        <div class="sub">Default: ${LABEL[def]} · ${pct(ds.share)} share ${ds.source === "regionals" ? "at Regionals" : "on Trainerhill"}${a.id in localFrequencies
-          ? ` · <button class="reset-one" data-set="${esc(a.id)}" data-w="${def}" aria-label="Reset ${esc(a.name)} to default">Reset</button>` : ""}</div></div>
-      <div class="seg" role="group" aria-label="How often do you meet ${esc(a.name)}?">
-        ${LEVELS.map(l => `<button data-set="${esc(a.id)}" data-w="${l.lv}" aria-pressed="${cur === l.lv}" class="${def === l.lv ? "is-default" : ""}">${l.label}</button>`).join("")}
-      </div>
-    </div>`;
-  }).join("") : `<div class="state">No decks found.</div>`;
+  const cols = Object.fromEntries(LEVELS.map(l => [l.lv, []]));
+  D.archetypes.forEach((a, i) => {
+    if (q && !a.name.toLowerCase().includes(q)) return;
+    cols[level(i)].push(`<button type="button" class="meta-card" data-menu="${i}" aria-haspopup="true">
+      ${spritesHtml(a, "sm")}<span class="name">${esc(a.name)}</span>${a.id in localFrequencies ? '<span class="changed-dot" title="Local frequency"></span>' : ""}</button>`);
+  });
+  $("meta-board").innerHTML = LEVELS.map(l => `<section class="meta-col" data-level="${l.lv}">
+    <h3>${l.label} <span class="w">×${l.w}</span></h3>
+    <div class="cards">${cols[l.lv].join("") || '<span class="empty-tier">No decks</span>'}</div>
+  </section>`).join("");
 }
+// Eén menu (popover) voor alle kaarten; Esc sluit alleen het menu. Kiezen loopt via [data-set] -> setLevel().
+let menuDeck = null;
+function openMenu(card) {
+  const i = Number(card.dataset.menu), a = D.archetypes[i], cur = level(i), { defaultLevel: def, defaultShare: ds } = meta.decks[i];
+  const menu = $("meta-menu");
+  menuDeck = i;
+  menu.innerHTML = `<div class="mm-head"><b>${esc(a.name)}</b><span class="note">${pct(ds.share)} share ${ds.source === "regionals" ? "at Regionals" : "on Trainerhill"}</span></div>
+    ${LEVELS.map(l => `<button type="button" data-set="${esc(a.id)}" data-w="${l.lv}" aria-pressed="${cur === l.lv}">${l.label}${def === l.lv ? ' <small>default</small>' : ""}</button>`).join("")}
+    ${a.id in localFrequencies ? `<button type="button" class="mm-reset" data-set="${esc(a.id)}" data-w="${def}">Reset to default</button>` : ""}`;
+  menu.showPopover();
+  const r = card.getBoundingClientRect(), m = menu.getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(r.left, innerWidth - m.width - 8)) + "px";
+  menu.style.top = (r.bottom + m.height + 8 > innerHeight ? Math.max(8, r.top - m.height - 4) : r.bottom + 4) + "px";
+  menu.querySelector('[aria-pressed="true"]').focus();
+}
+$("meta-board").addEventListener("click", e => { const c = e.target.closest("[data-menu]"); if (c) openMenu(c); });
+$("meta-menu").addEventListener("click", e => { if (e.target.closest("[data-set]")) $("meta-menu").hidePopover(); });
+// Na een keuze is het bord opnieuw getekend: de focus gaat terug naar de (nieuwe) kaart.
+$("meta-menu").addEventListener("toggle", e => {
+  if (e.newState === "closed" && (!document.activeElement || document.activeElement === document.body))
+    $("meta-board").querySelector(`[data-menu="${menuDeck}"]`)?.focus();
+});
 
 // ---------- Deck-detail ----------
 // Matchuplijsten: top 5, uitklapbaar. Breed scherm: beide kolommen tegelijk; smal (onder elkaar): per kolom.
@@ -672,7 +690,6 @@ $("lab-select").addEventListener("change", e => {
   labSel = i;
   DeckLab.open($("lab-host"), p.text, p.label);
 });
-$("only-changed").addEventListener("change", renderMeta);
 document.addEventListener("click", e => {
   const b = e.target.closest("button[data-never]");
   if (!b) return;
@@ -718,8 +735,6 @@ $("import-file").addEventListener("change", async e => {
 });
 
 // ---------- Start ----------
-$("weight-legend").innerHTML = "Weight in the calculation: " + LEVELS.map(l => `<span><b>${l.label}</b> ${l.w}</span>`).join("");
-
 // "2026-10-16" of "2026-10-16T15:04" -> "16 Oct 2026". Alleen de datum telt, dus in UTC om geen dag te verschuiven.
 const fmtDate = s => {
   const [y, m, d] = String(s).slice(0, 10).split("-").map(Number);
