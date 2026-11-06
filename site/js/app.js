@@ -85,6 +85,8 @@ $("continent").addEventListener("change", e => { continent = e.target.value; sav
 
 // ---------- Tier list ----------
 function renderTiers() {
+  const n = Object.keys(localFrequencies).length;
+  $("tier-basis").textContent = `Expected winrate against your meta: ${CONTINENT_NAME[continent]}, ${n} change${n === 1 ? "" : "s"}`;
   const showNever = $("show-never").checked;
   const T = meta.tiers;
   const groups = Object.fromEntries(T.map(t => [t.tier, []]));
@@ -149,12 +151,7 @@ function toggleMu(key) {
 }
 
 function renderDeck() {
-  const sel = $("deck-select");
-  // Tiers hangen af van Mijn meta, dus de lijst elke keer opnieuw opbouwen.
-  sel.innerHTML = `<option value="">Choose a deck…</option>` + deckOptions(false);
-  sel.value = selected == null ? "" : String(selected);
-  syncPickBtn(sel);
-  if (selected == null) { labPick = null; $("deck-detail").innerHTML = `<div class="panel state">Choose a deck, or click a deck in the tier list.</div>`; renderChat(); return; }
+  if (selected == null) { labPick = null; $("deck-detail").innerHTML = `<div class="panel state">Click a deck in the tier list.</div>`; renderChat(); return; }
 
   const n = D.archetypes.length, a = D.archetypes[selected], r = rating(selected);
   const hideNever = $("hide-never-opp").checked;
@@ -212,6 +209,12 @@ function renderDeck() {
         <div class="info">
           <h2>${esc(a.name)}</h2>
           <div class="sub deck-sub">${r ? `Expected winrate against My meta <b class="${r.exp >= 0.52 ? "pos" : r.exp <= 0.48 ? "neg" : ""}">${pct(r.exp)}</b>` : "Set the decks you meet in My meta to get an expected winrate"}</div>
+          <nav class="deck-links" aria-label="On this page">
+            <button type="button" data-jump="#deck-detail .mu-cols">Matchups</button>
+            <button type="button" data-jump="#deck-key">Key numbers</button>
+            <button type="button" data-jump="#deck-key ~ section.dl">Lists</button>
+            <button type="button" data-chatjump>Deck chat</button>
+          </nav>
         </div>
         ${t ? `<span class="badge" style="background:var(--tier-${t})" title="Tier ${t}">${t}</span>` : ""}
       </div>
@@ -225,7 +228,7 @@ function renderDeck() {
       <div><h3>Questions about ${esc(a.name)}?</h3><p class="note">Deck chat knows My meta, the matchups and the lists for this deck.</p></div>
       <button class="btn primary" type="button" data-chatjump>Open Deck chat</button>
     </section>` : ""}
-    <section class="panel dl">
+    <section class="panel dl" id="deck-key">
       <div class="dl-head"><h3>Key numbers</h3></div>
       <div class="fact-grid">
         ${factGroup("My meta", [["Chance of a favorable matchup", r ? pct(r.fav, 0) : "–"], ["Expected winrate", r ? pct(r.exp) : "–"]])}
@@ -560,18 +563,39 @@ function copyExport(btn) {
 }
 
 // ---------- Navigatie ----------
-const TABS = ["tierlist", "deck", "lab", "advice", "meta"];
+// Twee tabs; het deck, My meta en Advice zijn pagina's zonder tab, bereikbaar via de hash.
+const TABS = ["tierlist", "lab"];
+const PAGES = [...TABS, "deck", "meta", "advice"];
 let current = "tierlist";
-function show(tab) {
-  if (!TABS.includes(tab)) tab = "tierlist";
-  current = tab;
-  TABS.forEach(t => {
-    $("page-" + t).hidden = t !== tab;
-    $("tab-" + t).setAttribute("aria-selected", String(t === tab));
-  });
-  storage.write("matchup-meta-tab", tab);
+function show(page) {
+  if (!PAGES.includes(page)) page = "tierlist";
+  current = page;
+  PAGES.forEach(p => { $("page-" + p).hidden = p !== page; });
+  TABS.forEach(t => $("tab-" + t).setAttribute("aria-selected", String(t === page)));
+  if (TABS.includes(page)) storage.write("matchup-meta-tab", page);
   renderCurrent();
 }
+// De hash bepaalt de pagina: #deck/<deck id>, #lab, #meta, #advice; zonder hash de onthouden tab.
+// Een onbekend deck of een onbekende hash geeft de tier list.
+function route() {
+  let h;
+  try { h = decodeURIComponent(location.hash.slice(1)); } catch { h = ""; }
+  if (h.split("/")[0] === "deck") {
+    if (!D) return; // start() routeert opnieuw als de data er is
+    const i = D.archetypes.findIndex(a => a.id === h.slice(5));
+    if (i < 0) return show("tierlist");
+    selected = i; show("deck"); window.scrollTo({ top: 0 });
+    return;
+  }
+  const tab = storage.read("matchup-meta-tab");
+  show(h || (TABS.includes(tab) ? tab : "tierlist"));
+}
+// Naar een hash, meteen getoond. pushState geeft geen hashchange; terug en vooruit wel.
+function go(h) {
+  if (location.hash !== "#" + h) history.pushState(null, "", "#" + h);
+  route();
+}
+addEventListener("hashchange", route);
 function renderCurrent() {
   if (current === "lab") { DeckLab.mount($("lab-host")); if (D) { recompute(); renderLabSelect(); } return; }
   if (!D) return;
@@ -582,15 +606,17 @@ function renderCurrent() {
   else if (current === "advice") renderAdvice();
 }
 const renderAll = renderCurrent;
-function openDeck(i) { selected = i; show("deck"); window.scrollTo({ top: 0 }); }
+const openDeck = i => go("deck/" + encodeURIComponent(D.archetypes[i].id));
 
 document.querySelector("nav.tabs").addEventListener("click", e => {
   const b = e.target.closest("button[data-tab]");
-  if (b) show(b.dataset.tab);
+  if (b) go(b.dataset.tab);
 });
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-goto]");
-  if (g) { e.preventDefault(); show(g.dataset.goto); return; }
+  if (g) { e.preventDefault(); go(g.dataset.goto); return; }
+  const jb = e.target.closest("button[data-jump]");
+  if (jb) { document.querySelector(jb.dataset.jump)?.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
   const x = e.target.closest("button[data-export]");
   if (x) { copyExport(x); return; }
   const lb = e.target.closest("button[data-lab]");
@@ -598,7 +624,7 @@ document.addEventListener("click", e => {
     const k = Number(lb.dataset.lab);
     labSel = current === "deck" ? selected : null;
     DeckLab.open($("lab-host"), exportText(exportLists[k] || []), labLabels.get(k) || "List from Matchup Meta");
-    show("lab"); window.scrollTo({ top: 0 });
+    go("lab"); window.scrollTo({ top: 0 });
     return;
   }
   if (e.target.closest("button[data-chatjump]")) { $("deck-chat").scrollIntoView({ block: "start", behavior: "smooth" }); setTimeout(() => $("chat-input")?.focus({ preventScroll: true }), 400); return; }
@@ -620,7 +646,6 @@ $("lab-select").addEventListener("change", e => {
   labSel = i;
   DeckLab.open($("lab-host"), p.text, p.label);
 });
-$("deck-select").addEventListener("change", e => { selected = e.target.value === "" ? null : Number(e.target.value); renderDeck(); });
 ["show-never", "only-changed", "hide-never-opp"].forEach(id => $(id).addEventListener("change", renderCurrent));
 $("meta-search").addEventListener("input", renderMeta);
 let resetArmed = false;
@@ -675,7 +700,6 @@ function applyData(json, origin) {
   D.origin = origin;
   const idx = D.archetypes.findIndex(a => a.id === prevId);
   selected = idx >= 0 ? idx : null;
-  $("deck-select").innerHTML = "";
   renderSource();
   renderCurrent();
 }
@@ -690,12 +714,13 @@ function renderFooter() {
   $("foot-updated").textContent = parts.join(" · ");
 }
 
+// Periode van de bronnen, in de footer.
 function renderSource() {
   if (!D) return;
   const f = D.filters;
   let s = `Matchups: Trainerhill, tournaments with ${f.players}+ players, ${fmtDate(f.start_date)} to ${fmtDate(f.end_date)}`;
   if (L) s += ` · Results and lists: ${L.events.length} Regionals (Limitless Labs${L.settings?.top ? `, top ${L.settings.top}` : ""})`;
-  $("source").textContent = s;
+  $("foot-period").textContent = s;
   renderFooter();
 }
 
@@ -1391,20 +1416,18 @@ async function start() {
   advice = adviceHistory[0] ?? null;
   for (const [id, turns] of Object.entries(storage.loadDeckChats())) chats.set(id, { turns });
   renderKey();
-  let tab = (location.hash || "").slice(1);
-  if (!TABS.includes(tab)) tab = storage.read("matchup-meta-tab") || "tierlist";
-  show(tab);
+  route();
   const labsReq = fetch("labs.json").then(r => r.ok ? r.json() : null).catch(() => null);
   try {
     applyData(await fetch("data.json").then(r => r.json()), "bundled");
   } catch {
     $("tiers").innerHTML = `<div class="state">The data could not be loaded. Reload the page.</div>`;
-    $("source").textContent = "Data not loaded";
+    $("foot-period").textContent = "Data not loaded";
   }
   const labs = await labsReq;
   if (labs && isLabs(labs)) applyLabs(labs, "bundled");
   renderFooter();
 
-  renderCurrent();
+  route();
 }
 start();

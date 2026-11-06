@@ -7,7 +7,14 @@ const fixture = name => JSON.parse(readFileSync(`${FIXTURES}/${name}`, "utf8"));
 // "2026-10-16T15:04" -> "16 Oct 2026", written out here instead of reusing the page's formatter.
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const day = s => { const [y, m, d] = s.slice(0, 10).split("-").map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; };
-const TABS = ["tierlist", "deck", "lab", "advice", "meta"];
+// The two tabs and the My meta and Ask Claude buttons in the header.
+const VIEWS = { tierlist: "#tab-tierlist", lab: "#tab-lab", meta: "#open-meta", advice: "#open-ask" };
+// A deck page is reached only by clicking a deck; it has no tab.
+const openDeck = async (page, name) => {
+  await page.locator("#tab-tierlist").click();
+  await page.locator("#tiers .tile[data-deck]", { hasText: name }).click();
+  await expect(page.locator("#deck-detail h2")).toHaveText(name);
+};
 
 // Google Fonts is the only outside request the page makes; answer it with an empty
 // stylesheet so the tests need no network. Any other outside request is blocked,
@@ -87,7 +94,7 @@ test("a deck page opens from the tier list", async ({ page, consoleErrors }) => 
 
   await page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" }).click();
 
-  await expect(page.locator("#tab-deck")).toHaveAttribute("aria-selected", "true");
+  await expect(page).toHaveURL(/#deck\/dragapult-ex$/);
   await expect(page.locator("#page-deck")).toBeVisible();
   const detail = page.locator("#deck-detail");
   await expect(detail).toContainText("Dragapult");
@@ -96,7 +103,103 @@ test("a deck page opens from the tier list", async ({ page, consoleErrors }) => 
   expect(consoleErrors).toEqual([]);
 });
 
-test("Deck Lab checks a pasted list", async ({ page, consoleErrors }) => {
+test("the header has two tabs and two equal buttons for My meta and Ask Claude", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+  await expect(page.getByRole("tab")).toHaveText(["Tier list", "Deck Lab"]);
+  for (const name of ["My meta", "Ask Claude"]) {
+    const b = page.locator("header").getByRole("button", { name, exact: true });
+    await expect(b).toHaveClass("btn"); // same style, neither highlighted
+    await b.click();
+    await expect(b).toHaveClass("btn");
+  }
+  await expect(page.locator("#page-advice")).toBeVisible();
+  await expect(page.locator("#deck-select, button[data-picker=deck-select]")).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("the tier list says what it is based on", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+  await expect(page.locator("#tier-basis")).toHaveText("Expected winrate against your meta: Worldwide, 0 changes");
+  await page.locator("#open-meta").click();
+  await metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true }).click();
+  await page.locator("#continent").selectOption("eu");
+  await page.locator("#tab-tierlist").click();
+  await expect(page.locator("#tier-basis")).toHaveText("Expected winrate against your meta: Europe, 1 change");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a deck page has its own address: back returns to the tier list", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+  await page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" }).click();
+  await expect(page).toHaveURL(/#deck\/dragapult-ex$/);
+  await expect(page.locator("#deck-detail h2")).toHaveText("Dragapult");
+
+  // An opponent in a matchup row opens that deck, at its own address.
+  await page.locator("#deck-detail .mu-name", { hasText: "Crustle" }).click();
+  await expect(page).toHaveURL(/#deck\/crustle-dri$/);
+  await expect(page.locator("#deck-detail h2")).toHaveText("Crustle");
+
+  await page.goBack();
+  await expect(page.locator("#deck-detail h2")).toHaveText("Dragapult");
+  await page.goBack();
+  await expect(page.locator("#page-tierlist")).toBeVisible();
+  await expect(page.locator("#page-deck")).toBeHidden();
+
+  await page.goForward();
+  await expect(page.locator("#deck-detail h2")).toHaveText("Dragapult");
+  await page.getByRole("link", { name: "Back to tier list" }).click();
+  await expect(page.locator("#page-tierlist")).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a deck page loads directly from its address, with every block and the section links", async ({ page, consoleErrors }) => {
+  await page.goto("/#deck/dragapult-ex");
+  const detail = page.locator("#deck-detail");
+  await expect(detail.locator("h2")).toHaveText("Dragapult");
+  await expect(page.getByRole("link", { name: "Back to tier list" })).toBeVisible();
+  await expect(detail.locator(".deck-links button")).toHaveText(["Matchups", "Key numbers", "Lists", "Deck chat"]);
+  await expect(detail.locator(".mu-cols")).toBeVisible();
+  await expect(detail.locator("h3")).toContainText(["Favorable", "Unfavorable", "Key numbers", "Played lists", "Consensus list"]);
+  await expect(page.locator("#deck-chat")).toBeVisible();
+  // The tabs stay as they were: a deck page is none of them.
+  await expect(page.locator("#tab-tierlist")).toHaveAttribute("aria-selected", "false");
+  expect(consoleErrors).toEqual([]);
+});
+
+for (const hash of ["#deck/no-such-deck", "#deck", "#deck/", "#nonsense"]) {
+  test(`${hash} shows the tier list`, async ({ page, consoleErrors }) => {
+    await page.goto("/" + hash);
+    await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
+    await expect(page.locator("#page-deck")).toBeHidden();
+    await expect(page.locator("#tab-tierlist")).toHaveAttribute("aria-selected", "true");
+    expect(consoleErrors).toEqual([]);
+  });
+}
+
+test("old addresses #meta and #advice still open those pages", async ({ page }) => {
+  await page.goto("/#meta");
+  await expect(page.locator("#page-meta")).toBeVisible();
+  await page.goto("/#advice");
+  await expect(page.locator("#page-advice")).toBeVisible();
+});
+
+test("only the Tier list or Deck Lab tab is remembered", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("#tab-lab").click();
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem("matchup-meta-tab")))).toBe("lab");
+  await page.locator("#open-meta").click();
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem("matchup-meta-tab")))).toBe("lab");
+  await page.goto("/");
+  await expect(page.locator("#page-lab")).toBeVisible();
+
+  for (const old of ["meta", "advice", "deck"]) {
+    await page.evaluate(v => localStorage.setItem("matchup-meta-tab", JSON.stringify(v)), old);
+    await page.goto("/");
+    await expect(page.locator("#page-tierlist")).toBeVisible();
+  }
+});
+
+test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   await page.goto("/");
   await page.locator("#tab-lab").click();
   const lab = page.locator("#lab-host"); // Deck Lab lives in an open shadow root; locators pierce it.
@@ -122,10 +225,16 @@ test("every view shows the footer with sources, update dates and season", async 
   await expect(foot.getByRole("link", { name: "Limitless" })).toHaveAttribute("href", "https://labs.limitlesstcg.com");
   await expect(page.locator("#foot-updated")).toHaveText(
     `Matchups updated ${day(data.generated)} · Regionals updated ${day(labs.generated)} · Season ${labs.season} (from 1 Aug ${labs.season - 1})`);
-  for (const tab of TABS) {
-    await page.locator(`#tab-${tab}`).click();
+  await expect(page.locator("#foot-period")).toHaveText(
+    `Matchups: Trainerhill, tournaments with ${data.filters.players}+ players, ${day(data.filters.start_date)} to ${day(data.filters.end_date)}`
+    + ` · Results and lists: ${labs.events.length} Regionals (Limitless Labs${labs.settings?.top ? `, top ${labs.settings.top}` : ""})`);
+  await expect(page.locator("#source")).toHaveCount(0); // the header has no subtitle any more
+  for (const view of Object.values(VIEWS)) {
+    await page.locator(view).click();
     await expect(foot).toBeVisible();
   }
+  await openDeck(page, "Dragapult");
+  await expect(foot).toBeVisible();
   expect(consoleErrors).toEqual([]);
 });
 
@@ -145,16 +254,13 @@ test.describe("at phone width", () => {
     await page.goto("/");
     await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
     const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    for (const tab of TABS) {
-      await page.locator(`#tab-${tab}`).click();
-      if (tab === "deck") {
-        await page.locator("button[data-picker=deck-select]").click();
-        await page.locator("#pk-body button[data-pick]", { hasText: "Dragapult" }).click();
-        await expect(page.locator("#deck-detail")).toContainText("Dragapult");
-      }
-      if (tab === "lab") await expect(page.locator("#lab-host").locator("#view")).not.toBeEmpty();
-      expect(await overflow(), `sideways scroll on ${tab}`).toBeLessThanOrEqual(0);
+    for (const [view, button] of Object.entries(VIEWS)) {
+      await page.locator(button).click();
+      if (view === "lab") await expect(page.locator("#lab-host").locator("#view")).not.toBeEmpty();
+      expect(await overflow(), `sideways scroll on ${view}`).toBeLessThanOrEqual(0);
     }
+    await openDeck(page, "Dragapult");
+    expect(await overflow(), "sideways scroll on a deck page").toBeLessThanOrEqual(0);
     expect(consoleErrors).toEqual([]);
   });
 });
@@ -170,7 +276,7 @@ test("a local frequency is still there after a reload", async ({ page, consoleEr
   await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
   const defaults = await tierList(page);
 
-  await page.locator("#tab-meta").click();
+  await page.locator("#open-meta").click();
   await metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true }).click();
   await page.locator("#tab-tierlist").click();
   const changed = await tierList(page);
@@ -180,7 +286,7 @@ test("a local frequency is still there after a reload", async ({ page, consoleEr
   await page.reload();
   await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
   expect(await tierList(page)).toEqual(changed);
-  await page.locator("#tab-meta").click();
+  await page.locator("#open-meta").click();
   await expect(metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true })).toHaveAttribute("aria-pressed", "true");
   expect(consoleErrors).toEqual([]);
 });
@@ -224,7 +330,7 @@ test("export then import restores the same Settings, without the API key or hist
   const exported = await tierList(page);
   const saved = await storedSettings(page);
 
-  await page.locator("#tab-meta").click();
+  await page.locator("#open-meta").click();
   const file = await exportFile(page);
   expect(file.name).toBe("matchup-meta-settings.json");
   expect(JSON.parse(file.text)).toEqual({ version: 1, continent: "oce", localFrequencies: { "dragapult-ex": 0 } });
@@ -279,7 +385,7 @@ test("changing continent changes default levels and the tier list, not local fre
   await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
   const worldwide = await page.locator("#tier-legend").textContent();
 
-  await page.locator("#tab-meta").click();
+  await page.locator("#open-meta").click();
   await metaRow(page, "Dragapult").getByRole("button", { name: "Rarely", exact: true }).click();
   const crustle = metaRow(page, "Crustle");
   await expect(defaultLevel(crustle)).toHaveText("Regularly");
@@ -297,7 +403,7 @@ test("changing continent changes default levels and the tier list, not local fre
   await expect(page.locator("#tier-legend")).not.toHaveText(worldwide);
 
   await page.reload();
-  await page.locator("#tab-meta").click();
+  await page.locator("#open-meta").click();
   await expect(page.getByLabel("Continent")).toHaveValue("oce");
   await expect(defaultLevel(metaRow(page, "Crustle"))).toHaveText("Often");
   expect(consoleErrors).toEqual([]);
@@ -320,9 +426,7 @@ test("the lists on a deck page do not change with the continent", async ({ page,
   await morePlayers(page);
   await page.goto("/");
   const lists = async () => {
-    await page.locator("#tab-deck").click();
-    await page.locator("button[data-picker=deck-select]").click();
-    await page.locator("#pk-body button[data-pick]", { hasText: "Crustle" }).click();
+    await openDeck(page, "Crustle");
     await expect(page.locator("#deck-detail")).toContainText("Consensus list");
     // Every list panel; Key numbers holds the share and expected winrate, which do follow the continent.
     return page.locator("#deck-detail section.dl").evaluateAll(ss =>
@@ -333,7 +437,7 @@ test("the lists on a deck page do not change with the continent", async ({ page,
   expect(worldwide.length).toBeGreaterThan(0);
   await expect(share()).toContainText("Share2.2%");
 
-  await page.locator("#tab-meta").click();
+  await page.locator("#open-meta").click();
   await page.getByLabel("Continent").selectOption("Oceania");
   await expect(defaultLevel(metaRow(page, "Crustle"))).toHaveText("Often");
   expect(await lists()).toEqual(worldwide);
@@ -354,7 +458,7 @@ for (const [name, unavailable] of Object.entries(UNAVAILABLE)) {
     await page.goto("/");
     await expect(page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" })).toBeVisible();
 
-    await page.locator("#tab-meta").click();
+    await page.locator("#open-meta").click();
     const never = metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true });
     await never.click();
     await expect(never).toHaveAttribute("aria-pressed", "true"); // still works for this visit
@@ -367,11 +471,6 @@ for (const [name, unavailable] of Object.entries(UNAVAILABLE)) {
 // made: without a key the page sends nothing, and with a key the Messages API route is stubbed.
 const API_KEY = "sk-ant-test-0000-abcd";
 const stored = (page, key) => page.evaluate(k => localStorage.getItem(k), key);
-const openDeck = async (page, name) => {
-  await page.locator("#tab-deck").click();
-  await page.locator("button[data-picker=deck-select]").click();
-  await page.locator("#pk-body button[data-pick]", { hasText: name }).click();
-};
 
 // A structured Advice answer as the Messages API sends it back, with English field names.
 const ADVICE_ANSWER = {
@@ -404,7 +503,7 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await page.goto("/");
   await expect(page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" })).toBeVisible(); // the tier list still works
 
-  await page.locator("#tab-advice").click();
+  await page.locator("#open-ask").click();
   await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
   await expect(page.getByLabel("Anthropic API key")).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove key" })).toBeHidden();

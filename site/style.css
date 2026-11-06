@@ -66,15 +66,17 @@ h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
 h1 { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.01em; }
 h2 { font-size: 1.25rem; font-weight: 800; }
 .sub { color: var(--muted); font-size: 0.9rem; }
-header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; }
+/* Header: titel, de twee tabs en rechts My meta en Ask Claude; loopt door op een smal scherm. */
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; }
+.head-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.tier-basis { margin: 0 0 10px; }
 
 nav.tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 nav.tabs::-webkit-scrollbar { display: none; }
-/* Telefoon: 6 tabs in 2 rijen van 3 */
+/* Telefoon: titel en knoppen op de eerste regel, de twee tabs over de volle breedte eronder */
 @media (max-width: 640px) {
-  nav.tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: 3px; overflow: visible; }
+  nav.tabs { order: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 3px; overflow: visible; }
   nav.tabs button { padding: 9px 4px; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; }
-  nav.tabs .long { display: none; }
 }
 nav.tabs button {
   font: 600 0.95rem var(--font-body); color: var(--muted); background: transparent;
@@ -175,6 +177,12 @@ input[type="search"], select {
 .deck-blocks > .dl { border-top: 0; }
 .deck-sub { margin-top: 4px; font-size: 0.95rem; }
 .deck-sub b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.back-link { display: inline-block; margin-bottom: 10px; color: var(--accent); font-weight: 600; font-size: 0.9rem; text-decoration: none; }
+.back-link:hover { text-decoration: underline; }
+.deck-links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
+.deck-links button { all: unset; cursor: pointer; color: var(--accent); font-weight: 600; font-size: 0.86rem; }
+.deck-links button:hover { text-decoration: underline; }
+.deck-links button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .ask-block { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; padding: 14px 16px; }
 .ask-block h3 { font-size: 1.05rem; }
 .ask-block .note { margin: 2px 0 0; }
