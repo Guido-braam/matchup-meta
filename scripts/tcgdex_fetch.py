@@ -3,6 +3,11 @@
 Gebruik:
     python -I tcgdex_fetch.py                    # schrijft naar site/cards/
     python -I tcgdex_fetch.py --out /tmp/cards
+    python -I tcgdex_fetch.py --check-labs site/labs.json   # alleen controleren, zonder netwerk
+
+Met --check-labs haalt het script niets op: het print een GitHub-waarschuwing (::warning::) voor elke
+kaart in dat labs.json die <out>/index.json niet kent, en eindigt altijd zonder fout. De data-refresh
+draait dit na het bouwen van labs.json (ADR 0005).
 
 TCGdex is gratis en heeft geen key nodig (ADR 0005). Het script vraagt met 4 tegelijk op, meldt zich met
 de User-Agent MatchupMeta/1.0 (+adres van de site) en probeert het bij 429 en 5xx een paar keer opnieuw.
@@ -136,10 +141,27 @@ def fetch_set(set_id, out, legal, pool):
     return info, {c["id"]: index_entry(c, has_image) for c, has_image in done}
 
 
+def unknown_cards(labs, index):
+    """Een ::warning::-regel per kaart in labs ([naam, setcode, nummer, sectie]) die de index niet kent.
+
+    Een kaart is bekend als een van de sets van zijn code hem heeft; het nummer wordt localId (3 cijfers)."""
+    return [f"::warning::{name} {code} {number} staat niet in site/cards/index.json. "
+            "Draai de workflow \"Refresh cards\" (Actions-tab) om nieuwe sets op te halen."
+            for name, code, number, _ in labs["cards"]
+            if not any(f"{s['id']}-{number.zfill(3)}" in index["cards"] for s in index["sets"].get(code, []))]
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", default=DEFAULT_OUT, help="map voor de kaarten (standaard site/cards)")
+    p.add_argument("--check-labs", metavar="LABS_JSON",
+                   help="haal niets op, waarschuw voor kaarten in dit labs.json die <out>/index.json niet kent")
     a = p.parse_args(argv)
+    if a.check_labs:
+        with open(a.check_labs, encoding="utf-8") as f, open(os.path.join(a.out, "index.json"), encoding="utf-8") as g:
+            warnings = unknown_cards(json.load(f), json.load(g))
+        print("\n".join(warnings) or "Alle kaarten in labs.json staan in de index.")
+        return
     os.makedirs(a.out, exist_ok=True)
 
     try:
