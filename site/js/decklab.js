@@ -1,5 +1,7 @@
 // ---------- Deck Lab: kansen en testhanden voor één decklijst ----------
 // Draait in een eigen shadow root, zodat de stijlen niet botsen met de rest van de pagina.
+import { findCard, loadCardIndex, cardTile } from "./cards.js";
+
 export const DeckLab = (() => {
   const SAMPLE = `Pokémon: 8
 4 Applin DRI 16
@@ -29,14 +31,9 @@ Energy: 2
 
 Total Cards: 60`;
 
-  const STAGE1 = new Set("ivysaur charmeleon wartortle kirlia pidgeotto dragonair gabite gloom haunter kadabra machoke lampent dusclops drakloak dolliv pawmo pawmot bellibolt kilowattrel toedscruel morgrem hattrem raichu bisharp espathra tinkatuff dachsbun lokix brambleghast palafin cinccino ceruledge armarouge croconaw quilava bayleef ninetales wigglytuff golduck slowbro slowking thwackey raboot drizzile corvisquire froslass glalie piloswine annihilape primeape dudunsparce farigiraf ursaring toxtricity frosmoth sinistcha dipplin flapple appletun whimsicott jellicent ariados centiskorch magcargo vibrava zoroark swanna duosion gothorita archaludon thievul gurdurr zebstrika pignite servine dewott lucario persian arcanine houndoom umbreon espeon vaporeon jolteon flareon leafeon glaceon sylveon weavile golbat crobat skuntank fraxure grovyle combusken marshtomp lairon vigoroth monferno prinplup grotle luxio staravia noivern clefable sandslash ninjask shedinja mismagius honchkrow polteageist ribombee boltund grapploct zweilous metang sealeo shelgon frogadier braixen quilladin toxicroak scovillain revavroom naclstack grafaiai cetitan arctibax maushold oinkologne houndstone wugtrio mabosstiff gholdengo kricketune sliggoo clawitzer meowstic".split(" "));
-  const STAGE2 = new Set("venusaur charizard blastoise gardevoir gallade pidgeot dragonite garchomp vileplume bellossom gengar alakazam machamp chandelure dusknoir dragapult arboliva grimmsnarl hatterene kingambit tinkaton feraligatr typhlosion meganium rillaboom cinderace inteleon corviknight mamoswine flygon reuniclus gothitelle conkeldurr emboar serperior samurott hydrapple hydreigon metagross walrein salamence greninja delphox chesnaught baxcalibur garganacl haxorus sceptile blaziken swampert aggron slaking infernape empoleon torterra luxray staraptor roserade goodra".split(" "));
-  const SUPPORTERS = new Set(["hilda","lillie's determination","boss's orders","perrin","kofu","iono","professor's research","arven","carmine","crispin","briar","professor sada's vitality","professor turo's scenario","judge","penny","jacq","cyrano","ciphermaniac's codebreaking","black belt's training","lacey","brock's scouting","eri","clavell","kieran","dawn","morty's conviction","salvatore","explorer's guidance","larry's skill","janine's secret art","caretaker","raifort","xerosic's machinations","atticus","hassel","roxanne","team rocket's petrel","team rocket's ariana","team rocket's archer","team rocket's giovanni","team rocket's proton","ethan's adventure","misty's determination","lillie's pearl","n's plan","hop's choice","marnie's pride","cynthia's ambition","emcee's hype","drayton","grusha","geeta","nemona","rika","ryme","tulip","poppy","giacomo","mela","ortega","colress's tenacity","dragon tamer","firebreather","surfer","lana's aid","harlequin","acerola's mischief","bianca's devotion","calem","lisia's appeal","waitress","fennel","jasmine's gaze","tarragon","anthea & concordia","clerk","whitney","morty","professor oak's setup"]);
-  const STADIUMS = new Set(["artazon","area zero underdepths","jamming tower","team rocket's watchtower","team rocket's factory","battle cage","neutral center","gravity mountain","lively stadium","postwick","levincia","mesagoza","prism tower","full metal lab","festival grounds","perilous jungle","beach court","forest of vitality","granite cave","spikemuth gym","risky ruins","calamitous wasteland","community center","magma basin","mystery garden","grand tree","neutralization zone","n's castle","lumiose city","surfing beach","cynthia's garden"]);
-  const ACE = new Set(["legacy energy","prime catcher","master ball","secret box","unfair stamp","maximum belt","neo upper energy","hero's cape","survival brace","awakening drum","dangerous laser","reboot pod","scoop up cyclone","precious trolley","grand tree","neutralization zone","sparkling crystal","megaton blower","poké vital a","deluxe bomb","energy search pro","treasure tracker","brilliant blender","amulet of hope","max rod","hyper aroma","enriching energy","dowsing machine","miracle headset","scramble switch","glass trumpet","last-ditch catcher"]);
-  // Items (en Artazon) waarmee je zonder Supporter Pokémon op je bank krijgt
+  // Items (en Artazon) waarmee je zonder Supporter Pokémon op je bank krijgt.
+  // Dit is strategie, geen kaartdata: de Card index zegt niet welke Items Pokémon zoeken, dus deze lijst blijft.
   const SETUP_ITEMS = new Set(["buddy-buddy poffin","nest ball","ultra ball","poké pad","battle vip pass","level ball","hisuian heavy ball","great ball","quick ball","evolution incense","mysterious treasure","techno radar","poké ball","timer ball","capturing aroma","secret box","master ball","artazon","bug catching set"]);
-  const TOOL_RE = /(charm|cape|belt|band|helmet|balloon|seal stone|rescue board|technical machine|vest|glasses|amulet|brace|headset|exp\. share|protective goggles|counter gain|tool)/i;
   const ENERGY_SYM = {G:"Grass",R:"Fire",W:"Water",L:"Lightning",P:"Psychic",F:"Fighting",D:"Darkness",M:"Metal",Y:"Fairy",N:"Dragon",C:"Colorless"};
   const CAT_LABEL = {pokemon:"Pokémon",trainer:"Trainer",energy:"Energy"};
   const SUB_LABEL = {item:"Item",supporter:"Supporter",tool:"Tool",stadium:"Stadium",basic:"Basic",special:"Special"};
@@ -46,61 +43,38 @@ Total Cards: 60`;
   const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const pct = (x, d=0) => (x*100).toFixed(d) + "%";
 
-  let overrides = {};
-  try { overrides = JSON.parse(localStorage.getItem("decklab.ov") || "{}"); } catch {}
-  const saveOv = () => { try { localStorage.setItem("decklab.ov", JSON.stringify(overrides)); } catch {} };
-
   // ---------- Lijst inlezen ----------
-  function core(name){
-    return name.toLowerCase().replace(/^.*?'s\s+/, "").replace(/^(mega|radiant|shiny|dark|light|hisuian|galarian|alolan|paldean)\s+/, "")
-      .replace(/\s+(ex|v|vstar|vmax|gx)$/, "").trim();
-  }
-  function guessCat(name){
-    const l = name.toLowerCase();
-    if (/\benergy$/.test(l)) return "energy";
-    if (SUPPORTERS.has(l) || STADIUMS.has(l) || ACE.has(l) || SETUP_ITEMS.has(l) || TOOL_RE.test(l)) return "trainer";
-    return "pokemon";
-  }
-  function classify(e){
-    const l = e.name.toLowerCase(), ov = overrides[e.cat + "|" + l] || {};
-    e.ace = ACE.has(l);
-    if (e.cat === "pokemon") {
-      const c = core(e.name);
-      e.stage = ov.stage ?? (STAGE2.has(c) ? 2 : STAGE1.has(c) ? 1 : 0);
-    } else if (e.cat === "trainer") {
-      e.sub = ov.sub ?? (SUPPORTERS.has(l) ? "supporter" : STADIUMS.has(l) ? "stadium" : TOOL_RE.test(l) ? "tool" : "item");
-    } else {
-      e.sub = /^basic\b/i.test(e.name) || /^(grass|fire|water|lightning|psychic|fighting|darkness|metal) energy$/i.test(e.name) ? "basic" : "special";
-    }
-  }
-  function parse(text){
-    let cat = null; const map = new Map();
+  // Categorie, stage, trainer type, energy type en ACE SPEC komen uit de Card index (findCard).
+  // Een regel zonder kaart (cat null) telt mee voor de 60, maar voor geen enkele categorie.
+  const CAT_OF = {Pokemon:"pokemon", Trainer:"trainer", Energy:"energy"};
+  function parse(text, index){
+    const map = new Map();
     for (const raw of text.split(/\r?\n/)) {
       const line = raw.trim(); if (!line) continue;
-      const h = line.match(/^(pok[eé]mon|trainers?|energy)\b[^:]*:/i);
-      if (h) { const k = h[1].toLowerCase(); cat = k.startsWith("pok") ? "pokemon" : k.startsWith("trainer") ? "trainer" : "energy"; continue; }
-      if (/^total/i.test(line)) continue;
+      if (/^(pok[eé]mon|trainers?|energy)\b[^:]*:/i.test(line) || /^total/i.test(line)) continue;
       const m = line.match(/^(\d+)x?\s+(.+)$/); if (!m) continue;
       let rest = m[2].trim(), set = "", num = "";
       const s = rest.match(/^(.*?)\s+([A-Z][A-Z0-9]{1,5}(?:-[A-Z0-9]{1,4})?)\s+([A-Za-z0-9]{1,6})$/);
       if (s) { rest = s[1]; set = s[2]; num = s[3]; }
-      const name = rest.replace(/\{([A-Z])\}/g, (_, c) => ENERGY_SYM[c] || c).replace(/\s+/g, " ");
-      const c = cat || guessCat(name);
-      const key = c + "|" + name.toLowerCase();
-      if (map.has(key)) { const e = map.get(key); e.count += +m[1]; if (set) e.prints.push(set + " " + num); }
-      else map.set(key, {name, set, num, count:+m[1], cat:c, prints: set ? [set + " " + num] : []});
+      const typed = rest.replace(/\{([A-Z])\}/g, (_, c) => ENERGY_SYM[c] || c).replace(/\s+/g, " ");
+      const card = findCard(index, set, num, typed), name = card ? card.name : typed;
+      const cat = card ? CAT_OF[card.category] : null;
+      // Dezelfde kaartnaam uit verschillende sets is één regel (Boss's Orders ASC 256 + PR-SW 251).
+      const key = cat + "|" + name.toLowerCase();
+      if (map.has(key)) { const e = map.get(key); e.count += +m[1]; if (set) e.prints.push(set + " " + num); continue; }
+      map.set(key, {name, set, num, count:+m[1], cat, card, prints: set ? [set + " " + num] : [],
+        // Alleen "Basic" is een Basic; andere evoluties (BREAK, VMAX) tellen als Stage 1. Trainer zonder type: Item.
+        stage: cat !== "pokemon" || card.stage === "Basic" ? 0 : card.stage === "Stage2" ? 2 : 1,
+        sub: cat === "trainer" ? (card.trainerType || "Item").toLowerCase() :cat === "energy" ? (card.energyType === "Special" ? "special" : "basic") : null,
+        ace: !!card?.aceSpec});
     }
     const order = {pokemon:0, trainer:1, energy:2};
-    const list = [...map.values()].sort((a,b) => order[a.cat] - order[b.cat]);
-    list.forEach(classify);
-    return list;
+    return [...map.values()].sort((a,b) => (order[a.cat] ?? 3) - (order[b.cat] ?? 3));
   }
 
   const isBasicEntry = e => e.cat === "pokemon" && e.stage === 0;
   const count = (E, f) => E.filter(f).reduce((s,e) => s + e.count, 0);
   const totalOf = E => count(E, () => true);
-  function hue(name){ let h = 0; for (const ch of name) h = (h*31 + ch.charCodeAt(0)) >>> 0; return h % 360; }
-  function initials(name){ return name.replace(/\b(ex|V|VSTAR|VMAX|Basic|Energy)\b/g, "").replace(/[^A-Za-zÀ-ÿ ]/g, " ").trim().split(/\s+/).slice(0,2).map(w => w[0]).join("").toUpperCase() || "?"; }
   const catColor = c => `var(--c-${c === "pokemon" ? "poke" : c})`;
   const tagOf = e => e.cat === "pokemon" ? STAGE_LABEL[e.stage] : SUB_LABEL[e.sub];
   function choose(n, k){ if (k < 0 || k > n) return 0; let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return r; }
@@ -183,14 +157,14 @@ Total Cards: 60`;
     return {factors, r, goodFirst, goodSecond, verdict: r > .2 ? "Go first" : r < -.2 ? "Go second" : "No clear preference"};
   }
 
-  // Kerncijfers voor een lijst, voor elders op de pagina. Bewaard per lijst tot een label wordt aangepast.
+  // Kerncijfers voor een lijst, voor elders op de pagina. Async: eerst de Card index. Bewaard per lijst.
   const qcache = new Map();
   function quick(text){
-    if (qcache.has(text)) return qcache.get(text);
-    const E = parse(text), st = stats(E, N_QUICK), fs = firstSecond(E, N_QUICK);
-    const q = { total: totalOf(E), nBasic: count(E, isBasicEntry), mullP: mulligan(E), sup1: st ? st.supT[1] : null, verdict: fs ? fs.verdict : null };
-    qcache.set(text, q);
-    return q;
+    if (!qcache.has(text)) qcache.set(text, loadCardIndex().then(index => {
+      const E = parse(text, index), st = stats(E, N_QUICK), fs = firstSecond(E, N_QUICK);
+      return { total: totalOf(E), nBasic: count(E, isBasicEntry), mullP: mulligan(E), sup1: st ? st.supT[1] : null, verdict: fs ? fs.verdict : null };
+    }));
+    return qcache.get(text);
   }
 
   // ---------- Weergave ----------
@@ -222,7 +196,6 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 .cl-row .n{font-family:var(--f-mono);color:var(--muted);text-align:right}
 .cl-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip{border:1px solid var(--line);background:var(--sunk);border-radius:999px;font-size:11px;padding:1px 8px;font-weight:600;white-space:nowrap}
-button.chip:hover{border-color:var(--ink)}
 .chip.ace{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .hint{font-size:12px;color:var(--muted);margin:0}
 .stack{display:flex;flex-direction:column;gap:18px}
@@ -282,17 +255,21 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
 .zone-t{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;font-weight:600;color:var(--muted);margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .cards{display:flex;flex-wrap:wrap;gap:8px}
 .cw{display:flex;flex-direction:column;align-items:center;gap:3px}
-.cw span{font-size:11px;font-family:var(--f-mono);color:var(--muted)}
+.cw>span{font-size:11px;font-family:var(--f-mono);color:var(--muted)}
 .th-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
 @media (max-width:1100px){.th-split{grid-template-columns:minmax(0,1fr)}}
 .mull{opacity:.55}
-.card{--cw:84px;width:var(--cw);aspect-ratio:63/88;border-radius:8px;background:var(--surface);border:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;font-size:10px;line-height:1.2;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.08);flex:none}
-.card .band{height:5px;flex:none}
-.card .nm{font-weight:600;padding:4px 5px 2px;font-size:10.5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.card .art{flex:1;margin:0 5px;border-radius:4px;display:grid;place-items:center;font-family:var(--f-display);font-weight:800;font-size:22px;color:rgba(255,255,255,.92);letter-spacing:-.03em;min-height:0}
-.card .ft{display:flex;justify-content:space-between;padding:3px 5px 4px;font-size:9px;color:var(--muted);gap:4px}
-.card .ft b{font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.card.sm{--cw:60px}
+.card{width:84px;flex:none}
+.card.sm{width:60px}
+/* Kaarttegel van cardTile() (cards.js); zelfde regels als .ctile in style.css, die de shadow root niet bereikt. */
+.ctile{position:relative;aspect-ratio:63/88;border-radius:6px;overflow:hidden}
+.ctile img{display:block;width:100%;height:100%;object-fit:cover}
+.ctile:not(.ph)>span{display:none}
+.ctile.ph{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);font-size:10px;line-height:1.2;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.ctile .band{height:5px;flex:none}
+.ctile .nm{font-weight:600;padding:4px 5px 2px;font-size:10.5px;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ctile .art{flex:1;margin:0 5px;border-radius:4px;display:grid;place-items:center;min-height:0;font:800 22px var(--f-display);letter-spacing:-.03em;color:rgba(255,255,255,.92)}
+.ctile .ft{padding:3px 5px 4px;font-size:9px;color:var(--muted);text-align:center}
 .card.sm .nm{font-size:8.5px}
 .card.sm .art{font-size:16px}
 .card.sm .ft{display:none}`;
@@ -315,7 +292,6 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
         <span class="num" id="total-badge"></span>
       </div>
       <div class="cardlist" id="cardlist"></div>
-      <p class="hint" style="margin-top:10px">Click a label to correct the card type (Basic / Stage 1 / Stage 2, or Item / Supporter / Tool / Stadium). The odds update right away.</p>
     </div>
   </aside>
   <main><section id="view" class="stack"></section></main>
@@ -328,12 +304,11 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
     const total = totalOf(entries);
     const tb = $("#total-badge"); tb.textContent = total + " / 60"; tb.style.color = total === 60 ? "var(--good)" : "var(--bad)";
     let html = "";
-    for (const cat of ["pokemon","trainer","energy"]){
+    for (const cat of ["pokemon","trainer","energy",null]){
       const list = entries.filter(e => e.cat === cat); if (!list.length) continue;
-      html += `<div class="cl-head"><span class="label" style="color:${catColor(cat)}">${CAT_LABEL[cat]}</span><span class="num label">${count(list, () => true)}</span></div>`;
+      html += `<div class="cl-head"><span class="label" style="color:${cat ? catColor(cat) : "var(--bad)"}">${cat ? CAT_LABEL[cat] : "Not recognized"}</span><span class="num label">${count(list, () => true)}</span></div>`;
       for (const e of list){
-        const i = entries.indexOf(e);
-        const tag = cat === "energy" ? `<span class="chip">${tagOf(e)}</span>` : `<button class="chip" data-cycle="${i}" title="Click to change">${tagOf(e)}</button>`;
+        const tag = `<span class="chip">${cat ? tagOf(e) : "card not recognized"}</span>`;
         html += `<div class="cl-row"><span class="n">${e.count}</span><span class="nm" title="${esc(e.prints.join(", "))}">${esc(e.name)}</span><span class="row" style="gap:4px">${e.ace ? '<span class="chip ace">ACE SPEC</span>' : ""}${tag}</span></div>`;
       }
     }
@@ -378,7 +353,7 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
       <div class="tile"><span class="label">Mulligan chance</span><span class="big">${pct(mullP,1)}</span><span class="pill ${tone(mullP)}">${mullP > .25 ? "High" : mullP > .18 ? "Average" : "Low"}</span><span class="sub">${expMull.toFixed(2)} mulligans per game on average</span></div>
       <div class="tile"><span class="label">Basics in opening hand</span><span class="big">${st ? avgBasics.toFixed(2) : "–"}</span><span class="sub">${nBasic} Basic Pokémon in the list</span><span class="sub">${st ? pct(1 - st.basicsDist[1]) + " chance of 2 or more" : ""}</span></div>
       <div class="tile"><span class="label">Supporter on turn 1</span><span class="big">${st ? pct(st.supT[1]) : "–"}</span><span class="sub">Opening hand + 1 drawn card</span><span class="sub">${nSup} Supporters in the list</span></div>
-      <div class="tile"><span class="label">Card count</span><span class="big">${total}</span><span class="pill ${total === 60 ? "good" : "bad"}">${total === 60 ? "Legal count" : "Must be 60"}</span><span class="sub">${by("pokemon")} Pokémon · ${by("trainer")} Trainer · ${by("energy")} Energy</span></div>
+      <div class="tile"><span class="label">Card count</span><span class="big">${total}</span><span class="pill ${total === 60 ? "good" : "bad"}">${total === 60 ? "Legal count" : "Must be 60"}</span><span class="sub">${by("pokemon")} Pokémon · ${by("trainer")} Trainer · ${by("energy")} Energy${by(null) ? ` · ${by(null)} not recognized` : ""}</span></div>
     </div>`;
 
     const seg = (c, n) => n ? `<div style="flex:${n};background:${catColor(c)}" title="${CAT_LABEL[c]}: ${n}">${CAT_LABEL[c]} ${n}</div>` : "";
@@ -423,12 +398,10 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
   // ---------- Testhand ----------
   const isBasic = c => isBasicEntry(entries[c.e]);
   function shuffle(a){ for (let i = a.length - 1; i > 0; i--){ const j = rand(i+1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  // Eén kaart als tegel uit cards.js: het plaatje, of de placeholder (ook voor een onbekende regel).
   function cardHTML(c, cls = ""){
-    const e = entries[c.e], h = hue(e.name);
-    const art = e.cat === "energy" ? `background:linear-gradient(135deg, var(--c-energy), color-mix(in oklab, var(--c-energy) 55%, #000))`
-      : e.cat === "trainer" ? `background:linear-gradient(135deg, color-mix(in oklab, var(--c-trainer) 80%, #fff), var(--c-trainer))`
-      : `background:linear-gradient(140deg, oklch(0.72 0.13 ${h}), oklch(0.5 0.12 ${(h+50)%360}))`;
-    return `<div class="card ${cls}" title="${esc(e.name)}"><span class="band" style="background:${catColor(e.cat)}"></span><span class="nm">${esc(e.name)}</span><span class="art" style="${art}">${esc(initials(e.name))}</span><span class="ft"><b>${tagOf(e)}</b><span>${esc(e.set)}</span></span></div>`;
+    const e = entries[c.e];
+    return `<div class="card ${cls}">${cardTile(e.card, {name: e.name, cat: e.cat || "pokemon", note: e.cat ? tagOf(e) : "card not recognized"})}</div>`;
   }
   function dealHand(){
     const all = []; entries.forEach((e,i) => { for (let k = 0; k < e.count; k++) all.push({e:i}); });
@@ -452,25 +425,19 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
   }
 
   // ---------- Invoer ----------
-  function load(){
+  // Async: de Card index wordt bij het eerste gebruik geladen (één keer per pagina). Mislukt dat, dan is elke regel onbekend.
+  async function load(){
     const text = $("#deck").value;
     try { localStorage.setItem("decklab.deck", text); localStorage.setItem("decklab.src", srcLabel); } catch {}
     $("#src").textContent = srcLabel;
-    entries = parse(text);
+    const index = await loadCardIndex();
+    entries = parse(text, index);
     TH = null; renderList(); renderAnalysis();
   }
   function mount(host, skipLoad = false){
     if (root) return;
     root = host.attachShadow({mode: "open"});
     root.innerHTML = `<style>${CSS}</style>${MARKUP}`;
-    $("#cardlist").addEventListener("click", ev => {
-      const b = ev.target.closest("[data-cycle]"); if (!b) return;
-      const e = entries[+b.dataset.cycle], key = e.cat + "|" + e.name.toLowerCase();
-      overrides[key] = overrides[key] || {};
-      if (e.cat === "pokemon") overrides[key].stage = (e.stage + 1) % 3;
-      else { const subs = ["item","supporter","tool","stadium"]; overrides[key].sub = subs[(subs.indexOf(e.sub) + 1) % 4]; }
-      saveOv(); qcache.clear(); classify(e); renderList(); renderAnalysis();
-    });
     $("#btn-parse").onclick = load;
     $("#btn-sample").onclick = () => { $("#deck").value = SAMPLE; srcLabel = "Example list"; load(); };
     let deb; $("#deck").addEventListener("input", () => {

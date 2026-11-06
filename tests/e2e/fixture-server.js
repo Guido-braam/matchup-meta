@@ -1,5 +1,5 @@
 // Serve site/ like GitHub Pages does, but answer the data files from a fixture folder.
-// The page itself is not changed: it still fetches data.json and labs.json next to
+// The page itself is not changed: it still fetches data.json, labs.json and cards/ next to
 // index.html, and this server hands it the small committed fixtures instead.
 //
 // Run by hand to look at the site with fixture data:
@@ -32,6 +32,11 @@ function fileFor(url, fixtures) {
   if (path.endsWith("/")) path += "index.html";
   const name = path.slice(1);
   if (DATA_FILES.has(name)) return join(fixtures, name);
+  // The Card index and its images (cards/...) come from the fixture folder too.
+  if (name.startsWith("cards/")) {
+    const file = resolve(fixtures, name);
+    return file.startsWith(resolve(fixtures) + sep) ? file : null;
+  }
   const file = resolve(SITE, "." + path);
   return file.startsWith(SITE + sep) ? file : null;
 }

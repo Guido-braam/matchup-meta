@@ -56,6 +56,11 @@ jobs:
       - name: Fetch Limitless and build labs.json
         run: python -I scripts/limitless_labs_fetch.py --top 500 --min-lists 150 --out labs_data --app-dir site
 
+      # A card the card index does not know means a new set: a warning in the log, never a failed run (ADR 0005).
+      - name: Warn about cards the card index does not know
+        continue-on-error: true
+        run: python -I scripts/tcgdex_fetch.py --check-labs site/labs.json
+
       # Saved even when the fetch failed, so a long backlog is not fetched again next run.
       - name: Save the raw Limitless download
         if: always() && hashFiles('labs_data/raw/**') != ''

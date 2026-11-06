@@ -4,6 +4,7 @@ import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS, exportSettings, importS
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
 import { createAI } from "./ai.js";
+import { loadCardIndex, findCard, cardTile } from "./cards.js";
 
 // lv = opgeslagen niveau, w = gewicht in de berekening (uit calc.js).
 const LEVEL_LABELS = { 5: "Very often", 4: "Often", 3: "Regularly", 2: "Sometimes", 1: "Rarely", 0: "Never" };
@@ -280,7 +281,6 @@ function renderDeck() {
 }
 
 // ---------- Regionals: resultaten en decklists ----------
-const CORE = 0.9, FLEX = 0.4;
 const SECTION_TITLES = ["Pokémon", "Trainer", "Energy"];
 const nl = x => Number(x).toLocaleString("en-US");
 const times = x => x.toFixed(1) + "×";
@@ -399,14 +399,20 @@ function factGroup(title, rows, foot = "", tip = "") {
     : `<p class="note">${rows}</p>`;
   return `<div class="fact-group"${tip ? ` title="${esc(tip)}"` : ""}><h4>${title}</h4>${body}${foot ? `<p class="note">${foot}</p>` : ""}</div>`;
 }
+// Deck Lab heeft de Card index nodig, dus eerst streepjes; de cijfers komen erin zodra quick() klaar is.
+let labQuickRun = 0;
 function labQuick(p) {
   if (!p) return factGroup("Deck Lab", "No list for this deck in the data.");
-  const q = DeckLab.quick(p.text);
-  return factGroup("Deck Lab", [
-    ["Mulligan chance", pct(q.mullP)],
-    ["Supporter on turn 1", q.sup1 == null ? "–" : pct(q.sup1, 0)],
-    ["First or second", esc(q.verdict || "–")],
-  ], `Calculated on the ${esc(p.kind)}.`);
+  const html = q => factGroup("Deck Lab", [
+    ["Mulligan chance", q ? pct(q.mullP) : "–"],
+    ["Supporter on turn 1", q?.sup1 == null ? "–" : pct(q.sup1, 0)],
+    ["First or second", esc(q?.verdict || "–")],
+  ], `Calculated on the ${esc(p.kind)}.`).replace('class="fact-group"', 'class="fact-group" id="lab-quick"');
+  const run = ++labQuickRun;
+  // Alleen invullen als de pagina intussen niet opnieuw is getekend.
+  // Promise.resolve: vlak na een deploy kan de browser nog een oude decklab.js hebben, waar quick() synchroon is.
+  Promise.resolve(DeckLab.quick(p.text)).then(q => { const el = $("lab-quick"); if (run === labQuickRun && el) el.outerHTML = html(q); });
+  return html(null);
 }
 
 // share: het aandeel voor het gekozen continent, zoals in Mijn meta.
@@ -421,27 +427,40 @@ function labsStats(l, share) {
   ], "", labsTitle(l));
 }
 
-function cardRow(k, n, u, R) {
-  const [name, set, num] = cardOf(k);
-  const incl = u ? u[1] : null;
-  const [cls, label] = incl == null ? ["tech", "–"] : incl >= CORE ? ["core", "Core"] : incl >= FLEX ? ["flex", "Flex"] : ["tech", "Tech"];
-  // Markering als het model een duidelijk effect ziet (minstens 2 standaardfouten van 0) tegen jouw meta.
-  const ef = R?.effects.get(k);
-  const mark = ef && Math.abs(ef.e) >= 2 * ef.se
-    ? `<span class="mk ${ef.e > 0 ? "up" : "down"}" title="Each extra copy: ${ppTxt(ef.e)} win chance against My meta (± ${ppTxt(ef.se).slice(1)})">${ef.e > 0 ? "▲" : "▼"}</span>` : "";
-  return `<li class="card"><span class="n">${n}</span>
-    <span class="cn">${esc(name)}${mark}<span class="set">${esc(set)} ${esc(num)}</span></span>
-    <span class="inc" title="In ${incl == null ? "less than 3%" : pct(incl, 0)} of lists">${incl == null ? "–" : pct(incl, 0)}</span>
-    <span class="tag ${cls}">${label}</span></li>`;
-}
-
-function bySection(cards, row) {
+function bySection(cards, row, box = x => `<ul class="cards">${x}</ul>`) {
   return SECTION_TITLES.map((title, s) => {
     const rows = cards.filter(([k]) => cardOf(k)[3] === s);
     if (!rows.length) return "";
-    return `<div class="sec-title">${title} (${rows.reduce((t, [, c]) => t + c, 0)})</div><ul class="cards">${rows.map(row).join("")}</ul>`;
+    return `<div class="sec-title">${title} (${rows.reduce((t, [, c]) => t + c, 0)})</div>${box(rows.map(row).join(""))}`;
   }).join("");
 }
+
+// ---------- Kaartplaatjes in de lijsten ----------
+// Een lijst als raster van kaartplaatjes per sectie. Zonder Card index (laden mislukt) geen "card not recognized".
+const CATS = ["pokemon", "trainer", "energy"];
+const cardGrid = (cards, index) => bySection(cards, ([k, c]) => {
+  const [name, set, num, s] = cardOf(k), card = findCard(index, set, num, name);
+  return cardTile(card, { name, cat: CATS[s], count: c, note: card || !index ? `${set} ${num}`.trim() : "card not recognized" });
+}, x => `<div class="cgrid">${x}</div>`);
+// Lege plek in een <details>; het raster komt er pas in als de lijst opengaat, zodat een dichte lijst niets laadt.
+const gridSlot = cards => `<div class="mini" data-grid="${esc(JSON.stringify(cards))}"></div>`;
+// Other choices: één raster in volgorde van gebruik, met onder elk plaatje het aandeel lijsten dat de kaart speelt.
+const picksGrid = (picks, index) => `<div class="cgrid">${picks.map(([k, c, incl]) => {
+  const [name, set, num, s] = cardOf(k), card = findCard(index, set, num, name);
+  const tile = cardTile(card, { name, cat: CATS[s], count: c, note: card || !index ? `${set} ${num}`.trim() : "card not recognized" });
+  return `<div class="cpick">${tile}<span class="inc" title="In ${pct(incl, 0)} of lists">${pct(incl, 0)}</span></div>`;
+}).join("")}</div>`;
+// De Card index pas bij de eerste geopende lijst laden. "toggle" bubbelt niet, dus capture.
+// Other choices hoort bij de Consensus list (data-reveal-for) en vult zich als die opengaat.
+document.addEventListener("toggle", e => {
+  if (!e.target.matches("details[open]")) return;
+  const slots = [...e.target.querySelectorAll(":scope > [data-grid]"),
+    ...(e.target.id ? document.querySelectorAll(`[data-reveal-for="${e.target.id}"] [data-picks]`) : [])];
+  if (slots.length) loadCardIndex().then(index => slots.forEach(el => {
+    if (el.dataset.grid) { el.innerHTML = cardGrid(JSON.parse(el.dataset.grid), index); delete el.dataset.grid; }
+    if (el.dataset.picks) { el.innerHTML = picksGrid(JSON.parse(el.dataset.picks), index); delete el.dataset.picks; }
+  }));
+}, true);
 
 // Tekstformaat zoals Limitless en PTCG Live het gebruiken.
 function exportText(cards) {
@@ -537,7 +556,7 @@ function renderRecommendation(l, R) {
         <p class="rec-num">Expected edge against My meta: <b class="${up >= 0 ? "pos" : "neg"}">${ppTxt(up)}</b> win chance over an average ${esc(l.name)} list <span class="hint">(between ${ppTxt(up - x.se)} and ${ppTxt(up + x.se)})</span></p>
       </div>
       <div>
-        <details class="list" id="rec-details"><summary>View the list</summary><div class="mini">${bySection(x.cards, miniRow)}</div></details>
+        <details class="list" id="rec-details"><summary>View the list</summary>${gridSlot(x.cards)}</details>
         <div data-reveal-for="rec-details" hidden>
           <h4 class="dl-sub">Why this list</h4>
           ${why.length ? `<ul class="why">${why.map(whyRow).join("")}</ul>` : `<div class="note">No card choice stands out.</div>`}
@@ -559,23 +578,22 @@ function renderDecklist(a, R) {
   const others = l.usage.filter(u => !inList.has(u[0])).slice(0, 15);
   const lists = l.lists.map(x => `<details class="list">
       <summary>${x.place ? `${ord(x.place)} of ${nl(x.of)}` : "No finish"} · ${esc(cityOf(x.e))} · ${esc(x.rec)}${x.top ? '<span class="tag core">Top cut</span>' : x.day2 ? '<span class="tag flex">Day 2</span>' : ""}${x.typical ? '<span class="tag typical">Most typical</span>' : ""}</summary>
-      <div class="mini">${bySection(x.cards, miniRow)}</div>
+      ${gridSlot(x.cards)}
       ${exportBtn(x.cards, false, `${a.name} · ${x.place ? `${ord(x.place)} of ${x.of}` : "list"} in ${cityOf(x.e)}`)}
     </details>`).join("");
   const real = `<section class="panel dl">
     <div class="dl-head"><h3>Played lists</h3><span class="note">The best-finishing lists from the Regionals, plus the Day 2 list closest to the consensus (most typical).</span></div>
     <div class="lists">${lists}</div>
   </section>`;
-  const legend = `Core: in 90% or more of lists · Flex: 40 to 90% · Tech: under 40%${R ? " · ▲▼ clear effect per extra copy against My meta" : ""}`;
   const main = `<section class="panel dl">
-    ${head}<span class="note" data-reveal-for="cons-details" hidden>${nl(l.lists_n)} lists from ${L.events.length} Regionals · ${legend}</span></div>
-    <details class="list" id="cons-details"><summary>View the list</summary>${bySection(l.consensus, ([k, c]) => cardRow(k, c, use.get(k), R))}</details>
+    ${head}<span class="note" data-reveal-for="cons-details" hidden>${nl(l.lists_n)} lists from ${L.events.length} Regionals</span></div>
+    <details class="list" id="cons-details"><summary>View the list</summary>${gridSlot(l.consensus)}</details>
     <div>${exportBtn(l.consensus, true, `${a.name} · consensus list from Matchup Meta`)}</div>
     <p class="note">The Consensus list is the average of all lists, with recent Regionals counting more, and may never have been played exactly like this. Open the list to see the other choices too.</p>
   </section>
   <section class="panel dl" data-reveal-for="cons-details" hidden>
-    <div class="dl-head"><h3>Other choices</h3><span class="note">Cards not in the Consensus list but in 3% or more of lists, with the most-played count · ${legend}</span></div>
-    ${others.length ? `<ul class="cards">${others.map(u => cardRow(u[0], u[2], u, R)).join("")}</ul>` : `<div class="note">No other cards in 3% or more of lists.</div>`}
+    <div class="dl-head"><h3>Other choices</h3><span class="note">Cards not in the Consensus list but in 3% or more of lists, with the most-played count and the share of lists that play them</span></div>
+    ${others.length ? `<div class="mini" data-picks="${esc(JSON.stringify(others.map(u => [u[0], u[2], u[1]])))}"></div>` : `<div class="note">No other cards in 3% or more of lists.</div>`}
   </section>`;
   return { real, main };
 }

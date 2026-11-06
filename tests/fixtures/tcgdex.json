@@ -1,0 +1,68 @@
+{
+  "series/sv": {"id": "sv", "name": "Scarlet & Violet", "sets": [
+    {"id": "sv01", "name": "Scarlet & Violet", "cardCount": {"official": 198, "total": 258}}
+  ]},
+  "series/me": {"id": "me", "name": "Mega Evolution", "sets": [
+    {"id": "30th", "name": "30th Celebration", "cardCount": {"official": 128, "total": 161}},
+    {"id": "30th-c", "name": "30th Classic Collection", "cardCount": {"official": 30, "total": 30}}
+  ]},
+  "cards?legal.standard=true": [
+    {"id": "30th-001", "localId": "001", "name": "Pikachu"}
+  ],
+  "cards?legal.expanded=true": [
+    {"id": "sv01-001", "localId": "001", "name": "Pineco"},
+    {"id": "sv01-186", "localId": "186", "name": "Pokégear 3.0"},
+    {"id": "30th-001", "localId": "001", "name": "Pikachu"},
+    {"id": "30th-c-001", "localId": "001", "name": "Charizard"}
+  ],
+  "sets/sv01": {
+    "id": "sv01", "name": "Scarlet & Violet", "releaseDate": "2023-03-31",
+    "abbreviation": {"official": "SVI"}, "legal": {"standard": false, "expanded": true},
+    "serie": {"id": "sv", "name": "Scarlet & Violet"}, "updated": "2026-08-20T01:44:01+01:00",
+    "cards": [
+      {"id": "sv01-001", "localId": "001", "name": "Pineco", "image": "https://assets.tcgdex.net/en/sv/sv01/001"},
+      {"id": "sv01-186", "localId": "186", "name": "Pokégear 3.0", "image": "https://assets.tcgdex.net/en/sv/sv01/186"}
+    ]
+  },
+  "sets/30th": {
+    "id": "30th", "name": "30th Celebration", "releaseDate": "2026-09-16",
+    "abbreviation": {"official": "30C"}, "legal": {"standard": true, "expanded": true},
+    "serie": {"id": "me", "name": "Mega Evolution"},
+    "cards": [
+      {"id": "30th-001", "localId": "001", "name": "Pikachu", "image": "https://assets.tcgdex.net/en/me/30th/001"}
+    ]
+  },
+  "sets/30th-c": {
+    "id": "30th-c", "name": "30th Classic Collection", "releaseDate": "2026-09-16",
+    "abbreviation": {"official": "30C"}, "legal": {"standard": false, "expanded": true},
+    "serie": {"id": "me", "name": "Mega Evolution"},
+    "cards": [
+      {"id": "30th-c-001", "localId": "001", "name": "Charizard"}
+    ]
+  },
+  "cards/sv01-001": {
+    "id": "sv01-001", "localId": "001", "name": "Pineco", "category": "Pokemon", "stage": "Basic", "hp": 60,
+    "rarity": "Common", "image": "https://assets.tcgdex.net/en/sv/sv01/001",
+    "legal": {"standard": false, "expanded": true}, "updated": "2026-08-20T01:44:01+01:00",
+    "variants_detailed": [
+      {"type": "normal", "size": "standard", "pricing": {"tcgplayer": {"marketPrice": 0.12}}},
+      {"type": "reverse", "size": "standard", "updated": "2026-11-05", "pricing": {"tcgplayer": {"marketPrice": 0.22}}}
+    ],
+    "pricing": {"cardmarket": {"updated": "2026-11-05T13:11:39.033Z", "avg": 0.04}}
+  },
+  "cards/sv01-186": {
+    "id": "sv01-186", "localId": "186", "name": "Pokégear 3.0", "category": "Trainer", "trainerType": "Item",
+    "rarity": "ACE SPEC Rare", "image": "https://assets.tcgdex.net/en/sv/sv01/186",
+    "legal": {"standard": false, "expanded": true}, "updated": "2026-08-20T01:44:01+01:00",
+    "pricing": {"cardmarket": {"avg": 0.1}}
+  },
+  "cards/30th-001": {
+    "id": "30th-001", "localId": "001", "name": "Pikachu", "category": "Pokemon", "stage": "Basic",
+    "rarity": "Common", "image": "https://assets.tcgdex.net/en/me/30th/001",
+    "legal": {"standard": true, "expanded": true}
+  },
+  "cards/30th-c-001": {
+    "id": "30th-c-001", "localId": "001", "name": "Charizard", "category": "Pokemon", "stage": "Stage2",
+    "rarity": "Rare", "legal": {"standard": false, "expanded": true}
+  }
+}

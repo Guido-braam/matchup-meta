@@ -373,6 +373,26 @@ details.list summary .tag { margin-left: 4px; vertical-align: 1px; }
 details.list[open] summary { margin-bottom: 4px; }
 .mini ul { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; columns: 2 180px; column-gap: 16px; }
 .mini li { break-inside: avoid; }
+/* Kaartplaatjes: raster per sectie (ongeveer acht per rij, vier op een telefoon), rond aantal-badge onderaan in het midden.
+   Zonder plaatje de placeholder (.ph), dicht bij de kaarten in Deck Lab. */
+.cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(112px, 22%), 1fr)); gap: 8px; margin: 4px 0 6px; }
+.ctile { position: relative; aspect-ratio: 63 / 88; border-radius: 6px; overflow: hidden; }
+.ctile img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ctile:not(.ph) > span:not(.cnt) { display: none; }
+.ctile.ph { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); font-size: 10px; line-height: 1.2; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.ctile .band { height: 5px; flex: none; }
+.ctile .nm { font-weight: 600; padding: 4px 5px 2px; font-size: 10.5px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ctile .art { flex: 1; margin: 0 5px; border-radius: 4px; display: grid; place-items: center; min-height: 0; font: 800 22px var(--font-display); letter-spacing: -.03em; color: rgba(255,255,255,.92); }
+.ctile .ft { padding: 3px 5px 30px; font-size: 9px; color: var(--muted); text-align: center; }
+.ctile .cnt { position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%); min-width: 24px; height: 24px; padding: 0 6px; border-radius: 99px; background: var(--accent); color: var(--accent-fg); font: 700 0.8rem/24px var(--font-body); text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.ctile .nm { overflow-wrap: anywhere; }
+.cpick .inc { display: block; margin-top: 3px; text-align: center; color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .ctile .nm { font-size: 9px; padding: 3px 4px 1px; }
+  .ctile .art { margin: 0 4px; font-size: 14px; }
+  .ctile .ft { font-size: 8px; padding: 2px 3px 23px; }
+  .ctile .cnt { min-width: 20px; height: 20px; bottom: 3px; padding: 0 5px; font-size: 0.72rem; line-height: 20px; }
+}
 textarea.copy-fallback { font: 0.78rem/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace; margin-top: 6px; }
 .dl-head .cert { margin-left: auto; align-self: center; }
 .rec-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px 28px; align-items: start; }
