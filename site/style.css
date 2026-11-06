@@ -399,3 +399,16 @@ textarea.copy-fallback { font: 0.78rem/1.4 ui-monospace, "Cascadia Mono", Consol
 .site-foot { border-top: 1px solid var(--line); padding-top: 14px; color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
 .site-foot p { margin: 0; }
 .site-foot a { color: inherit; }
+
+/* Dialog (Ask Claude): midden in beeld, op een smal scherm over het hele scherm en scrollend. */
+dialog.modal {
+  width: min(860px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow-y: auto;
+  background: var(--bg); color: var(--fg); border: 0; border-radius: var(--radius); padding: 16px;
+}
+dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.modal-close { font-size: 1.2rem; line-height: 1; padding: 6px 11px; }
+@media (max-width: 640px) {
+  dialog.modal { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border-radius: 0;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+}

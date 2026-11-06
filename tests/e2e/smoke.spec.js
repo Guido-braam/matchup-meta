@@ -112,7 +112,7 @@ test("the header has two tabs and two equal buttons for My meta and Ask Claude",
     await b.click();
     await expect(b).toHaveClass("btn");
   }
-  await expect(page.locator("#page-advice")).toBeVisible();
+  await expect(page.locator("#dialog-advice")).toBeVisible();
   await expect(page.locator("#deck-select, button[data-picker=deck-select]")).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });
@@ -176,11 +176,33 @@ for (const hash of ["#deck/no-such-deck", "#deck", "#deck/", "#nonsense"]) {
   });
 }
 
-test("old addresses #meta and #advice still open those pages", async ({ page }) => {
+test("old addresses #meta and #advice still work: #advice opens Ask Claude over the tier list", async ({ page, consoleErrors }) => {
   await page.goto("/#meta");
   await expect(page.locator("#page-meta")).toBeVisible();
   await page.goto("/#advice");
-  await expect(page.locator("#page-advice")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeVisible();
+  await expect(page.locator("#page-tierlist")).toBeVisible();
+  await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("Ask Claude is a modal dialog: × and Esc close it and focus returns to the button", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+  const ask = page.locator("#open-ask"), dialog = page.getByRole("dialog", { name: "Ask Claude" });
+  await expect(page.locator("#page-advice")).toHaveCount(0); // no Advice page left
+  await ask.click();
+  await expect(dialog).toBeVisible();
+  expect(await dialog.evaluate(d => d.matches(":modal"))).toBe(true);
+  await expect(dialog.getByRole("heading", { name: "Which deck should I play at locals?" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(ask).toBeFocused();
+  await ask.click();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(ask).toBeFocused();
+  await expect(page.locator("#tab-tierlist")).toHaveAttribute("aria-selected", "true");
+  expect(consoleErrors).toEqual([]);
 });
 
 test("only the Tier list or Deck Lab tab is remembered", async ({ page }) => {
@@ -229,9 +251,10 @@ test("every view shows the footer with sources, update dates and season", async 
     `Matchups: Trainerhill, tournaments with ${data.filters.players}+ players, ${day(data.filters.start_date)} to ${day(data.filters.end_date)}`
     + ` · Results and lists: ${labs.events.length} Regionals (Limitless Labs${labs.settings?.top ? `, top ${labs.settings.top}` : ""})`);
   await expect(page.locator("#source")).toHaveCount(0); // the header has no subtitle any more
-  for (const view of Object.values(VIEWS)) {
-    await page.locator(view).click();
+  for (const [view, button] of Object.entries(VIEWS)) {
+    await page.locator(button).click();
     await expect(foot).toBeVisible();
+    if (view === "advice") await page.keyboard.press("Escape"); // a dialog over the page
   }
   await openDeck(page, "Dragapult");
   await expect(foot).toBeVisible();
@@ -258,6 +281,7 @@ test.describe("at phone width", () => {
       await page.locator(button).click();
       if (view === "lab") await expect(page.locator("#lab-host").locator("#view")).not.toBeEmpty();
       expect(await overflow(), `sideways scroll on ${view}`).toBeLessThanOrEqual(0);
+      if (view === "advice") await page.keyboard.press("Escape");
     }
     await openDeck(page, "Dragapult");
     expect(await overflow(), "sideways scroll on a deck page").toBeLessThanOrEqual(0);
@@ -508,6 +532,7 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await expect(page.getByLabel("Anthropic API key")).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove key" })).toBeHidden();
   await expect(page.locator("#advice-run")).toBeDisabled();
+  await page.keyboard.press("Escape");
 
   await openDeck(page, "Dragapult");
   const chat = page.locator("#deck-chat");
@@ -515,7 +540,12 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await expect(chat.getByRole("link", { name: "Add your API key" })).toBeVisible();
   await expect(chat.locator("#chat-input")).toHaveCount(0);
   await chat.getByRole("link", { name: "Add your API key" }).click();
+  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeVisible();
   await expect(page.getByLabel("Anthropic API key")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#page-deck")).toBeVisible(); // the dialog opened over the deck page
+  await page.locator("#tab-tierlist").click();
+  await expect(page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" })).toBeVisible();
   expect(apiCalls).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
@@ -557,6 +587,7 @@ test("with an API key Advice runs, stays after a reload, and Remove key turns it
 
   // Advice history stays in the browser, outside Settings (the only thing an export carries).
   await page.reload();
+  await page.locator("#open-ask").click();
   await expect(page.locator("#advice-result")).toContainText("Play Dragapult: it beats most of what you meet.");
   expect(JSON.parse(await stored(page, "matchup-meta-advice"))[0].result).toEqual(ADVICE_ANSWER);
   const settings = await stored(page, "matchup-meta-settings");
@@ -566,6 +597,7 @@ test("with an API key Advice runs, stays after a reload, and Remove key turns it
   expect(await stored(page, "matchup-meta-api-key")).toBeNull();
   await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
   await expect(page.locator("#advice-run")).toBeDisabled();
+  await page.keyboard.press("Escape");
   await openDeck(page, "Dragapult");
   await expect(page.locator("#deck-chat")).toContainText("Deck chat is off");
   expect(consoleErrors).toEqual([]);
@@ -581,6 +613,29 @@ test("a rejected API key shows a readable error and leaves the page working", as
   await expect(page.locator("#advice-state")).toHaveClass(/err/);
   await expect(page.locator("#advice-run")).toBeEnabled();
   await expect(page.getByRole("button", { name: "Remove key" })).toBeVisible();
+});
+
+test("in the Ask Claude dialog Stop cancels a running analysis and Earlier Advice switches back", async ({ page, consoleErrors }) => {
+  await page.route("https://api.anthropic.com/v1/messages", () => {}); // never answers
+  await page.addInitScript(([key, answer]) => {
+    localStorage.setItem("matchup-meta-api-key", JSON.stringify(key));
+    localStorage.setItem("matchup-meta-advice", JSON.stringify([
+      { result: { summary: "Newest advice." }, createdAt: "2026-11-02T10:00:00Z" },
+      { result: answer, createdAt: "2026-11-01T10:00:00Z" },
+    ]));
+  }, [API_KEY, ADVICE_ANSWER]);
+  await page.goto("/");
+  await page.locator("#open-ask").click();
+  const dialog = page.getByRole("dialog", { name: "Ask Claude" });
+  await expect(dialog.locator("#advice-result")).toContainText("Newest advice.");
+  await dialog.getByLabel("Earlier Advice").selectOption("1");
+  await expect(dialog.locator("#advice-result")).toContainText("Play Dragapult: it beats most of what you meet.");
+
+  await dialog.locator("#advice-run").click();
+  await dialog.getByRole("button", { name: "Stop" }).click();
+  await expect(dialog.locator("#advice-state")).toHaveText("Stopped.");
+  await expect(dialog.locator("#advice-run")).toBeEnabled();
+  expect(consoleErrors).toEqual([]);
 });
 
 // Deck chat streams its answer (server-sent events). Each stubbed reply is one streamed message;
