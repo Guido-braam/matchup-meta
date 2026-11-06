@@ -51,6 +51,11 @@ test("Crustle stays Crustle, not Crustle ex", () => {
   assert.equal(id(null, null, "Crustle exx"), "me01-011");
 });
 
+test("a short name allows one typo", () => {
+  assert.equal(id(null, null, "Crustl"), "sv10.5b-052");
+  assert.equal(id(null, null, "PIKACHO"), "30th-c-005");
+});
+
 test("the most recent set wins among cards with that name", () => {
   assert.equal(id(null, null, "Pokégear 3.0"), "sv10.5b-084");
   assert.equal(id(null, null, "Boss's Orders"), "me01-114");

@@ -55,7 +55,8 @@ export function findCard(index, setCode, number, name) {
   const names = byName(index), key = norm(name);
   if (names.has(key)) return withId(index, names.get(key).id);
   // ponytail: lineaire scan over ~5000 namen per zoekactie; een prefix-index als dat merkbaar traag wordt.
-  let best = null, bestDist = Math.floor(key.length * MAX_DIFF) + 1;
+  // Minstens 1 tikfout, ook bij korte namen ("Crustl" -> Crustle).
+  let best = null, bestDist = Math.max(1, Math.floor(key.length * MAX_DIFF)) + 1;
   for (const [n, hit] of names) {
     if (Math.abs(n.length - key.length) >= bestDist) continue;
     const d = editDistance(key, n);
