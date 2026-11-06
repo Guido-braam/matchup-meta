@@ -124,7 +124,7 @@ function renderMeta() {
   const cols = Object.fromEntries(LEVELS.map(l => [l.lv, []]));
   D.archetypes.forEach((a, i) => {
     if (q && !a.name.toLowerCase().includes(q)) return;
-    cols[level(i)].push(`<button type="button" class="meta-card" data-menu="${i}" aria-haspopup="true">
+    cols[level(i)].push(`<button type="button" class="meta-card" data-menu="${i}" aria-haspopup="true" draggable="true">
       ${spritesHtml(a, "sm")}<span class="name">${esc(a.name)}</span>${a.id in localFrequencies ? '<span class="changed-dot" title="Local frequency"></span>' : ""}</button>`);
   });
   $("meta-board").innerHTML = LEVELS.map(l => `<section class="meta-col" data-level="${l.lv}">
@@ -149,6 +149,17 @@ function openMenu(card) {
 }
 $("meta-board").addEventListener("click", e => { const c = e.target.closest("[data-menu]"); if (c) openMenu(c); });
 $("meta-menu").addEventListener("click", e => { if (e.target.closest("[data-set]")) $("meta-menu").hidePopover(); });
+// Slepen (HTML drag and drop) naar een kolom = dat level kiezen in het menu. Klikken zonder te bewegen opent nog steeds het menu.
+const markDrop = col => $("meta-board").querySelectorAll(".meta-col").forEach(c => c.classList.toggle("drop", c === col));
+$("meta-board").addEventListener("dragstart", e => { const c = e.target.closest("[data-menu]"); if (c) e.dataTransfer.setData("text/plain", c.dataset.menu); });
+$("meta-board").addEventListener("dragover", e => { const col = e.target.closest(".meta-col"); if (col) { e.preventDefault(); markDrop(col); } });
+$("meta-board").addEventListener("dragleave", e => { if (!$("meta-board").contains(e.relatedTarget)) markDrop(null); });
+$("meta-board").addEventListener("dragend", () => markDrop(null));
+$("meta-board").addEventListener("drop", e => {
+  const col = e.target.closest(".meta-col"), i = e.dataTransfer.getData("text/plain");
+  e.preventDefault(); markDrop(null);
+  if (col && i !== "") setLevel(D.archetypes[i].id, Number(col.dataset.level));
+});
 // Na een keuze is het bord opnieuw getekend: de focus gaat terug naar de (nieuwe) kaart.
 $("meta-menu").addEventListener("toggle", e => {
   if (e.newState === "closed" && (!document.activeElement || document.activeElement === document.body))
