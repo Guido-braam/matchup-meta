@@ -117,3 +117,28 @@ def test_http_error_exits_non_zero(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as e:
         tcgdex.main(["--out", str(tmp_path)])
     assert e.value.code not in (0, None)
+
+
+def check_labs(tmp_path, capsys, cards):
+    """Runs --check-labs on a labs.json with these cards against the fixture's card index; returns the warnings."""
+    index = {"sets": {"SVI": [{"id": "sv01"}], "30C": [{"id": "30th"}, {"id": "30th-c"}]},
+             "cards": {"sv01-001": {}, "sv01-186": {}, "30th-001": {}, "30th-c-002": {}}}
+    (tmp_path / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    (tmp_path / "labs.json").write_text(json.dumps({"cards": cards}), encoding="utf-8")
+    tcgdex.main(["--out", str(tmp_path), "--check-labs", str(tmp_path / "labs.json")])  # returns, never exits
+    return [line for line in capsys.readouterr().out.splitlines() if line.startswith("::warning::")]
+
+
+def test_check_labs_all_known_no_warning(tmp_path, capsys):
+    # unpadded numbers; 30C 2 only exists in the second set of the code
+    assert check_labs(tmp_path, capsys, [["Pineco", "SVI", "1", 0], ["Pokégear 3.0", "SVI", "186", 1],
+                                         ["Pikachu", "30C", "1", 0], ["Charizard", "30C", "2", 0]]) == []
+
+
+def test_check_labs_one_unknown_card_one_warning(tmp_path, capsys):
+    warnings = check_labs(tmp_path, capsys, [["Pineco", "SVI", "1", 0], ["Pineco", "SVI", "2", 0]])
+    assert len(warnings) == 1 and "Pineco SVI 2" in warnings[0] and "Refresh cards" in warnings[0]
+
+
+def test_check_labs_unknown_set_code(tmp_path, capsys):
+    assert len(check_labs(tmp_path, capsys, [["Ditto", "NEW", "1", 0]])) == 1
