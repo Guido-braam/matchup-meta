@@ -1,0 +1,572 @@
+// What a visitor sees, on the committed fixture data (tests/fixtures/).
+import { readFileSync } from "node:fs";
+import { test as base, expect } from "@playwright/test";
+import { FIXTURES } from "./fixture-server.js";
+
+const fixture = name => JSON.parse(readFileSync(`${FIXTURES}/${name}`, "utf8"));
+// "2026-10-16T15:04" -> "16 Oct 2026", written out here instead of reusing the page's formatter.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const day = s => { const [y, m, d] = s.slice(0, 10).split("-").map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; };
+const TABS = ["tierlist", "deck", "lab", "advice", "meta"];
+
+// Google Fonts is the only outside request the page makes; answer it with an empty
+// stylesheet so the tests need no network. Any other outside request is blocked,
+// which shows up as a console error and fails the test.
+const FONT_HOSTS = new Set(["fonts.googleapis.com", "fonts.gstatic.com"]);
+
+const test = base.extend({
+  page: async ({ page, baseURL }, use) => {
+    const local = new URL(baseURL).host;
+    await page.route("**/*", route => {
+      const host = new URL(route.request().url()).host;
+      if (host === local) return route.continue();
+      if (FONT_HOSTS.has(host)) return route.fulfill({ status: 200, contentType: "text/css", body: "" });
+      return route.abort();
+    });
+    await use(page);
+  },
+  // Console errors and uncaught exceptions on the page, collected from the first request on.
+  consoleErrors: async ({ page }, use) => {
+    const errors = [];
+    page.on("console", msg => { if (msg.type() === "error") errors.push(`console: ${msg.text()}`); });
+    page.on("pageerror", err => errors.push(`pageerror: ${err.message}`));
+    await use(errors);
+  },
+});
+
+// A Dragapult list from the fixture, in PTCG Live format (different from Deck Lab's own sample).
+const PASTED_LIST = `Pokémon: 20
+4 Drakloak ASC 159
+4 Dreepy ASC 158
+3 Dragapult ex ASC 160
+2 Budew ASC 16
+2 Munkidori ASC 99
+1 Dudunsparce TEF 129
+1 Dunsparce TEF 128
+1 Fezandipiti ex ASC 142
+1 Meowth ex POR 62
+1 Moltres PFL 14
+
+Trainer: 32
+4 Buddy-Buddy Poffin ASC 184
+4 Crushing Hammer POR 71
+4 Lillie's Determination MEG 119
+4 Poké Pad POR 81
+3 Boss's Orders MEG 114
+3 Night Stretcher ASC 196
+3 Ultra Ball MEG 131
+2 Crispin SCR 133
+2 Risky Ruins MEG 127
+1 Judge POR 76
+1 Rosa's Encouragement POR 84
+1 Unfair Stamp TWM 165
+
+Energy: 8
+3 Fire Energy MEE 2
+3 Psychic Energy MEE 5
+2 Darkness Energy MEE 7
+
+Total Cards: 60`;
+
+test("tier list renders without console errors", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+
+  const tiles = page.locator("#tiers .tile[data-deck]");
+  await expect(tiles.first()).toBeVisible();
+  // Every fixture deck you meet gets a tile; "Other" is never a deck.
+  for (const name of ["Dragapult", "N's Zoroark", "Basic Box", "Festival Lead", "Crustle"]) {
+    await expect(tiles.filter({ hasText: name })).toHaveCount(1);
+  }
+  await expect(tiles.filter({ hasText: "Other" })).toHaveCount(0);
+  await page.waitForLoadState("networkidle");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a deck page opens from the tier list", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+
+  await page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" }).click();
+
+  await expect(page.locator("#tab-deck")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#page-deck")).toBeVisible();
+  const detail = page.locator("#deck-detail");
+  await expect(detail).toContainText("Dragapult");
+  // Its decklists come from the Regionals in the fixture.
+  await expect(detail.locator("details.list").first()).toBeAttached();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("Deck Lab checks a pasted list", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+  await page.locator("#tab-lab").click();
+  const lab = page.locator("#lab-host"); // Deck Lab lives in an open shadow root; locators pierce it.
+
+  await lab.locator("#deck").fill(PASTED_LIST);
+  await lab.locator("#btn-parse").click();
+
+  await expect(lab.locator("#total-badge")).toHaveText("60 / 60");
+  await expect(lab.locator("#cardlist")).toContainText("Dragapult ex");
+  await expect(lab.locator("#cardlist")).not.toContainText("Jellicent ex"); // Deck Lab's own sample is gone
+  await expect(lab.locator("#view")).not.toBeEmpty();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("every view shows the footer with sources, update dates and season", async ({ page, consoleErrors }) => {
+  const data = fixture("data.json"), labs = fixture("labs.json");
+  await page.goto("/");
+  const foot = page.locator("#site-foot");
+
+  await expect(foot).toContainText("Unofficial fan site");
+  await expect(foot).toContainText("Not affiliated with or endorsed by Nintendo, The Pokémon Company or Creatures");
+  await expect(foot.getByRole("link", { name: "Trainerhill" })).toHaveAttribute("href", "https://www.trainerhill.com");
+  await expect(foot.getByRole("link", { name: "Limitless" })).toHaveAttribute("href", "https://labs.limitlesstcg.com");
+  await expect(page.locator("#foot-updated")).toHaveText(
+    `Matchups updated ${day(data.generated)} · Regionals updated ${day(labs.generated)} · Season ${labs.season} (from 1 Aug ${labs.season - 1})`);
+  for (const tab of TABS) {
+    await page.locator(`#tab-${tab}`).click();
+    await expect(foot).toBeVisible();
+  }
+  expect(consoleErrors).toEqual([]);
+});
+
+test("the footer copes without labs.json", async ({ page }) => {
+  const data = fixture("data.json");
+  await page.route("**/labs.json", route => route.fulfill({ status: 404, body: "Not found" }));
+  await page.goto("/");
+
+  await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
+  await expect(page.locator("#foot-updated")).toHaveText(`Matchups updated ${day(data.generated)} · Regionals not loaded`);
+});
+
+test.describe("at phone width", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("no view scrolls sideways", async ({ page, consoleErrors }) => {
+    await page.goto("/");
+    await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
+    const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    for (const tab of TABS) {
+      await page.locator(`#tab-${tab}`).click();
+      if (tab === "deck") {
+        await page.locator("button[data-picker=deck-select]").click();
+        await page.locator("#pk-body button[data-pick]", { hasText: "Dragapult" }).click();
+        await expect(page.locator("#deck-detail")).toContainText("Dragapult");
+      }
+      if (tab === "lab") await expect(page.locator("#lab-host").locator("#view")).not.toBeEmpty();
+      expect(await overflow(), `sideways scroll on ${tab}`).toBeLessThanOrEqual(0);
+    }
+    expect(consoleErrors).toEqual([]);
+  });
+});
+
+// Settings live in the visitor's browser (ADR 0002). The tier list as tier -> deck names, to compare views.
+const tierList = page => page.locator("#tiers .tier").evaluateAll(ts =>
+  ts.map(t => `${t.querySelector(".tier-label").firstChild.textContent}: ${[...t.querySelectorAll(".tile .name")].map(n => n.textContent).join(", ")}`));
+const storedSettings = page => page.evaluate(() => JSON.parse(localStorage.getItem("matchup-meta-settings")));
+const metaRow = (page, name) => page.locator(".meta-row", { has: page.getByRole("button", { name, exact: true }) });
+
+test("a local frequency is still there after a reload", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+  await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
+  const defaults = await tierList(page);
+
+  await page.locator("#tab-meta").click();
+  await metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true }).click();
+  await page.locator("#tab-tierlist").click();
+  const changed = await tierList(page);
+  expect(changed).not.toEqual(defaults); // Dragapult, a third of the Regionals, no longer counts
+  expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: { "dragapult-ex": 0 }, continent: "worldwide" });
+
+  await page.reload();
+  await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
+  expect(await tierList(page)).toEqual(changed);
+  await page.locator("#tab-meta").click();
+  await expect(metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("resetting a local frequency restores the default and removes it from storage", async ({ page, consoleErrors }) => {
+  await page.goto("/#meta");
+  const row = metaRow(page, "Dragapult");
+  await row.getByRole("button", { name: "Rarely", exact: true }).click();
+  expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: { "dragapult-ex": 1 }, continent: "worldwide" });
+
+  await row.getByRole("button", { name: "Reset Dragapult to default" }).click();
+  // Dragapult's default is Very often: a third of the fixture Regionals.
+  await expect(row.getByRole("button", { name: "Very often", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(row.getByRole("button", { name: "Reset Dragapult to default" })).toHaveCount(0);
+  expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: {}, continent: "worldwide" });
+
+  await page.reload();
+  await expect(metaRow(page, "Dragapult").getByRole("button", { name: "Very often", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(consoleErrors).toEqual([]);
+});
+
+// Export downloads Settings as a file; import reads one back through the hidden file input.
+const exportFile = async page => {
+  const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#export-settings").click()]);
+  return { name: download.suggestedFilename(), text: readFileSync(await download.path(), "utf8") };
+};
+const importFile = (page, text) =>
+  page.locator("#import-file").setInputFiles({ name: "settings.json", mimeType: "application/json", buffer: Buffer.from(text) });
+
+test("export then import restores the same Settings, without the API key or history", async ({ page, consoleErrors }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("seeded")) return;
+    sessionStorage.setItem("seeded", "1");
+    localStorage.setItem("matchup-meta-api-key", JSON.stringify("sk-ant-test-0000-abcd"));
+    localStorage.setItem("matchup-meta-advice", JSON.stringify([{ result: { summary: "secret advice" }, createdAt: "2026-11-01T10:00:00Z" }]));
+  });
+  await page.goto("/#meta");
+  await metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true }).click();
+  await page.locator("#continent").selectOption("oce");
+  await page.locator("#tab-tierlist").click();
+  const exported = await tierList(page);
+  const saved = await storedSettings(page);
+
+  await page.locator("#tab-meta").click();
+  const file = await exportFile(page);
+  expect(file.name).toBe("matchup-meta-settings.json");
+  expect(JSON.parse(file.text)).toEqual({ version: 1, continent: "oce", localFrequencies: { "dragapult-ex": 0 } });
+  expect(file.text).not.toContain("sk-ant");
+  expect(file.text).not.toContain("secret advice");
+
+  // Change everything, then import the file.
+  await page.locator("#continent").selectOption("eu");
+  await metaRow(page, "Dragapult").getByRole("button", { name: "Reset Dragapult to default" }).click();
+  await metaRow(page, "Crustle").getByRole("button", { name: "Rarely", exact: true }).click();
+  await importFile(page, file.text);
+  await expect(page.locator("#import-state")).toHaveText("Settings imported from settings.json.");
+  expect(await storedSettings(page)).toEqual(saved);
+  await expect(page.locator("#continent")).toHaveValue("oce");
+  await page.locator("#tab-tierlist").click();
+  expect(await tierList(page)).toEqual(exported);
+
+  await page.reload();
+  await page.locator("#tab-tierlist").click();
+  await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
+  expect(await tierList(page)).toEqual(exported);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("an invalid settings file shows a message and changes nothing", async ({ page, consoleErrors }) => {
+  await page.goto("/#meta");
+  await metaRow(page, "Dragapult").getByRole("button", { name: "Rarely", exact: true }).click();
+  const before = await storedSettings(page);
+  await importFile(page, JSON.stringify({ version: 1, continent: "eu", localFrequencies: { "dragapult-ex": 9 } }));
+  await expect(page.locator("#import-state")).toContainText("Not imported, your settings are unchanged.");
+  await expect(page.locator("#import-state")).toContainText("dragapult-ex");
+  expect(await storedSettings(page)).toEqual(before);
+  await expect(page.locator("#continent")).toHaveValue("worldwide");
+  await expect(metaRow(page, "Dragapult").getByRole("button", { name: "Rarely", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(consoleErrors).toEqual([]);
+});
+
+// The continent weights share, and through it the default levels (ADR 0003). In the fixture every deck
+// played at the Regionals is above 5% whatever the continent, so these tests serve labs.json with 16 top
+// players counted per Regional instead of 6 (10 more on decks outside the fixture): then Crustle, played
+// only in Brisbane, is Regularly Worldwide (2.2%) and Often for Oceania (2.8%).
+const morePlayers = page => page.route("**/labs.json", route => {
+  const labs = fixture("labs.json");
+  labs.events = labs.events.map(e => ({ ...e, players: 16 }));
+  return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(labs) });
+});
+const defaultLevel = row => row.locator(".seg button.is-default");
+
+test("changing continent changes default levels and the tier list, not local frequencies", async ({ page, consoleErrors }) => {
+  await morePlayers(page);
+  await page.goto("/");
+  await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
+  const worldwide = await page.locator("#tier-legend").textContent();
+
+  await page.locator("#tab-meta").click();
+  await metaRow(page, "Dragapult").getByRole("button", { name: "Rarely", exact: true }).click();
+  const crustle = metaRow(page, "Crustle");
+  await expect(defaultLevel(crustle)).toHaveText("Regularly");
+  await expect(crustle.getByRole("button", { name: "Regularly", exact: true })).toHaveAttribute("aria-pressed", "true");
+
+  await page.getByLabel("Continent").selectOption("Oceania");
+  await expect(defaultLevel(crustle)).toHaveText("Often");
+  await expect(crustle.getByRole("button", { name: "Often", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(metaRow(page, "Dragapult").getByRole("button", { name: "Rarely", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#continent-note")).toBeHidden();
+  expect(await storedSettings(page)).toEqual({ version: 1, localFrequencies: { "dragapult-ex": 1 }, continent: "oce" });
+
+  // Crustle counts three times as much in My meta, so the tier cut-offs move.
+  await page.locator("#tab-tierlist").click();
+  await expect(page.locator("#tier-legend")).not.toHaveText(worldwide);
+
+  await page.reload();
+  await page.locator("#tab-meta").click();
+  await expect(page.getByLabel("Continent")).toHaveValue("oce");
+  await expect(defaultLevel(metaRow(page, "Crustle"))).toHaveText("Often");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a continent without Regionals shows a note and uses Worldwide", async ({ page, consoleErrors }) => {
+  await morePlayers(page);
+  await page.goto("/#meta");
+  const note = page.locator("#continent-note");
+  await expect(note).toBeHidden();
+
+  await page.getByLabel("Continent").selectOption("Latin America");
+  await expect(note).toBeVisible();
+  await expect(note).toHaveText(`There are no Regionals in Latin America in season ${fixture("labs.json").season}, so the defaults use Worldwide.`);
+  await expect(defaultLevel(metaRow(page, "Crustle"))).toHaveText("Regularly");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("the lists on a deck page do not change with the continent", async ({ page, consoleErrors }) => {
+  await morePlayers(page);
+  await page.goto("/");
+  const lists = async () => {
+    await page.locator("#tab-deck").click();
+    await page.locator("button[data-picker=deck-select]").click();
+    await page.locator("#pk-body button[data-pick]", { hasText: "Crustle" }).click();
+    await expect(page.locator("#deck-detail")).toContainText("Consensus list");
+    // Every list panel; Key numbers holds the share and expected winrate, which do follow the continent.
+    return page.locator("#deck-detail section.dl").evaluateAll(ss =>
+      ss.filter(s => s.querySelector("h3")?.textContent !== "Key numbers").map(s => s.textContent));
+  };
+  const share = () => page.locator("#deck-detail .fact-group", { has: page.locator("h4", { hasText: "Regionals" }) });
+  const worldwide = await lists();
+  expect(worldwide.length).toBeGreaterThan(0);
+  await expect(share()).toContainText("Share2.2%");
+
+  await page.locator("#tab-meta").click();
+  await page.getByLabel("Continent").selectOption("Oceania");
+  await expect(defaultLevel(metaRow(page, "Crustle"))).toHaveText("Often");
+  expect(await lists()).toEqual(worldwide);
+  await expect(share()).toContainText("Share2.8%");
+  expect(consoleErrors).toEqual([]);
+});
+
+// Storage the site cannot use: reading localStorage itself throws (cookies blocked), or every call throws.
+const UNAVAILABLE = {
+  blocked: () => Object.defineProperty(window, "localStorage", { get() { throw new DOMException("The operation is insecure.", "SecurityError"); } }),
+  throwing: () => ["getItem", "setItem", "removeItem"].forEach(m => {
+    Storage.prototype[m] = () => { throw new DOMException("The quota has been exceeded.", "QuotaExceededError"); };
+  }),
+};
+for (const [name, unavailable] of Object.entries(UNAVAILABLE)) {
+  test(`with storage ${name} the site loads with defaults`, async ({ page, consoleErrors }) => {
+    await page.addInitScript(unavailable);
+    await page.goto("/");
+    await expect(page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" })).toBeVisible();
+
+    await page.locator("#tab-meta").click();
+    const never = metaRow(page, "Dragapult").getByRole("button", { name: "Never", exact: true });
+    await never.click();
+    await expect(never).toHaveAttribute("aria-pressed", "true"); // still works for this visit
+    await expect(page.locator("#save-state")).toHaveText("Could not save; your changes only apply to this session");
+    expect(consoleErrors).toEqual([]);
+  });
+}
+
+// Advice and Deck chat need the visitor's own Anthropic API key (ADR 0002). No real API call is
+// made: without a key the page sends nothing, and with a key the Messages API route is stubbed.
+const API_KEY = "sk-ant-test-0000-abcd";
+const stored = (page, key) => page.evaluate(k => localStorage.getItem(k), key);
+const openDeck = async (page, name) => {
+  await page.locator("#tab-deck").click();
+  await page.locator("button[data-picker=deck-select]").click();
+  await page.locator("#pk-body button[data-pick]", { hasText: name }).click();
+};
+
+// A structured Advice answer as the Messages API sends it back, with English field names.
+const ADVICE_ANSWER = {
+  summary: "Play Dragapult: it beats most of what you meet.",
+  picks: [
+    { deck_id: "dragapult-ex", role: "Best pick", why: "Good against your two most common decks.", strong_against: ["Crustle"], watch_out: ["Slow starts"], confidence: "medium", list: "consensus", cards: [] },
+    { deck_id: "basic-box-m", role: "Alternative", why: "Steady against everything.", strong_against: [], watch_out: [], confidence: "low", list: "consensus", cards: [] },
+  ],
+  avoid: [{ deck_id: "festival-lead", why: "Loses to Dragapult." }],
+  caveats: ["Few games for some matchups."],
+};
+// Answer the Messages API route (and its CORS preflight); every request body is collected.
+async function stubMessagesApi(page, status, body) {
+  const requests = [];
+  const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "POST" };
+  await page.route("https://api.anthropic.com/v1/messages", route => {
+    const req = route.request();
+    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    requests.push({ headers: req.headers(), body: req.postDataJSON() });
+    return route.fulfill({ status, headers: cors, contentType: "application/json", body: JSON.stringify(body) });
+  });
+  return requests;
+}
+const message = obj => ({ type: "message", role: "assistant", model: "claude-opus-5-5", stop_reason: "end_turn",
+  content: [{ type: "text", text: JSON.stringify(obj) }] });
+
+test("without an API key Advice and Deck chat are off and explain how to turn them on", async ({ page, consoleErrors }) => {
+  const apiCalls = [];
+  page.on("request", r => { if (r.url().startsWith("https://api.anthropic.com/")) apiCalls.push(r.url()); });
+  await page.goto("/");
+  await expect(page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" })).toBeVisible(); // the tier list still works
+
+  await page.locator("#tab-advice").click();
+  await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
+  await expect(page.getByLabel("Anthropic API key")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove key" })).toBeHidden();
+  await expect(page.locator("#advice-run")).toBeDisabled();
+
+  await openDeck(page, "Dragapult");
+  const chat = page.locator("#deck-chat");
+  await expect(chat).toContainText("Deck chat is off");
+  await expect(chat.getByRole("link", { name: "Add your API key" })).toBeVisible();
+  await expect(chat.locator("#chat-input")).toHaveCount(0);
+  await chat.getByRole("link", { name: "Add your API key" }).click();
+  await expect(page.getByLabel("Anthropic API key")).toBeVisible();
+  expect(apiCalls).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("with an API key Advice runs, stays after a reload, and Remove key turns it off again", async ({ page, consoleErrors }) => {
+  const requests = await stubMessagesApi(page, 200, message(ADVICE_ANSWER));
+  await page.goto("/#advice");
+
+  await page.getByLabel("Anthropic API key").fill(API_KEY);
+  await page.getByRole("button", { name: "Save key" }).click();
+  await expect(page.locator("#ai-key")).toContainText("stored only in this browser");
+  expect(JSON.parse(await stored(page, "matchup-meta-api-key"))).toBe(API_KEY);
+  await expect(page.locator("#advice-run")).toBeEnabled();
+
+  await page.locator("#advice-run").click();
+  const result = page.locator("#advice-result");
+  await expect(result).toContainText("Play Dragapult: it beats most of what you meet.");
+  await expect(result.locator(".pick.best")).toContainText("Dragapult");
+  await expect(result.locator(".pick.best")).toContainText("Confidence: medium");
+  await expect(result.locator(".adv-avoid")).toContainText("Festival Lead");
+
+  // The request: the visitor's key, straight from the browser, the model and effort from the ticket,
+  // an English prompt and English field names in the structured answer.
+  expect(requests).toHaveLength(1);
+  const { headers, body } = requests[0];
+  expect(headers["x-api-key"]).toBe(API_KEY);
+  expect(headers["anthropic-dangerous-direct-browser-access"]).toBe("true");
+  expect(headers["anthropic-version"]).toBe("2026-10-21");
+  expect(body.model).toBe("claude-opus-5-5");
+  expect(body.output_config.effort).toBe("medium");
+  const schema = body.output_config.format.schema;
+  expect(Object.keys(schema.properties)).toEqual(["summary", "picks", "avoid", "caveats"]);
+  expect(Object.keys(schema.properties.picks.items.properties)).toEqual(
+    ["deck_id", "role", "why", "strong_against", "watch_out", "confidence", "list", "cards"]);
+  const prompt = body.messages[0].content;
+  expect(prompt).toContain("You are an experienced Pokémon TCG player and coach");
+  expect(prompt).toContain("Dragapult [dragapult-ex]");
+  for (const dutch of ["Je bent", "aandeel", "gewicht", "Nederlands", "zekerheid"]) expect(prompt).not.toContain(dutch);
+
+  // Advice history stays in the browser, outside Settings (the only thing an export carries).
+  await page.reload();
+  await expect(page.locator("#advice-result")).toContainText("Play Dragapult: it beats most of what you meet.");
+  expect(JSON.parse(await stored(page, "matchup-meta-advice"))[0].result).toEqual(ADVICE_ANSWER);
+  const settings = await stored(page, "matchup-meta-settings");
+  for (const text of [API_KEY, "Play Dragapult"]) expect(settings ?? "").not.toContain(text);
+
+  await page.getByRole("button", { name: "Remove key" }).click();
+  expect(await stored(page, "matchup-meta-api-key")).toBeNull();
+  await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
+  await expect(page.locator("#advice-run")).toBeDisabled();
+  await openDeck(page, "Dragapult");
+  await expect(page.locator("#deck-chat")).toContainText("Deck chat is off");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a rejected API key shows a readable error and leaves the page working", async ({ page }) => {
+  await stubMessagesApi(page, 401, { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } });
+  await page.addInitScript(key => localStorage.setItem("matchup-meta-api-key", JSON.stringify(key)), API_KEY);
+  await page.goto("/#advice");
+
+  await page.locator("#advice-run").click();
+  await expect(page.locator("#advice-state")).toHaveText("Anthropic rejected your API key. Check that you pasted all of it, or remove it and enter a new one.");
+  await expect(page.locator("#advice-state")).toHaveClass(/err/);
+  await expect(page.locator("#advice-run")).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Remove key" })).toBeVisible();
+});
+
+// Deck chat streams its answer (server-sent events). Each stubbed reply is one streamed message;
+// the first asks for the list-check tool, the second answers with a list in a ```list block.
+const sse = events => events.map(e => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+const streamedReply = (block, stop_reason) => sse([
+  { type: "message_start", message: { id: "msg_1", type: "message", role: "assistant", content: [] } },
+  { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } },
+  { type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: "sig-1" } },
+  { type: "content_block_stop", index: 0 },
+  ...(block.text != null
+    ? [{ type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
+      ...block.text.match(/[^]{1,40}/g).map(text => ({ type: "content_block_delta", index: 1, delta: { type: "text_delta", text } }))]
+    : [{ type: "content_block_start", index: 1, content_block: { type: "tool_use", id: "toolu_1", name: block.tool, input: {} } },
+      { type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: JSON.stringify(block.input) } }]),
+  { type: "content_block_stop", index: 1 },
+  { type: "message_delta", delta: { stop_reason } }, { type: "message_stop" },
+]);
+async function stubDeckChat(page, replies) {
+  const requests = [];
+  const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "POST" };
+  await page.route("https://api.anthropic.com/v1/messages", route => {
+    const req = route.request();
+    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    requests.push(req.postDataJSON());
+    return route.fulfill({ status: 200, headers: cors, contentType: "text/event-stream", body: replies[requests.length - 1] });
+  });
+  return requests;
+}
+const LIST_INPUT = { cards: [{ count: 4, name: "Dreepy", set: "ASC", number: "158" }, { count: 4, name: "Drakloak", set: "ASC", number: "159" }] };
+const CHAT_ANSWER = "Play this list:\n\n```list\n4 Dreepy ASC 158\n4 Drakloak ASC 159\n3 Dragapult ex ASC 160\n```\n\nIt follows the consensus list.";
+
+test("with an API key Deck chat streams an answer, checks a list with its tool, and keeps the chat after a reload", async ({ page, consoleErrors }) => {
+  const requests = await stubDeckChat(page, [
+    streamedReply({ tool: "check_list", input: LIST_INPUT }, "tool_use"),
+    streamedReply({ text: CHAT_ANSWER }, "end_turn"),
+  ]);
+  await page.addInitScript(key => localStorage.setItem("matchup-meta-api-key", JSON.stringify(key)), API_KEY);
+  await page.goto("/");
+  await openDeck(page, "Dragapult");
+  const chat = page.locator("#deck-chat");
+  await chat.locator("#chat-input").fill("Build a 60-card list for my meta with me.");
+  await chat.getByRole("button", { name: "Send" }).click();
+
+  await expect(chat.locator(".msg.bot")).toContainText("It follows the consensus list.");
+  await expect(chat.locator(".chat-list")).toContainText("Total 11 cards");
+  await expect(chat.getByRole("button", { name: "Send" })).toBeEnabled();
+
+  // Two requests: Claude calls check_list, the page runs it and sends the result back.
+  expect(requests).toHaveLength(2);
+  const [first, second] = requests;
+  expect(first.model).toBe("claude-opus-5-5");
+  expect(first.output_config.effort).toBe("medium");
+  expect(first.stream).toBe(true);
+  expect(first.tools.map(t => t.name)).toEqual(["check_list"]);
+  expect(first.messages).toEqual([{ role: "user", content: "Build a 60-card list for my meta with me." }]);
+  expect(first.system).toContain("You are an experienced Pokémon TCG player and coach");
+  expect(first.system).toContain("Dragapult");
+  for (const dutch of ["Je bent", "Nederlands", "zekerheid", "lijsten", "kaarten", "Europese"]) expect(first.system).not.toContain(dutch);
+  const result = second.messages.at(-1).content[0];
+  expect(result.type).toBe("tool_result");
+  expect(result.tool_use_id).toBe("toolu_1");
+  expect(JSON.parse(result.content).total).toBe(8);
+  expect(second.messages.at(-2).content[0]).toEqual({ type: "thinking", thinking: "", signature: "sig-1" });
+
+  // The chat stays in this browser after a reload, outside Settings (what an export carries).
+  await page.reload();
+  await openDeck(page, "Dragapult");
+  await expect(page.locator("#deck-chat .msg.user")).toHaveText("Build a 60-card list for my meta with me.");
+  await expect(page.locator("#deck-chat .msg.bot")).toContainText("It follows the consensus list.");
+  expect(JSON.parse(await stored(page, "matchup-meta-deck-chat"))["dragapult-ex"]).toHaveLength(2);
+  expect(await stored(page, "matchup-meta-settings") ?? "").not.toContain("consensus list");
+  // No claude.ai runtime is asked for anything.
+  expect(await page.evaluate(() => typeof window.claude)).toBe("undefined");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a rejected API key in Deck chat shows a readable error", async ({ page }) => {
+  await stubMessagesApi(page, 401, { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } });
+  await page.addInitScript(key => localStorage.setItem("matchup-meta-api-key", JSON.stringify(key)), API_KEY);
+  await page.goto("/");
+  await openDeck(page, "Dragapult");
+  await page.locator("#chat-input").fill("Is Shaymin worth it?");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.locator("#chat-state")).toHaveText("Anthropic rejected your API key. Check that you pasted all of it, or remove it and enter a new one.");
+  await expect(page.locator("#chat-state")).toHaveClass(/err/);
+  await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
+});

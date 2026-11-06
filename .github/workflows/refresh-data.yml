@@ -1,0 +1,126 @@
+# Refreshes the site data on a schedule and commits it when it changed (ADR 0001).
+# Limitless on every run, Trainerhill only on the run on the 1st of the month or when asked
+# for in a manual run. The raw Limitless download lives in the Actions cache, which evicts
+# entries unused for 7 days; hence a run every 6 days. A failed step stops the run before
+# the commit, so the published data stays as it was and GitHub's failure email is the alert.
+name: Refresh data
+
+on:
+  schedule:
+    - cron: "0 4 1,7,13,19,25,31 * *"
+  workflow_dispatch:
+    inputs:
+      trainerhill:
+        description: "Also refresh the Trainerhill matchups"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # A run without cache can take hours; GitHub stops a job at 6 hours.
+    timeout-minutes: 355
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install the model's dependencies
+        run: pip install -r requirements-dev.txt
+
+      # Caches cannot be overwritten, so every run saves a new key and the next run
+      # restores the newest one by its prefix.
+      - name: Restore the raw Limitless download
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: labs_data/raw
+          key: limitless-raw-${{ github.run_id }}
+          restore-keys: limitless-raw-
+
+      - name: Fetch Limitless and build labs.json
+        run: python -I scripts/limitless_labs_fetch.py --top 500 --min-lists 150 --out labs_data --app-dir site
+
+      # Saved even when the fetch failed, so a long backlog is not fetched again next run.
+      - name: Save the raw Limitless download
+        if: always() && hashFiles('labs_data/raw/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: labs_data/raw
+          key: limitless-raw-${{ github.run_id }}
+
+      - name: Decide whether to refresh Trainerhill
+        id: trainerhill
+        env:
+          ASKED: ${{ inputs.trainerhill }}
+        run: |
+          if [ "$ASKED" = "true" ] || { [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$(date -u +%d)" = "01" ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Runs after Limitless: it reads the season Limitless chose from site/labs.json.
+      - name: Fetch Trainerhill and build data.json
+        if: steps.trainerhill.outputs.run == 'true'
+        run: python -I scripts/trainerhill_fetch.py --out trainerhill_data --app-dir site
+
+      # Both files carry the time they were generated, so they always differ in that field.
+      # A file whose content is otherwise unchanged is put back, so nothing is committed.
+      - name: Keep only data files whose content changed
+        run: |
+          python -I - <<'PY'
+          import json, subprocess
+          for path in ("site/labs.json", "site/data.json"):
+              old = subprocess.run(["git", "show", f"HEAD:{path}"], capture_output=True, text=True, encoding="utf-8")
+              if old.returncode:
+                  continue
+              strip = lambda d: {k: v for k, v in d.items() if k != "generated"}
+              with open(path, encoding="utf-8") as f:
+                  new = json.load(f)
+              if strip(json.loads(old.stdout)) == strip(new):
+                  subprocess.run(["git", "checkout", "--", path], check=True)
+                  print(f"{path}: unchanged")
+              else:
+                  print(f"{path}: changed")
+          PY
+
+      - name: Commit the data
+        id: commit
+        run: |
+          git add site/labs.json site/data.json
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No data changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Refresh data ($(date -u +%Y-%m-%d))"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  # A push made with GITHUB_TOKEN does not start the push-based deploy, so call it here.
+  deploy:
+    needs: refresh
+    if: needs.refresh.outputs.changed == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

@@ -1,0 +1,12 @@
+{
+  "name": "matchup-meta",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:unit": "node --test \"tests/unit/**/*.test.js\"",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "~1.64.0"
+  }
+}

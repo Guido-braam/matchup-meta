@@ -1,0 +1,39 @@
+# Publishes the site folder to GitHub Pages whenever it changes on the default branch.
+# Commits pushed with GITHUB_TOKEN do not trigger push workflows, so the data refresh
+# workflow calls this one after it commits new data.
+name: Deploy site to Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**"]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # The branch tip, not the triggering commit: when the data refresh calls this
+      # workflow, its own data commit comes after that commit.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

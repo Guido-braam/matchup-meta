@@ -1,0 +1,77 @@
+# Checks that run on every pull request. Each kind of test is its own job, so a
+# failing job names what broke; add new jobs (unit tests, fetcher tests) here.
+name: Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fetcher:
+    name: Fetcher tests (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install test dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run the Limitless fetcher on the fixture cache
+        run: python -m pytest -v
+
+  unit:
+    name: Calculation module (node --test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      # The calculation module has no dependencies; the tests only need Node itself.
+      - name: Run node tests on the fixture data
+        run: npm run test:unit
+
+  browser-smoke:
+    name: Browser smoke test (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install test dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests on the fixture data
+        run: npx playwright test
+
+      - name: Keep traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7

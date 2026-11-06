@@ -1,0 +1,26 @@
+# Cache en tussenbestanden van de ophaalscripts (opnieuw te maken)
+labs_data/
+trainerhill_data/
+exports/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Lokale specs en tickets
+.scratch/
+
+# Worktrees en lokale instellingen van Claude Code
+.claude/worktrees/
+.claude/settings.json
+
+# Node en Playwright
+node_modules/
+test-results/
+playwright-report/
+.pw/
+
+# CSV's die de fetcher naast de fixture-cache schrijft bij het maken van tests/fixtures/labs.json
+tests/fixtures/limitless/*.csv
