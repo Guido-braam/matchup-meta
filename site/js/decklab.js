@@ -170,6 +170,10 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 .cl-row .art{font-size:14px}
 .cl-row .ft{display:none}
 .cl-row .cnt{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);min-width:15px;height:15px;padding:0 4px;border-radius:99px;background:var(--accent);color:var(--accent-ink);font:700 10px/15px var(--f-body);text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+/* Telefoon: 5 per rij. */
+@media (max-width:560px){.cl-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.cl-row .cnt{min-width:18px;height:18px;font-size:11px;line-height:18px}}
+/* Groot scherm: 4 per rij in de linkerkolom (ongeveer 62px; Test hand is 84px). */
+@media (min-width:901px){.cl-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.cl-row .nm{font-size:9px}.cl-row .art{font-size:18px}.cl-row .cnt{min-width:18px;height:18px;bottom:3px;font-size:11px;line-height:18px}}
 .field{position:relative}
 /* Tekst en knop midden in het veld; ernaast klikken gaat door naar het veld (typen of Ctrl+V). */
 .paste{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;pointer-events:none}
@@ -242,14 +246,21 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
 .cards{display:flex;flex-wrap:wrap;gap:8px}
 .cw{display:flex;flex-direction:column;align-items:center;gap:3px}
 .cw>span{font-size:11px;font-family:var(--f-mono);color:var(--muted)}
+summary.zone-t{cursor:pointer;list-style:none;margin-bottom:0}
+summary.zone-t::before{content:"▸"}
+details[open]>summary.zone-t{margin-bottom:8px}
+details[open]>summary.zone-t::before{content:"▾"}
 .th-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
 @media (max-width:1100px){.th-split{grid-template-columns:minmax(0,1fr)}}
 .mull{opacity:.55}
+/* Meerdere mulligans: duidelijk ruimte en een lijn tussen de handen. */
+.mull+.mull{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
 .card{width:84px;flex:none}
 .card.sm{width:60px}
 /* Kaarttegel van cardTile() (cards.js); zelfde regels als .ctile in style.css, die de shadow root niet bereikt. */
 .ctile{position:relative;aspect-ratio:63/88;border-radius:6px;overflow:hidden}
-.ctile img{display:block;width:100%;height:100%;object-fit:cover}
+@media (hover:hover){.ctile:has(img){transition:transform .15s}.ctile:has(img):hover{transform:scale(2.5);z-index:5;box-shadow:0 8px 24px rgb(0 0 0/.5)}.ctile:has(img):hover .cnt{opacity:0}}
+.ctile img{display:block;width:100%;height:100%;object-fit:cover;cursor:zoom-in}
 .ctile:not(.ph)>span:not(.cnt){display:none}
 .ctile.ph{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);font-size:10px;line-height:1.2;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .ctile .band{height:5px;flex:none}
@@ -289,10 +300,10 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
     for (const cat of ["pokemon","trainer","energy",null]){
       const list = entries.filter(e => e.cat === cat); if (!list.length) continue;
       html += `<div class="cl-head"><span class="label" style="color:${cat ? catColor(cat) : "var(--bad)"}">${cat ? CAT_LABEL[cat] : "Not recognized"}</span><span class="num label">${count(list, () => true)}</span></div>`;
-      // Kleine kaarttegels met het aantal; stage/type en ACE SPEC staan in de note (verborgen) en de tooltip.
+      // Kleine kaarttegels met het aantal; stage/type en ACE SPEC staan in de (verborgen) note.
       html += `<div class="cl-grid">${list.map(e => {
         const note = cat ? (e.ace ? "ACE SPEC · " : "") + tagOf(e) : "card not recognized";
-        return `<div class="cl-row" title="${esc([e.name, note, ...e.prints].join(" · "))}">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}</div>`;
+        return `<div class="cl-row">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}</div>`;
       }).join("")}</div>`;
     }
     $("#cardlist").innerHTML = html || '<p class="hint">No cards recognized yet. Paste a list with lines like <span class="num">4 Applin DRI 16</span>.</p>';
@@ -390,19 +401,27 @@ details.rules ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:co
     const mulls = [];
     for (;;){
       const d = shuffle(all.slice()), hand = d.slice(0, 7);
-      if (hand.some(isBasic) || mulls.length >= 40){ TH = {hand, prizes: d.slice(7, 13), draws: d.slice(13, 13 + TURNS), mulls}; break; }
+      if (hand.some(isBasic) || mulls.length >= 40){ TH = {hand, prizes: d.slice(7, 13), draws: d.slice(13, 17), mulls}; break; }
       mulls.push(hand);
     }
     renderHand();
   }
   function renderHand(){
     const body = $("#th-body"); if (!body || !TH) return;
+    // Mulligans en volgende trekkingen: op een groot scherm (twee kolommen) altijd zichtbaar. Kleiner: uitklapbaar,
+    // elke nieuwe hand begint dicht.
+    const fold = matchMedia("(max-width:900px)").matches;
+    // note: uitleg die op een groot scherm in de kop staat en bij uitklappen mee in- en uitklapt.
+    const zone = (id, title, inner, note = "") => fold
+      ? `<details class="th-zone" id="${id}"><summary class="zone-t">${title}</summary>${note ? `<div class="zone-t">${note}</div>` : ""}${inner}</details>`
+      : `<div class="th-zone" id="${id}"><div class="zone-t">${title}${note}</div>${inner}</div>`;
     const nB = TH.hand.filter(isBasic).length;
     let h = "";
-    if (TH.mulls.length) h += `<div class="th-zone"><div class="zone-t"><span class="pill bad">${TH.mulls.length} mulligan${TH.mulls.length > 1 ? "s" : ""}</span>Hands without a Basic Pokémon</div>${TH.mulls.map(m => `<div class="cards mull" style="margin-bottom:6px">${m.map(c => cardHTML(c, "sm")).join("")}</div>`).join("")}</div>`;
+    if (TH.mulls.length) h += zone("th-mulls", `<span class="pill bad">${TH.mulls.length} mulligan${TH.mulls.length > 1 ? "s" : ""}</span>`,
+      TH.mulls.map(m => `<div class="cards mull">${m.map(c => cardHTML(c, "sm")).join("")}</div>`).join(""), "Hands without a Basic Pokémon");
     h += `<div class="th-zone"><div class="zone-t">Opening hand<span class="pill info">${nB} Basic${nB === 1 ? "" : "s"}</span></div><div class="cards">${TH.hand.map(c => cardHTML(c)).join("")}</div></div>`;
     h += `<div class="th-split"><div class="th-zone"><div class="zone-t">Prize cards</div><div class="cards">${TH.prizes.map(c => cardHTML(c, "sm")).join("")}</div></div>`;
-    h += `<div class="th-zone"><div class="zone-t">Next draws</div><div class="cards">${TH.draws.map((c, i) => `<div class="cw">${cardHTML(c, "sm")}<span>Turn ${i+1}</span></div>`).join("")}</div></div></div>`;
+    h += zone("th-draws", "Next 4 draws", `<div class="cards">${TH.draws.map((c, i) => `<div class="cw">${cardHTML(c, "sm")}<span>Turn ${i+1}</span></div>`).join("")}</div>`) + "</div>";
     body.innerHTML = h;
   }
 

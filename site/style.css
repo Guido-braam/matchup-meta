@@ -258,8 +258,6 @@ td .opp button:hover { color: var(--accent); }
 .bar span { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
 .pos { color: var(--good); } .neg { color: var(--bad); }
 /* Secundair: klein gestippeld label, blijft een native select */
-.freq-select { font-size: 0.74rem; padding: 1px 4px; color: var(--muted); background: transparent; border: 1px dashed var(--line); border-radius: 6px; cursor: pointer; }
-.freq-select:hover { border-color: var(--accent); color: var(--fg); }
 .mu-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line); }
 .mu-col { min-width: 0; padding: 12px 12px 4px; }
 .mu-col + .mu-col { border-left: 1px solid var(--line); }
@@ -376,10 +374,22 @@ details.list summary .tag { margin-left: 4px; vertical-align: 1px; }
 details.list[open] summary { margin-bottom: 4px; }
 .mini ul { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; columns: 2 180px; column-gap: 16px; }
 .mini li { break-inside: avoid; }
-/* Kaartplaatjes: raster per sectie (ongeveer acht per rij, vier op een telefoon), rond aantal-badge onderaan in het midden.
-   Zonder plaatje de placeholder (.ph), dicht bij de kaarten in Deck Lab. */
-.cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(112px, 22%), 1fr)); gap: 8px; margin: 4px 0 6px; }
+/* Kaartplaatjes: raster per sectie (acht per rij op een groot scherm, zes daaronder, vier op een telefoon),
+   rond aantal-badge onderaan in het midden. Zonder plaatje de placeholder (.ph), dicht bij de kaarten in Deck Lab. */
+.cgrid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin: 4px 0 6px; }
+@media (min-width: 1000px) { .cgrid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .cgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .ctile { position: relative; aspect-ratio: 63 / 88; border-radius: 6px; overflow: hidden; }
+/* Inzoomen: met een muis 2,5× bij hover (zonder aantal-badge); een klik of tik op een plaatje toont het op volledig scherm (cards.js). */
+.ctile img { cursor: zoom-in; }
+@media (hover: hover) {
+  .ctile:has(img) { transition: transform .15s; }
+  .ctile:has(img):hover { transform: scale(2.5); z-index: 5; box-shadow: 0 8px 24px rgb(0 0 0 / .5); }
+  .ctile:has(img):hover .cnt { opacity: 0; }
+}
+.card-zoom { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 6px; background: rgb(0 0 0 / .85); }
+/* Zo groot als past (kaartverhouding 63:88), met een kleine marge tot de rand. */
+.card-zoom img { width: min(100%, calc((100dvh - 12px) * 63 / 88)); height: auto; border-radius: 12px; }
 .ctile img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .ctile:not(.ph) > span:not(.cnt) { display: none; }
 .ctile.ph { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); font-size: 10px; line-height: 1.2; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
@@ -401,6 +411,8 @@ textarea.copy-fallback { font: 0.78rem/1.4 ui-monospace, "Cascadia Mono", Consol
 .rec-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px 28px; align-items: start; }
 .rec-src { margin: 0; font-weight: 600; }
 .rec-src .tag { margin-left: 6px; vertical-align: 1px; }
+.rec-diff { margin: 6px 0 0; font-size: 0.9rem; }
+.rec-diff span { font-weight: 600; }
 .rec-num { margin: 6px 0 12px; }
 .rec-num b { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 .why { list-style: none; margin: 0; padding: 0; display: grid; }

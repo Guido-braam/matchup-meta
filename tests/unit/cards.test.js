@@ -106,7 +106,7 @@ test("a Trainer or Energy without image borrows the image of another card with t
 test("a card tile is the image with a count badge, or the placeholder without an image", () => {
   const img = cardTile(findCard(INDEX, "MEG", "114"), { name: "Boss's Orders", cat: "trainer", count: 3 });
   assert.match(img, /^<div class="ctile">/);
-  assert.match(img, /<img loading="lazy" src="cards\/me01\/114.webp" alt="Boss&#39;s Orders" title="Boss&#39;s Orders"/);
+  assert.match(img, /<img loading="lazy" src="cards\/me01\/114.webp" alt="Boss&#39;s Orders" onerror=/);
   assert.match(img, /<span class="cnt">3<\/span>/);
   const noImg = cardTile(findCard(INDEX, "MEG", "11"), { name: "Crustle ex", count: 1, note: "MEG 11" });
   assert.match(noImg, /^<div class="ctile ph">/);

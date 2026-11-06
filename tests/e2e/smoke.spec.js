@@ -134,11 +134,11 @@ test("an opened Played list shows card images with a count badge under the secti
   const grid = list.locator(".cgrid").first();
   await expect(list.locator(".sec-title")).toHaveText(["Pokémon (20)", "Trainer (32)", "Energy (8)"]);
   await expect(list.locator(".cgrid")).toHaveCount(3);
-  // About eight per row on desktop.
+  // Eight per row on a large screen.
   expect(await grid.evaluate(g => getComputedStyle(g).gridTemplateColumns.split(" ").length)).toBe(8);
-  // The three cards with an image: the image, with the name as alt and title, and the count; no other text on it.
+  // The three cards with an image: the image, with the name as alt (no tooltip), and the count; no other text on it.
   const dragapult = grid.locator(".ctile", { has: page.locator('img[alt="Dragapult ex"]') });
-  await expect(dragapult.locator("img")).toHaveAttribute("title", "Dragapult ex");
+  await expect(dragapult.locator("img")).not.toHaveAttribute("title");
   await expect(dragapult.locator("img")).toHaveAttribute("loading", "lazy");
   await expect(dragapult.locator(".cnt")).toHaveText("3");
   await expect(dragapult.locator(".nm")).toBeHidden();
@@ -244,11 +244,14 @@ test("decks you never meet are left out until you show them, on the deck page an
   await expect(page.locator("#page-tierlist details.how .note")).toBeHidden();
   await expect(page.locator("input[type=checkbox]#show-never, input[type=checkbox]#hide-never-opp")).toHaveCount(0);
 
-  // The frequency label on a matchup row still sets the level.
+  // Matchup rows have no frequency dropdown; set Dragapult to Never in My meta.
   await openDeck(page, "Crustle");
   await expect(page.locator("#deck-never")).toHaveCount(0);
   const row = page.locator("#deck-detail .mu", { hasText: "Dragapult" });
-  await row.locator(".freq-select").selectOption("0");
+  await expect(row.locator("select")).toHaveCount(0);
+  await page.locator("#open-meta").click();
+  await chooseLevel(page, "Dragapult", "Never");
+  await page.keyboard.press("Escape");
   const deckLine = page.locator("#deck-never");
   await expect(deckLine).toHaveText("1 deck you never meet is left out. Show them");
   await expect(row).toHaveCount(0);
@@ -407,6 +410,12 @@ test("Deck Lab classifies lines without set code by name and draws a test hand w
   await expect(async () => {
     if (await hand.locator(".ctile img").count() === 0) { await lab.locator("#th-new").click(); throw new Error("no image in this hand"); }
   }).toPass();
+  // On a large screen the next 4 draws are always shown, without folding.
+  const draws = lab.locator("#th-draws");
+  await expect(draws.locator(".zone-t")).toHaveText("Next 4 draws");
+  await expect(draws.locator("summary")).toHaveCount(0);
+  await expect(draws.locator(".cw")).toHaveCount(4);
+  await expect(draws.locator(".cw").first()).toBeVisible();
   await expect.poll(() => hand.locator(".ctile img").evaluateAll(is => is.every(i => i.complete && i.naturalWidth > 0))).toBe(true);
   expect(consoleErrors).toEqual([]);
 });
@@ -479,6 +488,54 @@ test.describe("at phone width", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     expect(consoleErrors).toEqual([]);
   });
+
+  test("in Deck Lab the next 4 draws are folded away until you open them, and closed again on New hand", async ({ page, consoleErrors }) => {
+    await page.goto("/#lab");
+    const lab = page.locator("#lab-host");
+    await lab.locator("#deck").fill(PASTED_LIST);
+    const draws = lab.locator("#th-draws");
+    await expect(draws).not.toHaveAttribute("open");
+    await expect(draws.locator("summary")).toHaveText("Next 4 draws");
+    await expect(draws.locator(".cw")).toHaveCount(4);
+    await expect(draws.locator(".cw").first()).toBeHidden();
+    await draws.locator("summary").click();
+    await expect(draws.locator(".cw").first()).toBeVisible();
+    await lab.locator("#th-new").click();
+    await expect(lab.locator("#th-draws")).not.toHaveAttribute("open");
+    expect(consoleErrors).toEqual([]);
+  });
+});
+
+test.describe("on a touch screen", () => {
+  test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+
+  test("a tap on a card image shows it full screen, another tap anywhere closes it", async ({ page, consoleErrors }) => {
+    await page.goto("/#deck/dragapult-ex");
+    const list = firstPlayedList(page);
+    await list.locator("summary").click();
+    const img = list.locator(".cgrid img").first();
+    await expect(img).toBeVisible();
+    await img.click();
+    const zoom = page.locator(".card-zoom");
+    await expect(zoom.locator("img")).toHaveAttribute("src", await img.getAttribute("src"));
+    await zoom.click({ position: { x: 5, y: 5 } });
+    await expect(zoom).toHaveCount(0);
+    expect(consoleErrors).toEqual([]);
+  });
+});
+
+// With a mouse or trackpad too (a tablet with a keyboard, a desktop): a click shows the card full screen, Esc closes it.
+test("a click on a card image in Deck Lab shows it full screen, Esc closes it", async ({ page, consoleErrors }) => {
+  await page.goto("/#lab");
+  const lab = page.locator("#lab-host");
+  await lab.locator("#deck").fill(PASTED_LIST);
+  const img = lab.locator("#cardlist .ctile img").first();
+  await expect(img).toBeVisible();
+  await img.click();
+  await expect(page.locator(".card-zoom img")).toHaveAttribute("src", await img.getAttribute("src"));
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".card-zoom")).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
 });
 
 // Settings live in the visitor's browser (ADR 0002). The tier list as tier -> deck names, to compare views.

@@ -214,8 +214,6 @@ function renderDeck() {
       ${spritesHtml(o, "sm")}
       <div class="mu-main">
         <button class="mu-name" data-deck="${j}">${esc(o.name)}</button>
-        <select class="freq-select" data-set="${esc(o.id)}" aria-label="How often do you meet ${esc(o.name)}?">
-          ${LEVELS.map(l => `<option value="${l.lv}"${l.lv === lv ? " selected" : ""}>${l.label}</option>`).join("")}</select>
       </div>
       <div class="mu-nums">
         <div class="wr"><span class="val ${d >= 0.02 ? "pos" : d <= -0.02 ? "neg" : ""}">${pct(m.p, 0)}</span><span class="bar"><span style="${bar}"></span></span></div>
@@ -535,6 +533,16 @@ function recWhy(l, R) {
 // Pokémon met dezelfde naam kunnen verschillende kaarten zijn, dus daar set en nummer bij.
 const cardLabel = k => cardOf(k)[3] === 0 ? `${cardOf(k)[0]} (${cardOf(k)[1]} ${cardOf(k)[2]})` : cardOf(k)[0];
 const fmt1 = x => x.toFixed(1);
+// Wat de aanbevolen lijst anders doet dan de consensuslijst, per cardLabel (een andere print van dezelfde Trainer telt niet).
+function recDiff(from, to) {
+  const n = new Map();
+  from.forEach(([k, c]) => n.set(cardLabel(k), (n.get(cardLabel(k)) || 0) - c));
+  to.forEach(([k, c]) => n.set(cardLabel(k), (n.get(cardLabel(k)) || 0) + c));
+  const d = [...n].filter(([, c]) => c).sort((p, q) => Math.abs(q[1]) - Math.abs(p[1]));
+  const txt = (rows, cls) => rows.length ? `<span class="${cls}">${rows.map(([name, c]) => `${c > 0 ? "+" : "−"}${Math.abs(c)} ${esc(name)}`).join(", ")}</span>` : "";
+  const add = txt(d.filter(([, c]) => c > 0), "pos"), cut = txt(d.filter(([, c]) => c < 0), "neg");
+  return `<p class="rec-diff">${d.length ? `Compared with the Consensus list: ${[add, cut].filter(Boolean).join(" · ")}` : "Same cards as the Consensus list."}</p>`;
+}
 
 function renderRecommendation(l, R) {
   if (!l) return "";
@@ -553,6 +561,7 @@ function renderRecommendation(l, R) {
     <div class="rec-grid">
       <div>
         <p class="rec-src">${ord(x.place)} of ${nl(x.of)} · ${esc(cityOf(x.e))} · ${esc(x.rec)}${x.top ? '<span class="tag core">Top cut</span>' : '<span class="tag flex">Day 2</span>'}${x.n > 1 ? ` · played exactly like this by ${x.n} players` : ""}</p>
+        ${recDiff(l.consensus, x.cards)}
         <p class="rec-num">Expected edge against My meta: <b class="${up >= 0 ? "pos" : "neg"}">${ppTxt(up)}</b> win chance over an average ${esc(l.name)} list <span class="hint">(between ${ppTxt(up - x.se)} and ${ppTxt(up + x.se)})</span></p>
       </div>
       <div>
@@ -708,9 +717,6 @@ document.addEventListener("click", e => {
   if (d) { openDeck(Number(d.dataset.deck)); return; }
   const s = e.target.closest("button[data-set]");
   if (s) setLevel(s.dataset.set, Number(s.dataset.w));
-});
-document.addEventListener("change", e => {
-  if (e.target.matches("select[data-set]")) setLevel(e.target.dataset.set, Number(e.target.value));
 });
 $("lab-select").addEventListener("change", e => {
   if (e.target.value === "") return;

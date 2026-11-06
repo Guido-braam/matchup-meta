@@ -103,10 +103,25 @@ const ART = {
 // Laadt het plaatje niet (error), dan haalt het zichzelf weg en blijft de placeholder staan.
 export function cardTile(card, { name, cat = "pokemon", count = null, note = "" }) {
   const img = card?.image
-    ? `<img loading="lazy" src="${cardImagePath(card.imageId ?? card.id)}" alt="${esc(name)}" title="${esc(name)}" onerror="this.parentNode.classList.add('ph');this.remove()">` : "";
+    ? `<img loading="lazy" src="${cardImagePath(card.imageId ?? card.id)}" alt="${esc(name)}" onerror="this.parentNode.classList.add('ph');this.remove()">` : "";
   const art = (ART[cat] || ART.pokemon)(hue(name));
   return `<div class="ctile${img ? "" : " ph"}">${img}<span class="band" style="background:var(--c-${cat === "pokemon" ? "poke" : cat})"></span><span class="nm" title="${esc(name)}">${esc(name)}</span><span class="art" style="background:${art}">${esc(initials(name))}</span><span class="ft">${esc(note)}</span>${count == null ? "" : `<span class="cnt">${count}</span>`}</div>`;
 }
+
+// Vergroten: een klik of tik op een kaartplaatje toont het op volledig scherm, nog een klik (waar dan ook) of Esc sluit het.
+// Op elk apparaat, ook een tablet met trackpad; met een muis zoomt CSS daarnaast al bij hover (style.css en decklab.js).
+// composedPath, zodat het ook in de shadow root van Deck Lab werkt.
+if (typeof document !== "undefined") document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelector(".card-zoom")?.remove(); });
+if (typeof document !== "undefined") document.addEventListener("click", e => {
+  const img = e.composedPath()[0];
+  if (!(img instanceof HTMLImageElement) || !img.parentNode?.classList?.contains("ctile")) return;
+  e.preventDefault(); e.stopPropagation();
+  const o = document.createElement("div");
+  o.className = "card-zoom";
+  o.innerHTML = `<img src="${esc(img.getAttribute("src"))}" alt="${esc(img.alt)}">`;
+  o.addEventListener("click", () => o.remove());
+  document.body.append(o);
+}, true);
 
 // De Card index één keer per paginalading ophalen; elke aanroep krijgt dezelfde promise. Mislukt het, dan null.
 let indexReq = null;
