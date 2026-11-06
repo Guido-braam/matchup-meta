@@ -63,8 +63,9 @@ Total Cards: 60`;
       const key = cat + "|" + name.toLowerCase();
       if (map.has(key)) { const e = map.get(key); e.count += +m[1]; if (set) e.prints.push(set + " " + num); continue; }
       map.set(key, {name, set, num, count:+m[1], cat, card, prints: set ? [set + " " + num] : [],
-        stage: card?.stage === "Stage2" ? 2 : card?.stage === "Stage1" ? 1 : 0,
-        sub: cat === "trainer" ? card.trainerType?.toLowerCase() : cat === "energy" ? (card.energyType === "Special" ? "special" : "basic") : null,
+        // Alleen "Basic" is een Basic; andere evoluties (BREAK, VMAX) tellen als Stage 1. Trainer zonder type: Item.
+        stage: cat !== "pokemon" || card.stage === "Basic" ? 0 : card.stage === "Stage2" ? 2 : 1,
+        sub: cat === "trainer" ? (card.trainerType || "Item").toLowerCase() :cat === "energy" ? (card.energyType === "Special" ? "special" : "basic") : null,
         ace: !!card?.aceSpec});
     }
     const order = {pokemon:0, trainer:1, energy:2};

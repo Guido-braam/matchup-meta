@@ -410,7 +410,8 @@ function labQuick(p) {
   ], `Calculated on the ${esc(p.kind)}.`).replace('class="fact-group"', 'class="fact-group" id="lab-quick"');
   const run = ++labQuickRun;
   // Alleen invullen als de pagina intussen niet opnieuw is getekend.
-  DeckLab.quick(p.text).then(q => { const el = $("lab-quick"); if (run === labQuickRun && el) el.outerHTML = html(q); });
+  // Promise.resolve: vlak na een deploy kan de browser nog een oude decklab.js hebben, waar quick() synchroon is.
+  Promise.resolve(DeckLab.quick(p.text)).then(q => { const el = $("lab-quick"); if (run === labQuickRun && el) el.outerHTML = html(q); });
   return html(null);
 }
 
