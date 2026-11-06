@@ -145,8 +145,8 @@ def unknown_cards(labs, index):
     """Een ::warning::-regel per kaart in labs ([naam, setcode, nummer, sectie]) die de index niet kent.
 
     Een kaart is bekend als een van de sets van zijn code hem heeft; het nummer wordt localId (3 cijfers)."""
-    return [f"::warning::{name} {code} {number} staat niet in site/cards/index.json. "
-            "Draai de workflow \"Refresh cards\" (Actions-tab) om nieuwe sets op te halen."
+    return [f"::warning::{name} {code} {number} is not in site/cards/index.json. "
+            "Run the \"Refresh cards\" workflow (Actions tab) to fetch new sets."
             for name, code, number, _ in labs["cards"]
             if not any(f"{s['id']}-{number.zfill(3)}" in index["cards"] for s in index["sets"].get(code, []))]
 
@@ -160,7 +160,7 @@ def main(argv=None):
     if a.check_labs:
         with open(a.check_labs, encoding="utf-8") as f, open(os.path.join(a.out, "index.json"), encoding="utf-8") as g:
             warnings = unknown_cards(json.load(f), json.load(g))
-        print("\n".join(warnings) or "Alle kaarten in labs.json staan in de index.")
+        print("\n".join(warnings) or "All cards in labs.json are in the card index.")
         return
     os.makedirs(a.out, exist_ok=True)
 
