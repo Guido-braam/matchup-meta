@@ -562,3 +562,10 @@ dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
 .gm-h3 { margin: 6px 0 0; font-size: 1rem; }
 .gm-mu td, .gm-mu th { padding: 6px 6px; }
 .gm-mu td:first-child { overflow-wrap: anywhere; }
+.gm-ins { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem; }
+.gm-ins .gm-meta { white-space: normal; }
+.gm-mu .pill { font-size: 0.68rem; padding: 1px 6px; }
+.gm-mu td.num { white-space: nowrap; }
+.gm-more { list-style: none; margin-left: -18px; }
+.gm-more summary { cursor: pointer; font-weight: 600; }
+.gm-more .gm-ins { margin-top: 8px; }

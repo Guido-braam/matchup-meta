@@ -5,13 +5,9 @@ import { logId } from "./gamestore.js";
 import { latest } from "./mylists.js";
 import { reconstruct } from "./opponent.js";
 import { mountReplay } from "./replay.js";
-import { overview } from "./insights.js";
+import { overview, catalogue, norm, MIN } from "./insights.js";
 
 export const GAME_SCHEMA = 1;
-
-// Card names compared loosely: case, accents, apostrophes and "Basic " before an Energy do not matter.
-const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
-  .replace(/['’`]/g, "").replace(/^basic (?=.*energy$)/, "").replace(/\s+/g, " ").trim();
 
 // The cards a side showed in a game, once per name: [{id?, name}]. "Put N damage counters on X's Y" lines
 // are left out, because the log often names the wrong owner there.
@@ -137,7 +133,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data,
   const pct = p => (p == null ? "–" : Math.round(p * 100) + "%");
   const ci = r => (r.n ? `95%: ${pct(r.lo)}–${pct(r.hi)}` : "");
   const wl = r => `${r.k}–${r.n - r.k}`;
-  function statsHtml(o, myDeck) {
+  function statsHtml(o, myDeck, c, listPicked) {
     const tile = (label, big, sub) => `<div class="gm-tile"><span class="gm-tl">${label}</span><span class="gm-big">${big}</span><span class="gm-meta">${sub}</span></div>`;
     const why = r => [["prizes", "on Prize cards"], ["concede", "by concession"], ["other", "other"]].filter(([k]) => r[k]).map(([k, t]) => `${r[k]} ${t}`).join(", ") || "none";
     const rows = o.matchups.map(m => `<tr><td>${esc(m.deck ? deckName(m.deck) : "Other")}</td><td class="num">${wl(m.record)}</td>
@@ -154,7 +150,29 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data,
       <h3 class="gm-h3">Per opponent deck</h3>
       <div class="table-wrap"><table class="gm-mu"><thead><tr><th>Opponent</th><th class="num">W–L</th><th class="num">Win</th><th class="num">1st</th><th class="num">Field</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-      <p class="note">Win: your winrate (hover or long-press for the 95% range). 1st: your winrate going first. Field: ${myDeck ? `how ${esc(deckName(myDeck))} does against that deck at tournaments (Trainerhill)` : "pick one list to compare with tournaments"}.</p>`;
+      <p class="note">Win: your winrate (hover or long-press for the 95% range). 1st: your winrate going first. Field: ${myDeck ? `how ${esc(deckName(myDeck))} does against that deck at tournaments (Trainerhill)` : "pick one list to compare with tournaments"}.</p>
+      ${insightsHtml(c, o.games, listPicked)}`;
+  }
+  // The insight catalogue (items 4-8): comparisons, my Pokémon Knocked Out first, and card use.
+  function insightsHtml(c, n, listPicked) {
+    const grp = r => `<span class="gm-meta">(${r.n} games, ${ci(r)})</span>`;
+    const item = r => `<li><b>${esc(r.subject)}${r.deck !== undefined ? ` against ${esc(r.deck ? deckName(r.deck) : "Other")}` : ""}</b>
+      goes with <span class="pill ${r.gap >= 0 ? "good" : "bad"}">${pct(r.yes.p)}</span> wins ${grp(r.yes)}, against ${pct(r.no.p)} otherwise ${grp(r.no)}.</li>`;
+    // The largest gaps first; the rest one tap away, so hundreds of games do not make an endless list.
+    const TOP = 8, more = c.insights.length - TOP;
+    const ins = c.insights.slice(0, TOP).map(item).join("") + (more > 0 ? `<li class="gm-more"><details><summary>${more} more</summary><ul class="gm-ins">${c.insights.slice(TOP).map(item).join("")}</ul></details></li>` : "");
+    const down = c.firstDown.map(d => `<li>Against <b>${esc(d.deck ? deckName(d.deck) : "Other")}</b>, your first Pokémon Knocked Out:
+      ${d.top.map(t => `${esc(t.name)} ${t.count}×`).join(", ")} <span class="gm-meta">(${d.games} games)</span></li>`).join("");
+    const use = c.usage.map(u => `<tr><td>${esc(u.name)}${u.rare ? ' <span class="pill bad">rarely played</span>' : ""}${u.never ? ` <span class="pill bad">not played in last ${u.recent}</span>` : ""}</td>
+      <td class="num">${pct(u.shown)}</td><td class="num">${pct(u.played)}</td><td class="num">${u.avgTurn == null ? "–" : u.avgTurn.toFixed(1)}</td></tr>`).join("");
+    return `<h3 class="gm-h3">Insights</h3>
+      ${ins ? `<ul class="gm-ins">${ins}</ul>` : ""}
+      ${down ? `<ul class="gm-ins">${down}</ul>` : ""}
+      ${!ins && !down ? `<p class="note">Insights show up when each group compared has ${MIN} games or more (${n} game${n === 1 ? "" : "s"} here so far).</p>`
+        : `<p class="note">"Goes with" means these happened together in your games, not that one caused the other. Only comparisons with ${MIN}+ games on each side are shown.</p>`}
+      ${use ? `<h3 class="gm-h3">Card use</h3><div class="table-wrap"><table class="gm-mu"><thead><tr><th>Card</th><th class="num">Seen</th><th class="num">Played</th><th class="num">Turn</th></tr></thead><tbody>${use}</tbody></table></div>
+        <p class="note">Seen: share of games the log shows you had the card. Played: share of games you played it. Turn: your average turn it was first played (0 = setup).</p>`
+        : listPicked ? "" : `<p class="note">Pick one list to see how each of its cards is used.</p>`}`;
   }
   // The picker: all games, each list (all versions, and each version when there are several), games without a list.
   function pickerHtml(games, lists) {
@@ -191,7 +209,10 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data,
     $("gm-analysis").hidden = !games.length;
     $("gm-pick").innerHTML = pickerHtml(games, lists);
     const mine = games.filter(x => picked(x, lists)), pickedList = pick?.startsWith("L:") || pick?.startsWith("V:") ? lists.find(l => l.id === pick.split(":")[1]) : null;
-    $("gm-stats").innerHTML = mine.length ? statsHtml(overview(mine, { data: data(), myDeck: pickedList?.deck ?? null }), pickedList?.deck ?? null) : "";
+    // The cards of the picked version, or the latest version when all versions of a list are picked.
+    const version = pickedList && (pick.startsWith("V:") ? pickedList.versions.find(v => v.v === +pick.split(":")[2]) : latest(pickedList));
+    $("gm-stats").innerHTML = mine.length ? statsHtml(overview(mine, { data: data(), myDeck: pickedList?.deck ?? null }), pickedList?.deck ?? null,
+      catalogue(mine, { cards: version?.cards ?? null }), !!pickedList) : "";
     $("gm-list").innerHTML = mine.length ? mine.map(x => `<button type="button" class="gm-row${x.id === shown ? " current" : ""}" data-game="${esc(x.id)}">
         <span class="pill ${x.game.result === "win" ? "good" : "bad"}">${x.game.result === "win" ? "W" : "L"}</span>
         <span class="gm-vs">vs ${esc(deckName(x.oppDeckSet ?? x.oppDeck))}</span>

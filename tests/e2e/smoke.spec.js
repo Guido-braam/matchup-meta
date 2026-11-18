@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { test as base, expect } from "@playwright/test";
 import { FIXTURES } from "./fixture-server.js";
+import { parseLog, PARSER_VERSION } from "../../site/js/battlelog.js";
 
 const fixture = name => JSON.parse(readFileSync(`${FIXTURES}/${name}`, "utf8"));
 // "2026-10-16T15:04" -> "16 Oct 2026", written out here instead of reusing the page's formatter.
@@ -426,6 +427,36 @@ test("the analysis counts both pasted games and narrows to one list", async ({ p
   await page.locator("#gm-pick").selectOption("L:list-k");
   await expect(stats.locator(".gm-tile").first()).toContainText("1–0");
   await expect(page.locator("#gm-list .gm-row")).toHaveCount(1);
+  // Two games: no insight has 10 games on each side yet.
+  await expect(stats.locator(".gm-ins")).toHaveCount(0);
+  await expect(stats).toContainText("Insights show up when each group compared has 10 games or more");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("with 10 wins and 10 losses on a list, insights and card use show up", async ({ page, consoleErrors }) => {
+  const read = f => readFileSync(new URL(`../fixtures/battle-logs/${f}`, import.meta.url), "utf8");
+  const g1 = parseLog(read("01-loss-prizes-no-codes.txt")).game, g2 = parseLog(read("02-win-concede-codes.txt")).game;
+  const rec = (game, i) => ({ id: `g${i}`, schema: 1, parser: PARSER_VERSION, added: `2026-11-${String(1 + (i % 28)).padStart(2, "0")}T10:00:00Z`,
+    raw: "", listId: "list-k", listVersion: 1, oppDeck: null, oppDeckSet: null, game });
+  const games = Array.from({ length: 20 }, (_, i) => rec(i % 2 ? g1 : g2, i));
+  const list = { id: "list-k", name: "Kangaskhan", deck: null, archived: false,
+    versions: [{ v: 1, text: "", cards: [{ name: "Mega Kangaskhan ex", count: 3 }, { name: "Hilda", count: 4 }, { name: "Lana's Aid", count: 1 }], created: "2026-11-01" }] };
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games }));
+  await expect(page.locator("#import-state")).toContainText("20 games");
+  await page.goto("/#games");
+  const stats = page.locator("#gm-stats");
+  await expect(page.locator("#gm-pick")).toHaveValue("");
+  await page.locator("#gm-pick").selectOption("L:list-k");
+  await expect(stats.locator(".gm-tile").first()).toContainText("10–10");
+  // The two logs differ in who took the first Prize card and what was in the opening hand: 10 against 10 games.
+  await expect(stats.locator(".gm-ins li").first()).toContainText("goes with");
+  await expect(stats.locator(".gm-ins li").first()).toContainText("(10 games");
+  await expect(stats).toContainText("not that one caused the other");
+  // Card use: Lana's Aid never showed up and was never played.
+  const lana = stats.locator(".gm-mu tr", { hasText: "Lana's Aid" });
+  await expect(lana).toContainText("not played in last 20");
+  await expect(lana.locator("td.num").first()).toHaveText("0%");
   expect(consoleErrors).toEqual([]);
 });
 
