@@ -21,6 +21,7 @@ export function memoryBackend() {
   return {
     getAll: async s => [...data[s].values()].map(r => structuredClone(r)),
     put: async (s, r) => { data[s].set(r.id, structuredClone(r)); },
+    delete: async (s, id) => { data[s].delete(id); },
   };
 }
 
@@ -36,16 +37,26 @@ export function indexedDbBackend(idb = globalThis.indexedDB) {
     const tx = (await open()).transaction(s, mode), req = fn(tx.objectStore(s));
     return new Promise((ok, fail) => { tx.oncomplete = () => ok(req.result); tx.onerror = tx.onabort = () => fail(tx.error); });
   };
-  return { getAll: s => run(s, "readonly", st => st.getAll()), put: (s, r) => run(s, "readwrite", st => st.put(r)) };
+  return {
+    getAll: s => run(s, "readonly", st => st.getAll()),
+    put: (s, r) => run(s, "readwrite", st => st.put(r)),
+    delete: (s, id) => run(s, "readwrite", st => st.delete(id)),
+  };
 }
 
 export function createGameStore(backend = indexedDbBackend()) {
   const all = s => Promise.resolve().then(() => backend.getAll(s)).catch(() => []);
   const put = (s, r) => Promise.resolve().then(() => backend.put(s, r)).then(() => true, () => false);
+  const del = (s, id) => Promise.resolve().then(() => backend.delete(s, id)).then(() => true, () => false);
   const store = {
     lists: () => all("lists"),
     games: () => all("games"),
     putList: list => put("lists", list),
+    // A list and every game linked to it.
+    async deleteList(id) {
+      for (const g of await store.games()) if (g.listId === id && !(await del("games", g.id))) return false;
+      return del("lists", id);
+    },
     // "added", "duplicate" (a game with this id is already saved) or "failed".
     async addGame(game) {
       if ((await store.games()).some(g => g.id === game.id)) return "duplicate";

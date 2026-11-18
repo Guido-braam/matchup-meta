@@ -2,6 +2,7 @@
 // verwachte winrate, tiers) staan in calc.js; Deck Lab in decklab.js.
 import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS } from "./calc.js";
 import { createGameStore, exportBackup, importBackup } from "./gamestore.js";
+import { deckOf, newList, saveVersion, latest } from "./mylists.js";
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
 import { createAI } from "./ai.js";
@@ -321,6 +322,88 @@ function renderLabSelect() {
   sel.value = labSel == null ? "" : String(labSel);
   syncPickBtn(sel);
 }
+
+// ---------- My lists in Deck Lab ----------
+// Lijsten die de bezoeker in Deck Lab bewaart om games aan te koppelen (gamestore.js, mylists.js).
+let myLists = [];          // alle lijsten uit de store
+let labList = null;        // id van de lijst uit My lists die nu in Deck Lab staat, anders null
+const listById = id => myLists.find(l => l.id === id);
+const listLabel = l => `${l.name} · v${latest(l).v}`;
+async function refreshMyLists() {
+  myLists = (await gameStore.lists()).sort((a, b) => a.name.localeCompare(b.name));
+  const sel = $("mylist-select"), opt = l => `<option value="${esc(l.id)}">${esc(listLabel(l))}</option>`;
+  const active = myLists.filter(l => !l.archived), archived = myLists.filter(l => l.archived);
+  sel.innerHTML = `<option value="">Open one of My lists…</option>` + active.map(opt).join("") +
+    (archived.length ? `<optgroup label="Archived">${archived.map(opt).join("")}</optgroup>` : "");
+  sel.hidden = !myLists.length;
+  renderSaveBar();
+}
+function renderSaveBar(msg = "") {
+  const l = labList && listById(labList);
+  $("ml-name").value = l ? l.name : "";
+  $("ml-state").textContent = msg || (l ? `In My lists as ${listLabel(l)}${l.archived ? " (archived)" : ""}.` : "");
+  $("ml-manage").hidden = !l;
+  $("ml-archive").textContent = l?.archived ? "Unarchive" : "Archive";
+  disarmDelete();
+}
+$("lab-host").addEventListener("lab-source", () => { labList = null; renderSaveBar(); });
+$("mylist-select").addEventListener("change", e => {
+  const l = listById(e.target.value);
+  e.target.value = "";
+  if (!l) return;
+  labSel = null; renderLabSelect();
+  DeckLab.open($("lab-host"), latest(l).text, listLabel(l));
+  labList = l.id; renderSaveBar();
+});
+$("ml-save").addEventListener("click", async () => {
+  const { text, cards } = await DeckLab.current();
+  if (!text.trim()) return;
+  const index = await loadCardIndex().catch(() => null);
+  const deck = deckOf(cards, L, index), name = $("ml-name").value.trim();
+  const old = labList && listById(labList);
+  let list, msg;
+  if (!old) {
+    list = newList({ name: name || deck?.name || "My list", deck: deck?.id ?? null, text, cards });
+    msg = `Saved to My lists as ${listLabel(list)}.`;
+  } else {
+    const v = latest(old).v, frozen = (await gameStore.games()).some(g => g.listId === old.id && g.listVersion === v);
+    const r = saveVersion(old, { text, cards }, frozen);
+    list = { ...r.list, name: name || old.name, deck: deck?.id ?? old.deck };
+    msg = r.saved === "new-version" ? `Saved as v${v + 1}. Games played with v${v} stay on v${v}.`
+      : r.saved === "updated" ? `Saved ${listLabel(list)}.` : list.name !== old.name ? "Renamed." : "No changes to save.";
+  }
+  if (!(await gameStore.putList(list))) return renderSaveBar("Could not save: this browser does not allow storage for this site.");
+  labList = list.id;
+  DeckLab.label(listLabel(list));
+  await refreshMyLists();
+  renderSaveBar(msg);
+});
+$("ml-archive").addEventListener("click", async () => {
+  const l = listById(labList);
+  if (!l) return;
+  await gameStore.putList({ ...l, archived: !l.archived });
+  await refreshMyLists();
+});
+// Verwijderen in twee klikken, zoals Reset; de games van de lijst gaan mee.
+let deleteArmed = null;
+function disarmDelete() { clearTimeout(deleteArmed); deleteArmed = null; $("ml-delete").textContent = "Delete"; $("ml-delete").classList.remove("danger-confirm"); }
+$("ml-delete").addEventListener("click", async e => {
+  const l = listById(labList);
+  if (!l) return;
+  if (!deleteArmed) {
+    const n = (await gameStore.games()).filter(g => g.listId === l.id).length;
+    e.target.textContent = n ? `Delete with ${n} game${n === 1 ? "" : "s"}? Click again` : "Click again to delete";
+    e.target.classList.add("danger-confirm");
+    deleteArmed = setTimeout(disarmDelete, 3000);
+    return;
+  }
+  disarmDelete();
+  if (!(await gameStore.deleteList(l.id))) return renderSaveBar("Could not delete: this browser does not allow storage for this site.");
+  labList = null;
+  DeckLab.label("");
+  await refreshMyLists();
+  renderSaveBar(`Deleted ${l.name} from My lists.`);
+});
 
 // ---------- Schermvullende deckkiezer ----------
 // De <select> blijft verborgen de waarde bewaren; de knop ernaast opent de kiezer.
@@ -682,7 +765,7 @@ function go(h) {
 }
 addEventListener("hashchange", route);
 function renderCurrent() {
-  if (current === "lab") { DeckLab.mount($("lab-host")); if (D) { recompute(); renderLabSelect(); } return; }
+  if (current === "lab") { DeckLab.mount($("lab-host")); refreshMyLists(); if (D) { recompute(); renderLabSelect(); } return; }
   if (!D) return;
   recompute();
   if (current === "tierlist") renderTiers();

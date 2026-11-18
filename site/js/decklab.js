@@ -281,6 +281,7 @@ details[open]>summary.zone-t::before{content:"▾"}
       <p class="hint or">or</p>
       <div class="empty-only"><slot name="load"></slot></div>
       <p class="hint" id="src"></p>
+      <div class="full-only"><slot name="save"></slot></div>
     </div>
     <div class="panel">
       <div class="cardlist" id="cardlist"></div>
@@ -442,10 +443,10 @@ details[open]>summary.zone-t::before{content:"▾"}
     root.innerHTML = `<style>${CSS}</style>${MARKUP}`;
     // Het klembord lezen kan geweigerd worden; dan het veld in, zodat Ctrl+V werkt.
     $("#btn-paste").onclick = async () => {
-      try { const t = await navigator.clipboard.readText(); if (t.trim()) { $("#deck").value = t; srcLabel = "Pasted list"; return load(); } } catch {}
+      try { const t = await navigator.clipboard.readText(); if (t.trim()) { $("#deck").value = t; srcLabel = "Pasted list"; newSource(); return load(); } } catch {}
       $("#deck").focus(); $("#src").textContent = "Press Ctrl+V to paste your list.";
     };
-    $("#btn-reset").onclick = () => { $("#deck").value = ""; load(); };
+    $("#btn-reset").onclick = () => { $("#deck").value = ""; newSource(); load(); };
     let deb; $("#deck").addEventListener("input", () => {
       if (srcLabel && !srcLabel.endsWith("(edited)")) srcLabel += " (edited)";
       clearTimeout(deb); deb = setTimeout(load, 150); // na elke toetsaanslag; de korte wachttijd houdt snel typen vlot
@@ -454,9 +455,18 @@ details[open]>summary.zone-t::before{content:"▾"}
     srcLabel = ""; $("#deck").value = "";
     if (!skipLoad) load();
   }
+  // Another list came in (paste, Reset, open): the page hears it as "lab-source" on the host (My lists in app.js).
+  const newSource = () => root.host.dispatchEvent(new CustomEvent("lab-source"));
   function open(host, text, label){
     mount(host, true);
-    srcLabel = label; $("#deck").value = text; load();
+    srcLabel = label; $("#deck").value = text; newSource(); load();
   }
-  return { mount, open, quick };
+  // The list in Deck Lab now: its text and cards ({id?, name, count}) for My lists. Read from the field itself,
+  // not from the last load(), which waits for typing to stop.
+  async function current(){
+    const text = root ? $("#deck").value : "", index = await loadCardIndex().catch(() => null);
+    return { text, cards: parse(text, index).map(e => e.card?.id ? { id: e.card.id, name: e.name, count: e.count } : { name: e.name, count: e.count }) };
+  }
+  const label = s => { srcLabel = s; if (root) $("#src").textContent = s; };
+  return { mount, open, quick, current, label };
 })();

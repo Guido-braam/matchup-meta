@@ -350,6 +350,39 @@ test("only the Tier list or Deck Lab tab is remembered", async ({ page }) => {
   }
 });
 
+test("a list saved to My lists comes back after a reload, can be edited and deleted", async ({ page, consoleErrors }) => {
+  await page.goto("/");
+  await page.locator("#tab-lab").click();
+  const lab = page.locator("#lab-host");
+  await expect(page.locator("#mylist-select")).toBeHidden(); // no lists yet
+  await lab.locator("#deck").fill(PASTED_LIST);
+  await page.locator("#ml-name").fill("My Dragapult");
+  await page.locator("#ml-save").click();
+  await expect(page.locator("#ml-state")).toHaveText("Saved to My lists as My Dragapult · v1.");
+  await expect(page.locator("#ml-manage")).toBeVisible();
+
+  await page.reload();
+  await page.locator("#tab-lab").click();
+  await expect(lab.locator("#deck")).toHaveValue(""); // Deck Lab still starts empty
+  const pick = page.locator("#mylist-select");
+  await expect(pick.locator("option", { hasText: "My Dragapult · v1" })).toHaveCount(1);
+  await pick.selectOption({ label: "My Dragapult · v1" });
+  await expect(lab.locator("#deck")).toHaveValue(PASTED_LIST);
+  await expect(page.locator("#ml-state")).toHaveText("In My lists as My Dragapult · v1.");
+
+  // No games yet, so an edit changes v1 itself.
+  await lab.locator("#deck").fill(PASTED_LIST.replace(/^4 Dreepy/m, "3 Dreepy"));
+  await page.locator("#ml-save").click();
+  await expect(page.locator("#ml-state")).toHaveText("Saved My Dragapult · v1.");
+
+  await page.locator("#ml-delete").click();
+  await expect(page.locator("#ml-delete")).toHaveText("Click again to delete");
+  await page.locator("#ml-delete").click();
+  await expect(page.locator("#ml-state")).toHaveText("Deleted My Dragapult from My lists.");
+  await expect(pick.locator("option", { hasText: "My Dragapult" })).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+});
+
 test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   await page.goto("/");
   await page.locator("#tab-lab").click();

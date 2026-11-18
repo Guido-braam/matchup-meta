@@ -42,6 +42,17 @@ test("export then import gives the same Settings, lists and games", async () => 
   assert.equal((await other.games()).length, 1);
 });
 
+test("deleting a list deletes its games and no others", async () => {
+  const store = createGameStore(memoryBackend());
+  await store.putList(LIST);
+  await store.putList({ ...LIST, id: "list-2" });
+  await store.addGame({ id: "g1", raw: "x", listId: "list-1", listVersion: 1 });
+  await store.addGame({ id: "g2", raw: "y", listId: "list-2", listVersion: 1 });
+  assert.equal(await store.deleteList("list-1"), true);
+  assert.deepEqual((await store.lists()).map(l => l.id), ["list-2"]);
+  assert.deepEqual((await store.games()).map(g => g.id), ["g2"]);
+});
+
 test("a Settings-only file from before still imports, with no lists or games", () => {
   const r = importBackup(JSON.stringify({ version: 1, continent: "eu", localFrequencies: { "gengar-ex": 5 } }));
   assert.deepEqual(r, { ok: true, settings: { localFrequencies: { "gengar-ex": 5 }, continent: "eu" }, lists: [], games: [] });
