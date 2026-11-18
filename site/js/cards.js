@@ -83,6 +83,9 @@ export function findCard(index, setCode, number, name) {
   return best ? withId(index, best.id) : null;
 }
 
+// Een Card op zijn Card index-id (uit een kaartcode in een battle log), of null.
+export const cardById = (index, id) => (index?.cards[id] ? withId(index, id) : null);
+
 // Pad van het plaatje van een Card (id = TCGdex-id), relatief aan de site; alleen geldig als card.image waar is.
 export const cardImagePath = id => { const { setId, localId } = splitId(id); return `cards/${setId}/${localId}.webp`; };
 

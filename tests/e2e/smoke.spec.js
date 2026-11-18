@@ -395,6 +395,35 @@ test("a battle log pasted on My games is saved with my list, once", async ({ pag
   expect(consoleErrors).toEqual([]);
 });
 
+test("the replay of a game steps through the board and jumps to the last turn", async ({ page, consoleErrors }) => {
+  const raw = readFileSync(new URL("../fixtures/battle-logs/01-loss-prizes-no-codes.txt", import.meta.url), "utf8");
+  await page.goto("/#games");
+  await page.evaluate(t => {
+    const dt = new DataTransfer(); dt.setData("text/plain", t);
+    document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, raw);
+  const result = page.locator("#gm-result");
+  await expect(result).toContainText("Game saved.");
+  await result.locator(".gm-replay summary").click();
+  const rp = result.locator(".rp-root");
+  // The start: both sides have all six Prize cards, the first log line is the current one.
+  await expect(rp.locator(".rp-side.me .rp-stats")).toContainText("Prizes 6");
+  await expect(rp.locator(".rp-log li.now")).toHaveAttribute("data-k", "0");
+  await rp.locator('[data-rp="next"]').click();
+  await expect(rp.locator(".rp-log li.now")).toHaveAttribute("data-k", "1");
+  // Jump to the last turn, then to its end: the final board (I have 3 Prize cards left, the opponent none).
+  const lastTurn = await rp.locator('[data-rp="turn"] option').last().getAttribute("value");
+  await rp.locator('[data-rp="turn"]').selectOption(lastTurn);
+  await rp.locator('[data-rp="next-turn"]').click();
+  await expect(rp.locator(".rp-side.me .rp-stats")).toContainText("Prizes 3");
+  await expect(rp.locator(".rp-side.opp .rp-stats")).toContainText("Prizes 0");
+  await expect(rp.locator(".rp-log li.now")).toContainText("wins");
+  // Tapping a line in the log moves the board there.
+  await rp.locator('.rp-log li[data-k="0"]').click();
+  await expect(rp.locator(".rp-side.opp .rp-stats")).toContainText("Prizes 6");
+  expect(consoleErrors).toEqual([]);
+});
+
 test("a list saved to My lists comes back after a reload, can be edited and deleted", async ({ page, consoleErrors }) => {
   await page.goto("/");
   await page.locator("#tab-lab").click();

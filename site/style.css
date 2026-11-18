@@ -521,3 +521,32 @@ dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
   dialog.modal { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border-radius: 0;
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 }
+
+/* Replay (site/js/replay.js): phone first, board above the log. */
+.gm-replay > summary { cursor: pointer; font-weight: 600; }
+.rp-root { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.rp-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rp-controls .btn { min-width: 40px; padding: 6px 10px; }
+.rp-controls select { flex: 1 1 8rem; min-width: 0; }
+.rp-range { width: 100%; }
+.rp-board { display: flex; flex-direction: column; gap: 6px; }
+.rp-side { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 8px; background: var(--surface-2); }
+.rp-side.me { outline: 2px solid color-mix(in oklab, var(--accent) 40%, transparent); }
+.rp-stats { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 0.82rem; color: var(--muted); }
+.rp-stats b { color: var(--fg); }
+.rp-active { display: flex; justify-content: center; }
+.rp-active .rp-mon { width: 84px; }
+.rp-bench { display: grid; grid-template-columns: repeat(5, minmax(0, 64px)); gap: 6px; justify-content: center; min-height: 20px; }
+.rp-mon { position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rp-dmg { position: absolute; top: 4px; right: 4px; background: var(--bad); color: #fff; font-weight: 700; font-size: 0.72rem; border-radius: 999px; padding: 1px 6px; pointer-events: none; }
+.rp-att { font-size: 0.68rem; line-height: 1.2; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-empty { width: 84px; aspect-ratio: 63/88; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 6px; font-size: 0.75rem; color: var(--muted); }
+.rp-mid { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: center; font-size: 0.85rem; }
+.rp-unsure { color: var(--warn); }
+.rp-hand { margin: 0; font-size: 0.85rem; }
+.rp-log { position: relative; list-style: none; margin: 0; padding: 4px; max-height: 40vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; font-size: 0.85rem; }
+.rp-log li { padding: 3px 6px; border-radius: 4px; white-space: pre-line; cursor: pointer; border-left: 3px solid transparent; }
+.rp-log li.sub { padding-left: 18px; }
+.rp-log li.me { border-left-color: var(--accent); }
+.rp-log li.now { background: color-mix(in oklab, var(--accent) 18%, transparent); }
+.rp-log .rp-turn { cursor: default; font-weight: 700; margin-top: 6px; color: var(--muted); }

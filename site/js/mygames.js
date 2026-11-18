@@ -4,6 +4,7 @@ import { parseLog, PARSER_VERSION } from "./battlelog.js";
 import { logId } from "./gamestore.js";
 import { latest } from "./mylists.js";
 import { reconstruct } from "./opponent.js";
+import { mountReplay } from "./replay.js";
 
 export const GAME_SCHEMA = 1;
 
@@ -113,6 +114,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
         ${decks.map(a => `<option value="${esc(a.id)}"${a.id === opp ? " selected" : ""}>${esc(a.name)}</option>`).join("")}
       </select></label>
       ${reconHtml(reconstruct(G, labs()))}
+      <details class="gm-replay"><summary>Replay</summary><div class="rp-root"></div></details>
     </div>`;
   }
 
@@ -160,6 +162,14 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
       return update({ listId: l?.id ?? null, listVersion: l ? latest(l).v : null });
     }
   });
+  // Replay: built when opened (toggle does not bubble, so listen in the capture phase).
+  $("gm-result").addEventListener("toggle", async e => {
+    const d = e.target;
+    if (!d.classList?.contains("gm-replay") || !d.open || d.dataset.ready) return;
+    d.dataset.ready = "1";
+    const [g, index] = await Promise.all([store.games().then(gs => gs.find(x => x.id === shown)), loadCardIndex().catch(() => null)]);
+    if (g) mountReplay(d.querySelector(".rp-root"), g.game, index);
+  }, true);
   $("gm-list").addEventListener("click", e => {
     const b = e.target.closest("[data-game]");
     if (!b) return;

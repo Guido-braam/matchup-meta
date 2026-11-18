@@ -13,7 +13,8 @@
 
 // Bump when a change should apply to games already saved: they are read again from their raw log.
 // 2: attach and evolve keep where it happened (at: "Active Spot" | "Bench").
-export const PARSER_VERSION = 2;
+// 3: every event keeps its line as `text` (bullet lines added below it), for the replay's log.
+export const PARSER_VERSION = 3;
 
 const CODE_RE = /^\(([a-z0-9]+(?:-[a-z0-9]+)*_\d+[a-z]?(?:_[a-z0-9]+)*)\)\s*/i;
 
@@ -80,13 +81,14 @@ export function parseLog(raw, index = null) {
   for (const line of lines) {
     if (line.startsWith("•")) {
       const body = line.replace(/^•\s*/, "");
+      if (host) host.text += "\n• " + body;
       if (host?.type === "breakdown") host.lines.push(body);
       else if (host) host.cards = (host.cards || []).concat(body.split(", ").map(ref));
       continue;
     }
     const sub = line.startsWith("- ");
     const s = sub ? line.slice(2) : line;
-    const e = { turn, turnSide, sideTurn: turnSide ? sideTurns[turnSide] : 0, sub, ...read(s) };
+    const e = { turn, turnSide, sideTurn: turnSide ? sideTurns[turnSide] : 0, sub, ...read(s), text: s };
     if (e.type === "turn") {
       turn++; turnSide = e.side; sideTurns[e.side]++; game.turns++;
       host = null;
