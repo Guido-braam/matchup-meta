@@ -5,6 +5,7 @@ import { logId } from "./gamestore.js";
 import { latest } from "./mylists.js";
 import { reconstruct } from "./opponent.js";
 import { mountReplay } from "./replay.js";
+import { overview } from "./insights.js";
 
 export const GAME_SCHEMA = 1;
 
@@ -72,10 +73,11 @@ export function refreshGame(g, index) {
 }
 
 // ---------- View ----------
-// deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null, isCurrent: () => bool}.
+// deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null, data: () => data.json or null, isCurrent: () => bool}.
 const LAST_LIST_KEY = "matchup-meta-last-list", AUTO_KEY = "matchup-meta-clipboard-check";
-export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCurrent }) {
+export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data, isCurrent }) {
   let shown = null; // id of the game in the result card
+  let pick = null;  // the analysis picker: "" all games, "L:<list id>", "V:<list id>:<version>", "none"; null = not chosen yet
 
   const deckName = id => labs()?.archetypes.find(a => a.id === id)?.name ?? "Unknown deck";
   const fmt = iso => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + " " +
@@ -91,6 +93,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
     if (r.record.listId) storage.write(LAST_LIST_KEY, r.record.listId);
     $("gm-manual").hidden = true; $("gm-text").value = "";
     shown = r.record.id;
+    pick = r.record.listId ? "L:" + r.record.listId : "";
     await render(r.status === "duplicate" ? `This game is already saved (added ${fmt(r.record.added)}).` : "Game saved.");
   }
 
@@ -130,6 +133,51 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
     </details>`;
   }
 
+  // The analysis of the picked games (spec: catalogue items 1-3).
+  const pct = p => (p == null ? "–" : Math.round(p * 100) + "%");
+  const ci = r => (r.n ? `95%: ${pct(r.lo)}–${pct(r.hi)}` : "");
+  const wl = r => `${r.k}–${r.n - r.k}`;
+  function statsHtml(o, myDeck) {
+    const tile = (label, big, sub) => `<div class="gm-tile"><span class="gm-tl">${label}</span><span class="gm-big">${big}</span><span class="gm-meta">${sub}</span></div>`;
+    const why = r => [["prizes", "on Prize cards"], ["concede", "by concession"], ["other", "other"]].filter(([k]) => r[k]).map(([k, t]) => `${r[k]} ${t}`).join(", ") || "none";
+    const rows = o.matchups.map(m => `<tr><td>${esc(m.deck ? deckName(m.deck) : "Other")}</td><td class="num">${wl(m.record)}</td>
+      <td class="num" title="${ci(m.record)}">${pct(m.record.p)}</td><td class="num" title="${m.first.n} games going first">${m.first.n ? pct(m.first.p) : "–"}</td>
+      <td class="num"${m.field ? ` title="${m.field.n} tournament games"` : ""}>${pct(m.field?.p)}</td></tr>`).join("");
+    return `<div class="gm-tiles">
+        ${tile("Record", wl(o.record), `${o.games} game${o.games === 1 ? "" : "s"}`)}
+        ${tile("Winrate", pct(o.record.p), ci(o.record))}
+        ${tile("Going first", pct(o.first.p), o.first.n ? `${wl(o.first)} · ${ci(o.first)}` : "no games")}
+        ${tile("Going second", pct(o.second.p), o.second.n ? `${wl(o.second)} · ${ci(o.second)}` : "no games")}
+        ${tile("Game length", o.avgTurns == null ? "–" : o.avgTurns.toFixed(1), "turns, both players")}
+      </div>
+      <p class="gm-msg gm-why">Wins: ${why(o.reasons.win)}. Losses: ${why(o.reasons.loss)}.</p>
+      <h3 class="gm-h3">Per opponent deck</h3>
+      <div class="table-wrap"><table class="gm-mu"><thead><tr><th>Opponent</th><th class="num">W–L</th><th class="num">Win</th><th class="num">1st</th><th class="num">Field</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="note">Win: your winrate (hover or long-press for the 95% range). 1st: your winrate going first. Field: ${myDeck ? `how ${esc(deckName(myDeck))} does against that deck at tournaments (Trainerhill)` : "pick one list to compare with tournaments"}.</p>`;
+  }
+  // The picker: all games, each list (all versions, and each version when there are several), games without a list.
+  function pickerHtml(games, lists) {
+    const count = f => games.filter(f).length, opts = [["", `All games (${games.length})`]];
+    for (const l of lists) {
+      const n = count(g => g.listId === l.id);
+      if (!n) continue;
+      const vs = [...new Set(games.filter(g => g.listId === l.id).map(g => g.listVersion))].sort((a, b) => a - b);
+      opts.push(["L:" + l.id, `${l.name}${vs.length > 1 ? " · all versions" : ""} (${n})`]);
+      if (vs.length > 1) vs.forEach(v => opts.push([`V:${l.id}:${v}`, `${l.name} · v${v} (${count(g => g.listId === l.id && g.listVersion === v)})`]));
+    }
+    const none = count(g => !lists.some(l => l.id === g.listId));
+    if (none) opts.push(["none", `Games without a list (${none})`]);
+    if (!opts.some(([v]) => v === pick)) pick = opts.some(([v]) => v === "L:" + storage.read(LAST_LIST_KEY)) ? "L:" + storage.read(LAST_LIST_KEY) : "";
+    return opts.map(([v, t]) => `<option value="${esc(v)}"${v === pick ? " selected" : ""}>${esc(t)}</option>`).join("");
+  }
+  const picked = (g, lists) => {
+    if (!pick) return true;
+    if (pick === "none") return !lists.some(l => l.id === g.listId);
+    const [k, id, v] = pick.split(":");
+    return g.listId === id && (k === "L" || g.listVersion === +v);
+  };
+
   async function render(msg = "") {
     let [games, lists] = await Promise.all([store.games(), store.lists()]);
     if (games.some(g => (g.parser || 0) < PARSER_VERSION)) {
@@ -140,7 +188,11 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
     const g = games.find(x => x.id === shown);
     if (g) status(card(g, lists, msg)); else if (!msg) status("");
     const label = id => { const l = lists.find(x => x.id === id); return l ? listText(l) : "no list"; };
-    $("gm-list").innerHTML = games.length ? games.map(x => `<button type="button" class="gm-row${x.id === shown ? " current" : ""}" data-game="${esc(x.id)}">
+    $("gm-analysis").hidden = !games.length;
+    $("gm-pick").innerHTML = pickerHtml(games, lists);
+    const mine = games.filter(x => picked(x, lists)), pickedList = pick?.startsWith("L:") || pick?.startsWith("V:") ? lists.find(l => l.id === pick.split(":")[1]) : null;
+    $("gm-stats").innerHTML = mine.length ? statsHtml(overview(mine, { data: data(), myDeck: pickedList?.deck ?? null }), pickedList?.deck ?? null) : "";
+    $("gm-list").innerHTML = mine.length ? mine.map(x => `<button type="button" class="gm-row${x.id === shown ? " current" : ""}" data-game="${esc(x.id)}">
         <span class="pill ${x.game.result === "win" ? "good" : "bad"}">${x.game.result === "win" ? "W" : "L"}</span>
         <span class="gm-vs">vs ${esc(deckName(x.oppDeckSet ?? x.oppDeck))}</span>
         <span class="gm-meta">${x.game.wentFirst ? "1st" : "2nd"} · ${esc(label(x.listId))} · ${fmt(x.added)}</span></button>`).join("")
@@ -170,6 +222,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
     const [g, index] = await Promise.all([store.games().then(gs => gs.find(x => x.id === shown)), loadCardIndex().catch(() => null)]);
     if (g) mountReplay(d.querySelector(".rp-root"), g.game, index);
   }, true);
+  $("gm-pick").addEventListener("change", e => { pick = e.target.value; render(); });
   $("gm-list").addEventListener("click", e => {
     const b = e.target.closest("[data-game]");
     if (!b) return;

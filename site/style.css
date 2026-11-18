@@ -550,3 +550,15 @@ dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
 .rp-log li.me { border-left-color: var(--accent); }
 .rp-log li.now { background: color-mix(in oklab, var(--accent) 18%, transparent); }
 .rp-log .rp-turn { cursor: default; font-weight: 700; margin-top: 6px; color: var(--muted); }
+
+/* My games analysis (mygames.js, insights.js). */
+#gm-analysis { display: flex; flex-direction: column; gap: 10px; }
+#gm-analysis[hidden] { display: none; }
+.gm-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.gm-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); min-width: 0; }
+.gm-tl { font-size: 0.8rem; color: var(--muted); }
+.gm-big { font: 800 1.6rem/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
+.gm-tile .gm-meta { white-space: normal; }
+.gm-h3 { margin: 6px 0 0; font-size: 1rem; }
+.gm-mu td, .gm-mu th { padding: 6px 6px; }
+.gm-mu td:first-child { overflow-wrap: anywhere; }

@@ -395,6 +395,40 @@ test("a battle log pasted on My games is saved with my list, once", async ({ pag
   expect(consoleErrors).toEqual([]);
 });
 
+test("the analysis counts both pasted games and narrows to one list", async ({ page, consoleErrors }) => {
+  const read = f => readFileSync(new URL(`../fixtures/battle-logs/${f}`, import.meta.url), "utf8");
+  const list = { id: "list-k", name: "Kangaskhan", deck: null, archived: false,
+    versions: [{ v: 1, text: "", cards: ["Mega Kangaskhan ex", "Talonflame ex", "Ignition Energy", "Boss's Orders", "Latias ex", "Hilda",
+      "Dusknoir", "Neo Upper Energy", "Buddy-Buddy Poffin", "Black Belt's Training", "Rare Candy", "Switch", "Duskull", "Fezandipiti ex",
+      "Meowth ex", "Special Red Card", "Dawn", "Flutter Mane", "Ciphermaniac's Codebreaking"].map(name => ({ name, count: 1 })), created: "2026-11-18" }] };
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games: [] }));
+  await expect(page.locator("#import-state")).toContainText("1 list");
+  await page.goto("/#games");
+  await expect(page.locator("#gm-analysis")).toBeHidden();
+  const paste = text => page.evaluate(t => {
+    const dt = new DataTransfer(); dt.setData("text/plain", t);
+    document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, text);
+  await paste(read("02-win-concede-codes.txt"));
+  await expect(page.locator("#gm-result")).toContainText("Game saved.");
+  await paste(read("01-loss-prizes-no-codes.txt"));
+  await expect(page.locator("#gm-result")).toContainText("Loss");
+  // Sample 01 fits no list: the picker shows all games, a 1-1 record.
+  const stats = page.locator("#gm-stats");
+  await expect(page.locator("#gm-pick")).toHaveValue("");
+  await expect(stats.locator(".gm-tile").first()).toContainText("1–1");
+  await expect(stats).toContainText("50%");
+  // The rows per opponent deck add up to the two games.
+  const games = await stats.locator(".gm-mu tbody td:nth-child(2)").allTextContents();
+  expect(games.reduce((s, t) => s + t.split("–").reduce((a, b) => a + +b, 0), 0)).toBe(2);
+  // Only the Kangaskhan list: the win.
+  await page.locator("#gm-pick").selectOption("L:list-k");
+  await expect(stats.locator(".gm-tile").first()).toContainText("1–0");
+  await expect(page.locator("#gm-list .gm-row")).toHaveCount(1);
+  expect(consoleErrors).toEqual([]);
+});
+
 test("the replay of a game steps through the board and jumps to the last turn", async ({ page, consoleErrors }) => {
   const raw = readFileSync(new URL("../fixtures/battle-logs/01-loss-prizes-no-codes.txt", import.meta.url), "utf8");
   await page.goto("/#games");
