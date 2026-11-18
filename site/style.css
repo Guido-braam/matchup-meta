@@ -98,6 +98,13 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 .gm-msg.warn { color: var(--warn); }
 .gm-msg.bad { color: var(--bad); }
 .gm-h { margin: 0 0 10px; }
+.gm-recon summary { cursor: pointer; font-weight: 600; }
+.gm-seen { list-style: none; padding: 0; margin: 8px 0 0; columns: 2 12rem; column-gap: 16px; font-size: 0.88rem; }
+.gm-seen li { break-inside: avoid; padding: 1px 0; }
+.gm-seen .num, .gm-similar .num { font-variant-numeric: tabular-nums; font-weight: 700; }
+.gm-sub { margin: 10px 0 4px; font-size: 0.82rem; color: var(--muted); }
+.gm-similar { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
+.gm-similar .gm-meta { display: block; }
 .gm-list { display: flex; flex-direction: column; gap: 4px; }
 .gm-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; align-items: center; text-align: left; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: none; color: inherit; font: inherit; cursor: pointer; }
 .gm-row:hover, .gm-row.current { border-color: var(--line); background: var(--surface-2); }

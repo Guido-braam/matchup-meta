@@ -376,6 +376,8 @@ test("a battle log pasted on My games is saved with my list, once", async ({ pag
   await expect(result).toContainText("opponent conceded");
   await expect(result).toContainText("went second");
   await expect(result.locator('select[data-gm="list"]')).toHaveValue("list-k");
+  await expect(result.locator(".gm-recon summary")).toContainText(/\d+ of 60 known, \d+ unknown/);
+  await expect(result.locator(".gm-seen")).toContainText("Dudunsparce ex");
   await expect(page.locator("#gm-list .gm-row")).toHaveCount(1);
   await expect(page.locator("#gm-list .gm-row")).toContainText("Kangaskhan · v1");
 

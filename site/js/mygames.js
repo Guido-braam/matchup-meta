@@ -2,7 +2,8 @@
 // The functions at the top are pure (tested in tests/unit/mygames.test.js); initMyGames() is the view.
 import { parseLog, PARSER_VERSION } from "./battlelog.js";
 import { logId } from "./gamestore.js";
-import { latest, deckOf } from "./mylists.js";
+import { latest } from "./mylists.js";
+import { reconstruct } from "./opponent.js";
 
 export const GAME_SCHEMA = 1;
 
@@ -55,7 +56,7 @@ export async function addLog(raw, { store, lists, index, labs, lastListId = null
   const record = {
     id, schema: GAME_SCHEMA, parser: PARSER_VERSION, added: now, raw,
     listId: fit.list?.id ?? null, listVersion: fit.version ?? null,
-    oppDeck: deckOf(cardsSeen(r.game, "opp").map(c => ({ ...c, count: 1 })), labs, index)?.id ?? null, oppDeckSet: null,
+    oppDeck: reconstruct(r.game, labs).deck, oppDeckSet: null,
     game: r.game,
   };
   const status = await store.addGame(record);
@@ -104,7 +105,20 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
       <label class="gm-field">Opponent's deck<select data-gm="opp"><option value="">Other</option>
         ${decks.map(a => `<option value="${esc(a.id)}"${a.id === opp ? " selected" : ""}>${esc(a.name)}</option>`).join("")}
       </select></label>
+      ${reconHtml(reconstruct(G, labs()))}
     </div>`;
+  }
+
+  // What the opponent showed: cards with the copies proven, how much is unknown, the closest Regional lists.
+  function reconHtml(r) {
+    if (!r.seen.length) return `<p class="gm-msg">The opponent showed no cards.</p>`;
+    const pct = s => Math.round(s * 100) + "%";
+    return `<details class="gm-recon" open><summary>Opponent's cards: ${r.known} of 60 known, ${r.unknown} unknown</summary>
+      <ul class="gm-seen">${r.seen.map(c => `<li><span class="num">${c.copies}</span> ${esc(c.name)}</li>`).join("")}</ul>
+      ${r.similar.length ? `<p class="gm-sub">Closest Regional lists (share of the cards seen that the list has)</p>
+      <ol class="gm-similar">${r.similar.map(s => `<li><b>${esc(s.deckName)}</b> <span class="num">${pct(s.score)}</span>
+        <span class="gm-meta">${s.place}${["th", "st", "nd", "rd"][s.place % 100 > 10 && s.place % 100 < 14 ? 0 : s.place % 10] || "th"} of ${s.of} · ${esc(s.event)}</span></li>`).join("")}</ol>` : ""}
+    </details>`;
   }
 
   async function render(msg = "") {
