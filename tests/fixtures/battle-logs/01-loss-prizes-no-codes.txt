@@ -1,0 +1,421 @@
+Setup
+
+Grat5 chose tails for the opening coin flip.
+
+Grat5 won the coin toss.
+
+Grat5 decided to go first.
+
+Grat5 drew 7 cards for the opening hand.
+
+- 7 drawn cards.
+
+Hawk'eye42 drew 7 cards for the opening hand.
+
+- 7 drawn cards.
+
+   • Duskull, Switch, Ignition Energy, Flutter Mane, Hilda, Hilda, Duskull
+
+Grat5 played Dreepy to the Active Spot.
+
+Hawk'eye42 played Duskull to the Active Spot.
+
+
+
+Grat5's Turn
+
+Grat5 drew a card.
+
+Grat5 played Buddy-Buddy Poffin.
+
+- Grat5 drew 2 cards and played them to the Bench.
+
+   • Budew, Dreepy
+
+- Grat5 shuffled their deck.
+
+Grat5 played Poké Pad.
+
+- Grat5 drew Torchic.
+
+- Grat5 shuffled their deck.
+
+Grat5 played Torchic to the Bench.
+
+Grat5 ended their turn.
+
+
+
+Hawk'eye42's Turn
+
+Hawk'eye42 drew Dusknoir.
+
+Hawk'eye42 played Duskull to the Bench.
+
+Hawk'eye42 played Hilda.
+
+- Hawk'eye42 drew 2 cards.
+
+   • Dusclops, Neo Upper Energy
+
+- Hawk'eye42 shuffled their deck.
+
+Hawk'eye42 ended their turn.
+
+
+
+Grat5's Turn
+
+Grat5 drew a card.
+
+Grat5 attached Basic Psychic Energy to Dreepy in the Active Spot.
+
+Grat5 retreated Dreepy to the Bench.
+
+- Basic Psychic Energy was discarded from Grat5's Dreepy.
+
+Grat5's Budew is now in the Active Spot.
+
+Grat5 evolved Dreepy to Drakloak on the Bench.
+
+Grat5 evolved Dreepy to Drakloak on the Bench.
+
+Grat5's Drakloak used Recon Directive.
+
+- Grat5 drew a card.
+
+Grat5's Drakloak used Recon Directive.
+
+- Grat5 drew a card.
+
+Grat5 played Crispin.
+
+- Grat5 drew Basic Psychic Energy.
+
+- Grat5 attached Basic Fire Energy to Drakloak on the Bench.
+
+- Grat5 shuffled their deck.
+
+Grat5's Budew used Itchy Pollen on Hawk'eye42’s Duskull for 10 damage.
+
+
+
+Hawk'eye42's Turn
+
+Hawk'eye42 drew Jamming Tower.
+
+Hawk'eye42 evolved Duskull to Dusclops in the Active Spot.
+
+Hawk'eye42's Dusclops used Cursed Blast.
+
+- Hawk'eye42 put 5 damage counters on Hawk'eye42's Budew.
+
+Grat5's Budew was Knocked Out!
+
+Hawk'eye42's Dusclops was Knocked Out!
+
+Duskull was discarded from Hawk'eye42's Dusclops.
+
+Grat5 took a Prize card.
+
+A card was added to Grat5's hand.
+
+Hawk'eye42 took a Prize card.
+
+Judge was added to Hawk'eye42's hand.
+
+Grat5's Drakloak is now in the Active Spot.
+
+Hawk'eye42's Duskull is now in the Active Spot.
+
+Hawk'eye42 played Flutter Mane to the Bench.
+
+Hawk'eye42 played Jamming Tower to the Stadium spot.
+
+Hawk'eye42 played Judge.
+
+- Hawk'eye42 shuffled 5 cards into their deck.
+
+   • Switch, Ignition Energy, Hilda, Dusknoir, Neo Upper Energy
+
+- Grat5 shuffled 6 cards into their deck.
+
+- Hawk'eye42 drew 4 cards.
+
+   • Latias ex, Ignition Energy, Ultra Ball, Mega Kangaskhan ex
+
+- Grat5 drew 4 cards.
+
+Hawk'eye42 played Mega Kangaskhan ex to the Bench.
+
+Hawk'eye42 played Latias ex to the Bench.
+
+Hawk'eye42 retreated Duskull to the Bench.
+
+Hawk'eye42's Mega Kangaskhan ex is now in the Active Spot.
+
+Hawk'eye42's Mega Kangaskhan ex used Run Errand.
+
+- Hawk'eye42 drew 2 cards.
+
+   • Ultra Ball, Dusk Ball
+
+Hawk'eye42 ended their turn.
+
+
+
+Grat5's Turn
+
+Grat5 drew a card.
+
+Grat5's Drakloak used Recon Directive.
+
+- Grat5 drew a card.
+
+Grat5's Drakloak used Recon Directive.
+
+- Grat5 drew a card.
+
+Grat5 played Fezandipiti ex to the Bench.
+
+Grat5 played Poké Pad.
+
+- Grat5 drew Dreepy.
+
+- Grat5 shuffled their deck.
+
+Grat5's Fezandipiti ex used Flip the Script.
+
+- Grat5 drew 3 cards.
+
+Grat5 evolved Drakloak to Dragapult ex in the Active Spot.
+
+Grat5 played Dreepy to the Bench.
+
+Grat5 played Lillie's Determination.
+
+- Grat5 shuffled 6 cards into their deck.
+
+- Grat5 drew 6 cards.
+
+Grat5 played Buddy-Buddy Poffin.
+
+- Grat5 drew Dreepy and played it to the Bench.
+
+- Grat5 shuffled their deck.
+
+Grat5 attached Basic Psychic Energy to Dragapult ex in the Active Spot.
+
+Grat5's Dragapult ex used Phantom Dive on Hawk'eye42’s Mega Kangaskhan ex for 200 damage.
+
+- Grat5 put 6 damage counters on Grat5's Duskull.
+
+Hawk'eye42's Duskull was Knocked Out!
+
+Grat5 took a Prize card.
+
+A card was added to Grat5's hand.
+
+
+
+Hawk'eye42's Turn
+
+Hawk'eye42 drew Dusknoir.
+
+Hawk'eye42's Mega Kangaskhan ex used Run Errand.
+
+- Hawk'eye42 drew 2 cards.
+
+   • Talonflame ex, Mega Kangaskhan ex
+
+Hawk'eye42 played Talonflame ex to the Bench.
+
+Hawk'eye42 attached Ignition Energy to Talonflame ex on the Bench.
+
+Hawk'eye42 played Dusk Ball.
+
+- Hawk'eye42 drew Bloodmoon Ursaluna ex.
+
+- Hawk'eye42 shuffled their deck.
+
+Hawk'eye42 retreated Mega Kangaskhan ex to the Bench.
+
+Hawk'eye42's Talonflame ex is now in the Active Spot.
+
+Hawk'eye42's Talonflame ex used Talon Hunt on Grat5’s Dragapult ex for 150 damage.
+
+- Hawk'eye42 drew 2 cards.
+
+   • Acerola's Mischief, Neo Upper Energy
+
+- Hawk'eye42 shuffled their deck.
+
+Ignition Energy was activated.
+
+- Ignition Energy was discarded from Hawk'eye42's Talonflame ex.
+
+
+
+Grat5's Turn
+
+Grat5 drew a card.
+
+Grat5's Drakloak used Recon Directive.
+
+- Grat5 drew a card.
+
+Grat5 played Ultra Ball.
+
+- Grat5 discarded 2 cards.
+
+   • Meowth ex, Chi-Yu
+
+- Grat5 drew Drakloak.
+
+- Grat5 shuffled their deck.
+
+Grat5 evolved Dreepy to Drakloak on the Bench.
+
+Grat5 played Judge.
+
+- Grat5 shuffled 3 cards into their deck.
+
+- Hawk'eye42 shuffled 7 cards into their deck.
+
+   • Ultra Ball, Ultra Ball, Dusknoir, Mega Kangaskhan ex, Bloodmoon Ursaluna ex, Acerola's Mischief, Neo Upper Energy
+
+- Grat5 drew 4 cards.
+
+- Hawk'eye42 drew 4 cards.
+
+   • Dusk Ball, Neo Upper Energy, Dusk Ball, Dawn
+
+Grat5's Drakloak used Recon Directive.
+
+- Grat5 drew a card.
+
+Grat5 attached Basic Fire Energy to Drakloak on the Bench.
+
+Grat5's Dragapult ex used Phantom Dive on Hawk'eye42’s Talonflame ex for 200 damage.
+
+- Grat5 put 6 damage counters on Grat5's Mega Kangaskhan ex.
+
+
+
+Hawk'eye42's Turn
+
+Hawk'eye42 drew Switch.
+
+Hawk'eye42 played Dusk Ball.
+
+- Hawk'eye42 drew Talonflame ex.
+
+- Hawk'eye42 shuffled their deck.
+
+Hawk'eye42 played Dusk Ball.
+
+- Hawk'eye42 drew Meowth ex.
+
+- Hawk'eye42 shuffled their deck.
+
+Hawk'eye42 retreated Talonflame ex to the Bench.
+
+Hawk'eye42's Mega Kangaskhan ex is now in the Active Spot.
+
+Hawk'eye42's Mega Kangaskhan ex used Run Errand.
+
+- Hawk'eye42 drew 2 cards.
+
+   • Dusknoir, Black Belt's Training
+
+Hawk'eye42 played Talonflame ex to the Bench.
+
+Hawk'eye42 attached Neo Upper Energy to Talonflame ex on the Bench.
+
+Hawk'eye42 played Black Belt's Training.
+
+Hawk'eye42 played Switch.
+
+- Hawk'eye42's Talonflame ex was switched with Hawk'eye42's Mega Kangaskhan ex to become the Active Pokémon.
+
+Hawk'eye42's Talonflame ex is now in the Active Spot.
+
+Hawk'eye42's Talonflame ex used Talon Hunt on Grat5’s Dragapult ex for 190 damage.
+
+- Damage breakdown:
+
+   • Base damage: 150 damage
+
+   • (Supporter) Black Belt's Training: 40 damage
+
+   • Total damage: 190 damage
+
+
+
+- Hawk'eye42 drew 2 cards.
+
+   • Bloodmoon Ursaluna ex, Boss's Orders
+
+- Hawk'eye42 shuffled their deck.
+
+Grat5's Dragapult ex was Knocked Out!
+
+- 4 cards were discarded from Grat5's Dragapult ex.
+
+   • Basic Fire Energy, Basic Psychic Energy, Drakloak, Dreepy
+
+Hawk'eye42 took 2 Prize cards.
+
+Rare Candy was added to Hawk'eye42's hand.
+
+Duskull was added to Hawk'eye42's hand.
+
+Grat5's Drakloak is now in the Active Spot.
+
+
+
+Grat5's Turn
+
+Grat5 drew a card.
+
+Grat5's Drakloak used Recon Directive.
+
+- Grat5 drew a card.
+
+Grat5's Drakloak used Recon Directive.
+
+- Grat5 drew a card.
+
+Grat5's Fezandipiti ex used Flip the Script.
+
+- Grat5 drew 3 cards.
+
+Grat5 evolved Drakloak to Dragapult ex in the Active Spot.
+
+Grat5 attached Basic Psychic Energy to Dragapult ex in the Active Spot.
+
+Grat5 played Boss's Orders.
+
+- Hawk'eye42's Talonflame ex was switched with Hawk'eye42's Talonflame ex to become the Active Pokémon.
+
+Hawk'eye42's Talonflame ex is now in the Active Spot.
+
+Grat5's Dragapult ex used Phantom Dive on Hawk'eye42’s Talonflame ex for 200 damage.
+
+- Grat5 put 6 damage counters on Grat5's Mega Kangaskhan ex.
+
+Hawk'eye42's Talonflame ex was Knocked Out!
+
+Hawk'eye42's Mega Kangaskhan ex was Knocked Out!
+
+Grat5 took 4 Prize cards.
+
+A card was added to Grat5's hand.
+
+A card was added to Grat5's hand.
+
+A card was added to Grat5's hand.
+
+A card was added to Grat5's hand.
+
+Opponent took all of their Prize cards. Grat5 wins.

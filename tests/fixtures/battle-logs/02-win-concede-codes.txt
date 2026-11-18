@@ -1,0 +1,137 @@
+Setup
+riku_land chose heads for the opening coin flip.
+riku_land won the coin toss.
+riku_land decided to go first.
+riku_land drew 7 cards for the opening hand.
+- 7 drawn cards.
+Hawk'eye42 drew 7 cards for the opening hand.
+- 7 drawn cards.
+• (me4_82) Special Red Card, (rsv10-5_84) Hilda, (me1_104) Mega Kangaskhan ex, (me2_87) Dawn, (sv5_78) Flutter Mane, (sv8-5_104) Ciphermaniac's Codebreaking, (sv8_76) Latias ex
+riku_land played (sv6-5_72) Munkidori to the Active Spot.
+Hawk'eye42 played (me1_104) Mega Kangaskhan ex to the Active Spot.
+
+riku_land's Turn
+riku_land drew a card.
+riku_land played (me2-5_247) Dreepy to the Bench.
+riku_land attached (sv3_230) Basic Fire Energy to (me2-5_247) Dreepy on the Bench.
+riku_land ended their turn.
+
+Hawk'eye42's Turn
+Hawk'eye42 drew (me6_88) Talonflame ex.
+Hawk'eye42's (me1_104) Mega Kangaskhan ex used Run Errand.
+- Hawk'eye42 drew 2 cards.
+• (rsv10-5_86) Ignition Energy, (me2-5_183) Boss's Orders
+Hawk'eye42 played (sv8_76) Latias ex to the Bench.
+Hawk'eye42 played (me6_88) Talonflame ex to the Bench.
+Hawk'eye42 played (rsv10-5_84) Hilda.
+- Hawk'eye42 drew 2 cards.
+• (sv6-5_20) Dusknoir, (sv5_162) Neo Upper Energy
+- Hawk'eye42 shuffled their deck.
+Hawk'eye42 attached (sv5_162) Neo Upper Energy to (me6_88) Talonflame ex on the Bench.
+Hawk'eye42 retreated (me1_104) Mega Kangaskhan ex to the Bench.
+Hawk'eye42's (me6_88) Talonflame ex is now in the Active Spot.
+Hawk'eye42's (me6_88) Talonflame ex used Talon Hunt on riku_land’s (sv6-5_72) Munkidori for 150 damage.
+- Hawk'eye42 drew 2 cards.
+• (me2-5_184) Buddy-Buddy Poffin, (sv8-5_96) Black Belt's Training
+- Hawk'eye42 shuffled their deck.
+riku_land's (sv6-5_72) Munkidori was Knocked Out!
+Hawk'eye42 took a Prize card.
+(sv1_191) Rare Candy was added to Hawk'eye42's hand.
+riku_land's (me2-5_247) Dreepy is now in the Active Spot.
+
+riku_land's Turn
+riku_land drew a card.
+riku_land played (me3_71) Crushing Hammer.
+- riku_land flipped a coin and it landed on heads.
+- (sv5_162) Neo Upper Energy was discarded from Hawk'eye42's (me6_88) Talonflame ex.
+riku_land played (me1_127_ph) Risky Ruins to the Stadium spot.
+riku_land played (sv6-5_72) Munkidori to the Bench.
+Risky Ruins was activated.
+- riku_land put 2 damage counters on riku_land's (sv6-5_72) Munkidori.
+riku_land played (me1_169) Lillie's Determination.
+- riku_land shuffled 2 cards into their deck.
+- riku_land drew 8 cards.
+riku_land played (me1_167) Buddy-Buddy Poffin.
+- riku_land drew 2 cards and played them to the Bench.
+• (me2-5_247) Dreepy, (sv8-5_79_mph) Dunsparce
+- riku_land shuffled their deck.
+Risky Ruins was activated.
+- riku_land put 2 damage counters on riku_land's (me2-5_247) Dreepy.
+- riku_land put 2 damage counters on riku_land's (sv8-5_79_mph) Dunsparce.
+riku_land played (me2-5_264) Ultra Ball.
+- riku_land discarded 2 cards.
+• (me3_121) Meowth ex, (me4_115) Tool Scrapper
+- riku_land drew (me2-5_288) Fezandipiti ex.
+- riku_land shuffled their deck.
+riku_land played (me2-5_288) Fezandipiti ex to the Bench.
+riku_land's (me2-5_288) Fezandipiti ex used Flip the Script.
+- riku_land drew 3 cards.
+riku_land evolved (me2-5_247) Dreepy to (me2-5_248) Drakloak in the Active Spot.
+riku_land's (me2-5_248) Drakloak used Recon Directive.
+- riku_land drew a card.
+riku_land retreated (me2-5_248) Drakloak to the Bench.
+- (sv3_230) Basic Fire Energy was discarded from riku_land's (me2-5_248) Drakloak.
+riku_land's (sv6-5_72) Munkidori is now in the Active Spot.
+riku_land attached (sv3-5_207) Basic Psychic Energy to (me2-5_248) Drakloak on the Bench.
+riku_land ended their turn.
+
+Hawk'eye42's Turn
+Hawk'eye42 drew (sv1_194) Switch.
+Hawk'eye42 played (me2-5_184) Buddy-Buddy Poffin.
+- Hawk'eye42 drew 2 cards and played them to the Bench.
+• (sv6-5_18) Duskull, (sv6-5_18) Duskull
+- Hawk'eye42 shuffled their deck.
+Risky Ruins was activated.
+- Hawk'eye42 put 2 damage counters on riku_land's (sv6-5_18) Duskull.
+- Hawk'eye42 put 2 damage counters on riku_land's (sv6-5_18) Duskull.
+Hawk'eye42 attached (rsv10-5_86) Ignition Energy to (me6_88) Talonflame ex in the Active Spot.
+Hawk'eye42 played (me2-5_183) Boss's Orders.
+- riku_land's (me2-5_248) Drakloak was switched with riku_land's (sv6-5_72) Munkidori to become the Active Pokémon.
+riku_land's (me2-5_248) Drakloak is now in the Active Spot.
+Hawk'eye42's (me6_88) Talonflame ex used Talon Hunt on riku_land’s (me2-5_248) Drakloak for 150 damage.
+- Hawk'eye42 drew 2 cards.
+• (sv1_191) Rare Candy, (rsv10-5_84) Hilda
+- Hawk'eye42 shuffled their deck.
+riku_land's (me2-5_248) Drakloak was Knocked Out!
+- 2 cards were discarded from riku_land's (me2-5_248) Drakloak.
+• (sv3-5_207) Basic Psychic Energy, (me2-5_247) Dreepy
+Hawk'eye42 took a Prize card.
+(me2-5_288) Fezandipiti ex was added to Hawk'eye42's hand.
+riku_land's (sv8-5_79_mph) Dunsparce is now in the Active Spot.
+(rsv10-5_86) Ignition Energy was activated.
+- (rsv10-5_86) Ignition Energy was discarded from Hawk'eye42's (me6_88) Talonflame ex.
+
+riku_land's Turn
+riku_land drew a card.
+riku_land played (me2-5_247) Dreepy to the Bench.
+Risky Ruins was activated.
+- riku_land put 2 damage counters on riku_land's (me2-5_247) Dreepy.
+riku_land evolved (sv8-5_79_mph) Dunsparce to (sv9_178) Dudunsparce ex in the Active Spot.
+riku_land played (me2-5_264) Ultra Ball.
+- riku_land discarded 2 cards.
+• (sv8-5_165) Dragapult ex, (me5_105) Crushing Hammer
+- riku_land drew (me2-5_248) Drakloak.
+- riku_land shuffled their deck.
+riku_land evolved (me2-5_247) Dreepy to (me2-5_248) Drakloak on the Bench.
+riku_land played (me1_169) Lillie's Determination.
+- riku_land shuffled a card into their deck.
+- riku_land drew 8 cards.
+riku_land's (me2-5_248) Drakloak used Recon Directive.
+- riku_land drew a card.
+riku_land's (me2-5_288) Fezandipiti ex used Flip the Script.
+- riku_land drew 3 cards.
+riku_land played (me3_113) Poké Pad.
+- riku_land drew (me2-5_247) Dreepy.
+- riku_land shuffled their deck.
+riku_land played (me2-5_247) Dreepy to the Bench.
+Risky Ruins was activated.
+- riku_land put 2 damage counters on riku_land's (me2-5_247) Dreepy.
+riku_land attached (sv3-5_207) Basic Psychic Energy to (sv9_178) Dudunsparce ex in the Active Spot.
+riku_land's (sv9_178) Dudunsparce ex used Tenacious Tail on Hawk'eye42’s (me6_88) Talonflame ex for 180 damage.
+- Damage breakdown:
+• 3 Pokémon: 180 damage
+
+
+Hawk'eye42's Turn
+Hawk'eye42 drew (me3_62) Meowth ex.
+Opponent conceded. Hawk'eye42 wins.

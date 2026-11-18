@@ -81,7 +81,7 @@ All decks ranked into tiers by expected winrate.
 ### Visitor
 
 **Settings**:
-A visitor's local frequencies and continent; the only thing export and import carry.
+A visitor's local frequencies and continent. Export and import carry Settings together with My lists and games.
 _Avoid_: profile, account, preferences
 
 **Advice**:
@@ -90,3 +90,31 @@ _Avoid_: coach, recommendation (use Recommended list for the card list)
 
 **Deck chat**:
 A conversation about one deck, generated with the visitor's own API key.
+
+### My games
+
+**Battle log**:
+The text Pokémon TCG Live gives after a game, which a visitor copies and pastes; written from one player's side, so that player's draws are named and the opponent's are not.
+_Avoid_: replay file, game log
+
+**Game**:
+One game read from a battle log and saved in the visitor's browser, linked to a list version of My lists.
+_Avoid_: match (a Bo3 match is several games), battle
+
+**My lists**:
+The lists a visitor saved in Deck Lab to link games to.
+_Avoid_: decks, saved decks
+
+**List version**:
+One numbered state (v1, v2, …) of a list in My lists; frozen once a game is linked to it, so an edit then adds a version.
+_Avoid_: revision, build
+
+**Reconstruction**:
+The opponent's cards seen in a game, how many of the 60 are still unknown, and the most similar Regional lists.
+
+**Replay**:
+A game shown again step by step, with the board and the battle log side by side.
+
+**Insight**:
+One statement about a list's games from a fixed catalogue, always with the number of games and a margin, hidden below a minimum sample.
+_Avoid_: tip, advice (Advice is the deck recommendation)
