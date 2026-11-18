@@ -81,3 +81,23 @@ test("the catalogue sorts by the gap and leaves out what has too few games", () 
   assert.ok(Math.abs(c.insights[0].gap) >= Math.abs(c.insights[1].gap));
   assert.deepEqual(c.usage, []); // no list picked
 });
+
+test("the data for Claude has the numbers, but no raw log text and no player names", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { parseLog } = await import("../../site/js/battlelog.js");
+  const { overview, explainContext, explainMessages } = await import("../../site/js/insights.js");
+  const raws = ["01-loss-prizes-no-codes.txt", "02-win-concede-codes.txt"].map(f => readFileSync(new URL(`../fixtures/battle-logs/${f}`, import.meta.url), "utf8"));
+  const games = Array.from({ length: 20 }, (_, i) => {
+    const raw = raws[i % 2];
+    return { id: `g${i}`, raw, listId: "l", listVersion: 1, oppDeck: "drag", oppDeckSet: null, game: parseLog(raw).game };
+  });
+  const ctx = explainContext(overview(games), catalogue(games, { cards: [{ name: "Hilda", count: 4 }] }),
+    { deckName: id => ({ drag: "Dragapult" })[id], list: "Kangaskhan", myDeck: null });
+  const sent = JSON.stringify(explainMessages(ctx));
+  for (const name of ["Hawk'eye42", "Hawk’eye42", "Grat5", "riku_land"]) assert.ok(!sent.includes(name), name);
+  assert.ok(!sent.includes("drew 7 cards for the opening hand"));
+  assert.ok(!sent.includes("Knocked Out!"));
+  assert.deepEqual(ctx.record, { wins: 10, games: 20, winrate: 0.5, range95: [0.3, 0.7] });
+  assert.equal(ctx.perOpponentDeck[0].opponent, "Dragapult");
+  assert.ok(ctx.insights.length > 0 && ctx.cardUse[0].card === "Hilda");
+});

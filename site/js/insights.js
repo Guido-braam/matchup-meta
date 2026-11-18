@@ -177,3 +177,32 @@ export function catalogue(games, { cards = null } = {}) {
     firstDown: firstDown(games),
   };
 }
+
+// ---------- Explain with Claude (ticket 10) ----------
+// The analysis as compact JSON for Claude: only numbers, deck and card names. Never raw logs or player names.
+// o = overview(), c = catalogue(); deckName: id -> name; list: the picked list's name or null.
+const r2 = x => (x == null ? null : Math.round(x * 100) / 100);
+const rateOf = r => ({ wins: r.k, games: r.n, winrate: r2(r.p), range95: r.n ? [r2(r.lo), r2(r.hi)] : null });
+export function explainContext(o, c, { deckName, list = null, myDeck = null }) {
+  const deck = id => (id ? deckName(id) : "Other");
+  return {
+    list, deck: myDeck ? deckName(myDeck) : null, games: o.games,
+    record: rateOf(o.record), goingFirst: rateOf(o.first), goingSecond: rateOf(o.second),
+    averageTurns: r2(o.avgTurns), winsBy: o.reasons.win, lossesBy: o.reasons.loss,
+    perOpponentDeck: o.matchups.map(m => ({ opponent: deck(m.deck), ...rateOf(m.record), goingFirst: rateOf(m.first),
+      tournamentWinrate: m.field ? { winrate: r2(m.field.p), games: m.field.n } : null })),
+    insights: c.insights.map(r => ({ when: r.subject, ...(r.deck !== undefined ? { opponent: deck(r.deck) } : {}), yes: rateOf(r.yes), otherwise: rateOf(r.no) })),
+    firstKnockedOut: c.firstDown.map(d => ({ opponent: deck(d.deck), games: d.games, pokemon: d.top })),
+    cardUse: c.usage.map(u => ({ card: u.name, copies: u.count, seen: r2(u.shown), played: r2(u.played), averageTurnPlayed: r2(u.avgTurn),
+      ...(u.rare ? { rarelyPlayed: true } : {}), ...(u.never ? { notPlayedInLast: u.recent } : {}) })),
+  };
+}
+
+export const EXPLAIN_SYSTEM = `You explain a Pokémon TCG player's own results with one list, from Pokémon TCG Live battle logs.
+Use only the numbers in the JSON the player sends. Do not make up numbers, cards or games, and do not use outside knowledge about matchups as fact.
+Winrates are shares (0.62 = 62%), each with the number of games and a 95% range. With few games the range is wide: say so, and do not draw firm conclusions from it.
+"insights" compare games where something happened ("when") with the other games. They show what went together in these games, not what caused it: write "goes with", never "causes" or "because".
+"tournamentWinrate" is how this deck does against that deck at tournaments (Trainerhill); compare the player's own winrate with it.
+Write in English, in short paragraphs and lists, at most about 300 words: first the overall picture, then the matchups that stand out, then the three most useful insights, then what to look at next (for example which cards to test, or where more games are needed). Use the deck and card names as written.`;
+
+export const explainMessages = ctx => [{ role: "user", content: `My results:\n\`\`\`json\n${JSON.stringify(ctx)}\n\`\`\`\nExplain what these numbers say.` }];

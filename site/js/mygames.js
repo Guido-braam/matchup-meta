@@ -5,7 +5,7 @@ import { logId } from "./gamestore.js";
 import { latest } from "./mylists.js";
 import { reconstruct } from "./opponent.js";
 import { mountReplay } from "./replay.js";
-import { overview, catalogue, norm, MIN } from "./insights.js";
+import { overview, catalogue, norm, MIN, explainContext, EXPLAIN_SYSTEM, explainMessages } from "./insights.js";
 
 export const GAME_SCHEMA = 1;
 
@@ -69,9 +69,10 @@ export function refreshGame(g, index) {
 }
 
 // ---------- View ----------
-// deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null, data: () => data.json or null, isCurrent: () => bool}.
+// deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null, data: () => data.json or null, isCurrent: () => bool,
+//   ai: () => createAI() client or null without an API key, md: markdown -> safe HTML, aiError: error -> message}.
 const LAST_LIST_KEY = "matchup-meta-last-list", AUTO_KEY = "matchup-meta-clipboard-check";
-export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data, isCurrent }) {
+export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data, isCurrent, ai, md, aiError }) {
   let shown = null; // id of the game in the result card
   let pick = null;  // the analysis picker: "" all games, "L:<list id>", "V:<list id>:<version>", "none"; null = not chosen yet
 
@@ -151,8 +152,49 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data,
       <div class="table-wrap"><table class="gm-mu"><thead><tr><th>Opponent</th><th class="num">W–L</th><th class="num">Win</th><th class="num">1st</th><th class="num">Field</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
       <p class="note">Win: your winrate (hover or long-press for the 95% range). 1st: your winrate going first. Field: ${myDeck ? `how ${esc(deckName(myDeck))} does against that deck at tournaments (Trainerhill)` : "pick one list to compare with tournaments"}.</p>
-      ${insightsHtml(c, o.games, listPicked)}`;
+      ${insightsHtml(c, o.games, listPicked)}
+      ${explainHtml()}`;
   }
+  // Explain with Claude (ticket 10): only on request, with the visitor's own key; sends explainContext(), never logs.
+  let explainCtx = null, explainKey = "", explained = null, explainCtl = null;
+  function explainHtml() {
+    const done = explained?.key === explainKey ? explained : null;
+    return `<div class="gm-explain"><h3 class="gm-h3">Explain with Claude</h3>
+      ${ai() ? `<div class="gm-explain-row"><button class="btn primary" type="button" data-gm="explain"${explainCtl ? " disabled" : ""}>${done ? "Explain again" : "Explain with Claude"}</button>
+          <button class="link-btn" type="button" data-gm="explain-stop"${explainCtl ? "" : " hidden"}>Stop</button></div>
+        <p class="note">Sends only the numbers above, with deck and card names, never your battle logs. Uses your own Claude credit.</p>`
+        : `<p class="note">Explain with Claude is off: it uses Claude with your own Anthropic API key. <a href="#advice" data-goto="advice">Add your API key</a> in Ask Claude to turn it on.</p>`}
+      <p class="gm-msg" data-gm="explain-state" role="status">${done?.error ? esc(done.error) : ""}</p>
+      <div class="gm-explained">${done?.text ? md(done.text) : ""}</div></div>`;
+  }
+  async function explain() {
+    const client = ai();
+    if (!client || !explainCtx || explainCtl) return;
+    const key = explainKey, box = () => $("gm-stats").querySelector(".gm-explain");
+    explainCtl = new AbortController();
+    explained = { key, text: "" };
+    const show = () => { const b = box(); if (b && explainKey === key) b.outerHTML = explainHtml(); };
+    show();
+    const state = $("gm-stats").querySelector('[data-gm="explain-state"]');
+    if (state) state.textContent = "Claude is reading your numbers…";
+    try {
+      const res = await client.chat({ system: EXPLAIN_SYSTEM, messages: explainMessages(explainCtx), signal: explainCtl.signal,
+        onText: t => { explained.text = t; const out = box()?.querySelector(".gm-explained"); if (out && explainKey === key) out.innerHTML = md(t); } });
+      explained.text = res.text;
+      if (res.truncated) explained.error = "The explanation was cut off.";
+    } catch (e) {
+      explained.text = e?.text || "";
+      explained.error = e?.code === "cancelled" ? "Stopped." : aiError(e);
+    } finally {
+      explainCtl = null;
+      show();
+    }
+  }
+  $("gm-stats").addEventListener("click", e => {
+    const k = e.target.closest("[data-gm]")?.dataset.gm;
+    if (k === "explain") explain();
+    if (k === "explain-stop") explainCtl?.abort();
+  });
   // The insight catalogue (items 4-8): comparisons, my Pokémon Knocked Out first, and card use.
   function insightsHtml(c, n, listPicked) {
     const grp = r => `<span class="gm-meta">(${r.n} games, ${ci(r)})</span>`;
@@ -211,8 +253,10 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data,
     const mine = games.filter(x => picked(x, lists)), pickedList = pick?.startsWith("L:") || pick?.startsWith("V:") ? lists.find(l => l.id === pick.split(":")[1]) : null;
     // The cards of the picked version, or the latest version when all versions of a list are picked.
     const version = pickedList && (pick.startsWith("V:") ? pickedList.versions.find(v => v.v === +pick.split(":")[2]) : latest(pickedList));
-    $("gm-stats").innerHTML = mine.length ? statsHtml(overview(mine, { data: data(), myDeck: pickedList?.deck ?? null }), pickedList?.deck ?? null,
-      catalogue(mine, { cards: version?.cards ?? null }), !!pickedList) : "";
+    const o = overview(mine, { data: data(), myDeck: pickedList?.deck ?? null }), c = catalogue(mine, { cards: version?.cards ?? null });
+    explainCtx = explainContext(o, c, { deckName, list: pickedList ? (pick.startsWith("V:") ? `${pickedList.name} v${version.v}` : pickedList.name) : null, myDeck: pickedList?.deck ?? null });
+    explainKey = pick + "|" + mine.map(x => x.id + (x.oppDeckSet ?? "")).join(","); // a new game or a correction asks for a new explanation
+    $("gm-stats").innerHTML = mine.length ? statsHtml(o, pickedList?.deck ?? null, c, !!pickedList) : "";
     $("gm-list").innerHTML = mine.length ? mine.map(x => `<button type="button" class="gm-row${x.id === shown ? " current" : ""}" data-game="${esc(x.id)}">
         <span class="pill ${x.game.result === "win" ? "good" : "bad"}">${x.game.result === "win" ? "W" : "L"}</span>
         <span class="gm-vs">vs ${esc(deckName(x.oppDeckSet ?? x.oppDeck))}</span>

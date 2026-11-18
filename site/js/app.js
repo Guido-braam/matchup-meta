@@ -61,7 +61,8 @@ function spritesHtml(a, cls = "") {
 const storage = createStorage();
 const gameStore = createGameStore(); // My lists en games (IndexedDB); opent pas bij het eerste gebruik
 // De My games-tab (mygames.js). Pijlfuncties, want $, esc en L staan verderop in dit bestand.
-const myGames = initMyGames({ $: id => $(id), esc: s => esc(s), store: gameStore, storage, loadCardIndex: () => loadCardIndex(), labs: () => L, data: () => D, isCurrent: () => current === "games" });
+const myGames = initMyGames({ $: id => $(id), esc: s => esc(s), store: gameStore, storage, loadCardIndex: () => loadCardIndex(), labs: () => L, data: () => D, isCurrent: () => current === "games",
+  ai: () => (apiKey ? createAI(apiKey) : null), md: t => mdToHtml(t, null), aiError: e => ADVICE_ERRORS[e?.code] || "Could not get an explanation. Try again later." });
 // Eigen Anthropic API key van de bezoeker; zonder key staan Advice en Deck chat uit (ADR 0002).
 let apiKey = null;
 const chatOn = () => !!apiKey;

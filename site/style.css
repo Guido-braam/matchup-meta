@@ -569,3 +569,10 @@ dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
 .gm-more { list-style: none; margin-left: -18px; }
 .gm-more summary { cursor: pointer; font-weight: 600; }
 .gm-more .gm-ins { margin-top: 8px; }
+.gm-explain { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.gm-explain-row { display: flex; gap: 10px; align-items: center; }
+.gm-explained:empty { display: none; }
+.gm-explained { padding: 10px 12px; border-radius: 8px; background: var(--surface-2); font-size: 0.92rem; }
+.gm-explained > :first-child { margin-top: 0; }
+.gm-explained > :last-child { margin-bottom: 0; }
+.gm-explain .gm-msg:empty { display: none; }

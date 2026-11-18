@@ -1288,3 +1288,33 @@ test("a rejected API key in Deck chat shows a readable error", async ({ page }) 
   await expect(page.locator("#chat-state")).toHaveClass(/err/);
   await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
 });
+
+test("Explain with Claude is off without a key, and with a key sends only the numbers", async ({ page, consoleErrors }) => {
+  const read = f => readFileSync(new URL(`../fixtures/battle-logs/${f}`, import.meta.url), "utf8");
+  const games = ["01-loss-prizes-no-codes.txt", "02-win-concede-codes.txt"].map((f, i) => ({ id: `g${i}`, schema: 1, parser: PARSER_VERSION,
+    added: `2026-11-1${i}T10:00:00Z`, raw: read(f), listId: null, listVersion: null, oppDeck: null, oppDeckSet: null, game: parseLog(read(f)).game }));
+  const backup = JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [], games });
+  // Without a key: the button is not there, a link opens Ask Claude to add one.
+  await page.goto("/#meta");
+  await importFile(page, backup);
+  await expect(page.locator("#import-state")).toContainText("2 games");
+  await page.goto("/#games");
+  const box = page.locator("#gm-stats .gm-explain");
+  await expect(box).toContainText("Explain with Claude is off");
+  await box.getByRole("link", { name: "Add your API key" }).click();
+  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeVisible();
+
+  // With a key: one streamed answer, from a request without logs or player names.
+  const requests = await stubDeckChat(page, [streamedReply({ text: "You are **1–1** after 2 games: too few to say much yet." }, "end_turn")]);
+  await page.addInitScript(key => localStorage.setItem("matchup-meta-api-key", JSON.stringify(key)), API_KEY);
+  await page.goto("/#games");
+  await page.reload(); // only the hash changed: load the page again so it reads the key
+  await box.getByRole("button", { name: "Explain with Claude" }).click();
+  await expect(box.locator(".gm-explained")).toContainText("1–1 after 2 games");
+  await expect(box.getByRole("button", { name: "Explain again" })).toBeVisible();
+  expect(requests).toHaveLength(1);
+  const sent = JSON.stringify(requests[0]);
+  for (const s of ["Hawk'eye42", "Grat5", "riku_land", "Knocked Out!", "opening hand."]) expect(sent).not.toContain(s);
+  expect(sent).toContain('\\"games\\":2');
+  expect(consoleErrors).toEqual([]);
+});
