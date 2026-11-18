@@ -711,7 +711,7 @@ test("the card menu works with the keyboard only; Esc closes the menu, not My me
   expect(consoleErrors).toEqual([]);
 });
 
-// Export downloads Settings as a file; import reads one back through the hidden file input.
+// Export downloads Settings, My lists and games as one file (ADR 0006); import reads one back through the hidden file input.
 const exportFile = async page => {
   const [download] = await Promise.all([page.waitForEvent("download"), page.locator("#export-settings").click()]);
   return { name: download.suggestedFilename(), text: readFileSync(await download.path(), "utf8") };
@@ -733,8 +733,8 @@ test("export then import restores the same Settings, without the API key or hist
   const saved = await storedSettings(page);
 
   const file = await exportFile(page);
-  expect(file.name).toBe("matchup-meta-settings.json");
-  expect(JSON.parse(file.text)).toEqual({ version: 1, continent: "oce", localFrequencies: { "dragapult-ex": 0 } });
+  expect(file.name).toBe("matchup-meta.json");
+  expect(JSON.parse(file.text)).toEqual({ version: 2, continent: "oce", localFrequencies: { "dragapult-ex": 0 }, lists: [], games: [] });
   expect(file.text).not.toContain("sk-ant");
   expect(file.text).not.toContain("secret advice");
 
@@ -751,6 +751,25 @@ test("export then import restores the same Settings, without the API key or hist
   await page.goto("/");
   await expect(page.locator("#tiers .tile[data-deck]").first()).toBeVisible();
   expect(await tierList(page)).toEqual(exported);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("lists and games in an imported file are kept in the browser and exported again", async ({ page, consoleErrors }) => {
+  const raw = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
+  const list = { id: "list-1", name: "Kangaskhan", deck: "x", archived: false, versions: [{ v: 1, cards: [], created: "2026-11-18" }] };
+  const game = { id: "a".repeat(64), raw, listId: "list-1", listVersion: 1 };
+  const file = JSON.stringify({ version: 2, continent: "eu", localFrequencies: {}, lists: [list], games: [game] });
+  await page.goto("/#meta");
+  await importFile(page, file);
+  await expect(page.locator("#import-state")).toHaveText("Imported from settings.json: Settings, 1 list and 1 game.");
+  await importFile(page, file);
+  await expect(page.locator("#import-state")).toHaveText("Imported from settings.json: Settings, 1 list and 0 games (1 game already saved).");
+
+  await page.reload();
+  await page.goto("/#meta");
+  const out = JSON.parse((await exportFile(page)).text);
+  expect(out.lists).toEqual([list]);
+  expect(out.games).toEqual([game]);
   expect(consoleErrors).toEqual([]);
 });
 

@@ -1,6 +1,7 @@
 // View code: rendert de tabbladen en reageert op de bezoeker. De berekeningen (standaardniveau,
 // verwachte winrate, tiers) staan in calc.js; Deck Lab in decklab.js.
-import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS, exportSettings, importSettings } from "./calc.js";
+import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS } from "./calc.js";
+import { createGameStore, exportBackup, importBackup } from "./gamestore.js";
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
 import { createAI } from "./ai.js";
@@ -56,6 +57,7 @@ function spritesHtml(a, cls = "") {
 // ---------- Opslag van instellingen ----------
 // Settings staan in de browser van de bezoeker (ADR 0002). Lukt opslaan niet, dan gelden de wijzigingen alleen dit bezoek.
 const storage = createStorage();
+const gameStore = createGameStore(); // My lists en games (IndexedDB); opent pas bij het eerste gebruik
 // Eigen Anthropic API key van de bezoeker; zonder key staan Advice en Deck chat uit (ADR 0002).
 let apiKey = null;
 const chatOn = () => !!apiKey;
@@ -747,12 +749,13 @@ $("reset").addEventListener("click", e => {
   localFrequencies = {}; saveSettings(); renderAll();
 });
 
-// Settings naar een bestand en terug; een ongeldig bestand verandert niets.
+// Settings, My lists en games naar één bestand en terug (ADR 0006); een ongeldig bestand verandert niets.
 const importState = msg => { $("import-state").textContent = msg; $("import-state").hidden = !msg; };
-$("export-settings").addEventListener("click", () => {
+$("export-settings").addEventListener("click", async () => {
+  const [lists, games] = await Promise.all([gameStore.lists(), gameStore.games()]);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([exportSettings({ localFrequencies, continent })], { type: "application/json" }));
-  a.download = "matchup-meta-settings.json";
+  a.href = URL.createObjectURL(new Blob([exportBackup({ localFrequencies, continent }, { lists, games })], { type: "application/json" }));
+  a.download = "matchup-meta.json";
   a.click();
   URL.revokeObjectURL(a.href);
   importState("");
@@ -762,12 +765,15 @@ $("import-file").addEventListener("change", async e => {
   const file = e.target.files[0];
   e.target.value = "";
   if (!file) return;
-  const r = importSettings(await file.text());
+  const r = importBackup(await file.text());
   if (!r.ok) return importState(`Not imported, your settings are unchanged. ${r.error}`);
   ({ localFrequencies, continent } = r.settings);
   $("continent").value = continent;
   saveSettings(); renderAll();
-  importState(`Settings imported from ${file.name}.`);
+  if (!r.lists.length && !r.games.length) return importState(`Settings imported from ${file.name}.`);
+  const n = await gameStore.merge(r), plural = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`;
+  importState(`Imported from ${file.name}: Settings, ${plural(n.lists, "list")} and ${plural(n.games, "game")}` +
+    (n.duplicates ? ` (${plural(n.duplicates, "game")} already saved).` : "."));
 });
 
 // ---------- Start ----------
