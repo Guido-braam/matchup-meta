@@ -430,7 +430,6 @@ details[open]>summary.zone-t::before{content:"▾"}
   async function load(){
     const text = $("#deck").value;
     if (!text.trim()) srcLabel = ""; // leeg = opnieuw beginnen
-    try { localStorage.setItem("decklab.deck", text); localStorage.setItem("decklab.src", srcLabel); } catch {}
     $("#src").textContent = srcLabel;
     const index = await loadCardIndex();
     entries = parse(text, index);
@@ -451,13 +450,8 @@ details[open]>summary.zone-t::before{content:"▾"}
       if (srcLabel && !srcLabel.endsWith("(edited)")) srcLabel += " (edited)";
       clearTimeout(deb); deb = setTimeout(load, 150); // na elke toetsaanslag; de korte wachttijd houdt snel typen vlot
     });
-    let saved = null;
-    try { saved = localStorage.getItem("decklab.deck"); srcLabel = localStorage.getItem("decklab.src") || ""; } catch {}
-    // Labels die eerder in het Nederlands zijn bewaard.
-    srcLabel = srcLabel.replace(/^Voorbeeldlijst/, "Example list").replace(/ \(aangepast\)$/, " (edited)")
-      .replace(/ · aanbevolen lijst uit Matchup Meta/, " · recommended list from Matchup Meta").replace(/ · consensuslijst uit Matchup Meta/, " · consensus list from Matchup Meta");
-    if (!saved) srcLabel = "";
-    $("#deck").value = saved || "";
+    // Deck Lab begint altijd leeg; er wordt geen lijst bewaard tussen bezoeken.
+    srcLabel = ""; $("#deck").value = "";
     if (!skipLoad) load();
   }
   function open(host, text, label){
