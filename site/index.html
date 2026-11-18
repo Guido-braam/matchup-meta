@@ -18,6 +18,7 @@
     <nav class="tabs" role="tablist" aria-label="Pages">
       <button role="tab" id="tab-tierlist" data-tab="tierlist" aria-selected="true">Tier list</button>
       <button role="tab" id="tab-lab" data-tab="lab" aria-selected="false">Deck Lab</button>
+      <button role="tab" id="tab-games" data-tab="games" aria-selected="false">My games</button>
       <button role="tab" id="tab-deck" aria-selected="false" hidden>Deck</button>
     </nav>
     <div class="head-actions">
@@ -42,6 +43,21 @@
     <a class="back-link" href="#tierlist">← Back to tier list</a>
     <div class="deck-blocks" id="deck-detail"><div class="panel state">Choose a deck.</div></div>
     <section class="panel chat" id="deck-chat" aria-label="Deck chat" hidden></section>
+  </section>
+
+  <section id="page-games" role="tabpanel" aria-labelledby="tab-games" hidden>
+    <div class="panel games-paste">
+      <button class="btn primary gm-paste" type="button" id="gm-paste">Paste battle log</button>
+      <p class="note">In Pokémon TCG Live, tap Battle Log on the results screen, then the copy icon, and come back here. On a computer, Ctrl+V anywhere on this page works too.</p>
+      <div id="gm-manual" class="gm-manual" hidden><textarea id="gm-text" rows="5" placeholder="Paste the battle log here" aria-label="Battle log"></textarea><button class="btn" type="button" id="gm-add">Save game</button></div>
+      <label class="check" id="gm-auto-wrap" hidden><input type="checkbox" id="gm-auto"> When I come back to this tab, offer to save a battle log on my clipboard</label>
+      <div class="gm-found" id="gm-found" hidden><span>Battle log found on your clipboard.</span><button class="btn primary" type="button" id="gm-found-save">Save it</button><button class="link-btn" type="button" id="gm-found-no">No</button></div>
+      <div id="gm-result" role="status"></div>
+    </div>
+    <div class="panel">
+      <h2 class="gm-h">Games</h2>
+      <div class="gm-list" id="gm-list"></div>
+    </div>
   </section>
 
   <section id="page-lab" role="tabpanel" aria-labelledby="tab-lab" hidden>

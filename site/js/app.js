@@ -3,6 +3,7 @@
 import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS } from "./calc.js";
 import { createGameStore, exportBackup, importBackup } from "./gamestore.js";
 import { deckOf, newList, saveVersion, latest } from "./mylists.js";
+import { initMyGames } from "./mygames.js";
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
 import { createAI } from "./ai.js";
@@ -59,6 +60,8 @@ function spritesHtml(a, cls = "") {
 // Settings staan in de browser van de bezoeker (ADR 0002). Lukt opslaan niet, dan gelden de wijzigingen alleen dit bezoek.
 const storage = createStorage();
 const gameStore = createGameStore(); // My lists en games (IndexedDB); opent pas bij het eerste gebruik
+// De My games-tab (mygames.js). Pijlfuncties, want $, esc en L staan verderop in dit bestand.
+const myGames = initMyGames({ $: id => $(id), esc: s => esc(s), store: gameStore, storage, loadCardIndex: () => loadCardIndex(), labs: () => L, isCurrent: () => current === "games" });
 // Eigen Anthropic API key van de bezoeker; zonder key staan Advice en Deck chat uit (ADR 0002).
 let apiKey = null;
 const chatOn = () => !!apiKey;
@@ -712,9 +715,9 @@ function copyExport(btn) {
 }
 
 // ---------- Navigatie ----------
-// Twee vaste tabs; het deck is een pagina via de hash, met een tijdelijke Deck-tab.
+// Drie vaste tabs; het deck is een pagina via de hash, met een tijdelijke Deck-tab.
 // My meta en Ask Claude zijn popups (<dialog id="dialog-<naam>">) over de pagina.
-const TABS = ["tierlist", "lab"];
+const TABS = ["tierlist", "lab", "games"];
 const PAGES = [...TABS, "deck"];
 let current = "tierlist";
 function show(page) {
@@ -765,6 +768,7 @@ function go(h) {
 }
 addEventListener("hashchange", route);
 function renderCurrent() {
+  if (current === "games") { myGames.render(); return; }
   if (current === "lab") { DeckLab.mount($("lab-host")); refreshMyLists(); if (D) { recompute(); renderLabSelect(); } return; }
   if (!D) return;
   recompute();

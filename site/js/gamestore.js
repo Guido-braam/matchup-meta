@@ -52,6 +52,7 @@ export function createGameStore(backend = indexedDbBackend()) {
     lists: () => all("lists"),
     games: () => all("games"),
     putList: list => put("lists", list),
+    putGame: game => put("games", game), // overwrite: a changed link or opponent deck
     // A list and every game linked to it.
     async deleteList(id) {
       for (const g of await store.games()) if (g.listId === id && !(await del("games", g.id))) return false;

@@ -190,7 +190,7 @@ test("an image that fails to load falls back to the placeholder", async ({ page,
 
 test("the header has two tabs and two equal buttons for My meta and Ask Claude", async ({ page, consoleErrors }) => {
   await page.goto("/");
-  await expect(page.getByRole("tab")).toHaveText(["Tier list", "Deck Lab"]);
+  await expect(page.getByRole("tab")).toHaveText(["Tier list", "Deck Lab", "My games"]);
   for (const name of ["My meta", "Ask Claude"]) {
     const b = page.locator("header").getByRole("button", { name, exact: true });
     await expect(b).toHaveClass("btn"); // same style, neither highlighted
@@ -348,6 +348,49 @@ test("only the Tier list or Deck Lab tab is remembered", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("#page-tierlist")).toBeVisible();
   }
+});
+
+test("a battle log pasted on My games is saved with my list, once", async ({ page, consoleErrors }) => {
+  const raw = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
+  // My list: every card I showed in that game (the fit only looks at names).
+  const mine = ["Mega Kangaskhan ex", "Talonflame ex", "Ignition Energy", "Boss's Orders", "Latias ex", "Hilda", "Dusknoir",
+    "Neo Upper Energy", "Buddy-Buddy Poffin", "Black Belt's Training", "Rare Candy", "Switch", "Duskull", "Fezandipiti ex",
+    "Meowth ex", "Special Red Card", "Dawn", "Flutter Mane", "Ciphermaniac's Codebreaking"];
+  const list = { id: "list-k", name: "Kangaskhan", deck: null, archived: false,
+    versions: [{ v: 1, text: "", cards: mine.map(name => ({ name, count: 1 })), created: "2026-11-18" }] };
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games: [] }));
+  await expect(page.locator("#import-state")).toContainText("1 list");
+
+  await page.goto("/#games");
+  await expect(page.locator("#gm-list")).toContainText("No games yet");
+  // Ctrl+V anywhere on the tab.
+  const paste = text => page.evaluate(t => {
+    const dt = new DataTransfer(); dt.setData("text/plain", t);
+    document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, text);
+  await paste(raw);
+  const result = page.locator("#gm-result");
+  await expect(result).toContainText("Game saved.");
+  await expect(result).toContainText("Win");
+  await expect(result).toContainText("opponent conceded");
+  await expect(result).toContainText("went second");
+  await expect(result.locator('select[data-gm="list"]')).toHaveValue("list-k");
+  await expect(page.locator("#gm-list .gm-row")).toHaveCount(1);
+  await expect(page.locator("#gm-list .gm-row")).toContainText("Kangaskhan · v1");
+
+  await paste(raw.replace(/\n/g, "\n\n"));
+  await expect(result).toContainText("This game is already saved");
+  await paste("4 Dreepy TWM 128");
+  await expect(result).toContainText("Not saved: too short to be a battle log.");
+
+  // The opponent's deck can be corrected, and stays corrected after a reload.
+  await page.locator("#gm-list .gm-row").click();
+  await result.locator('select[data-gm="opp"]').selectOption({ index: 1 });
+  const chosen = await result.locator('select[data-gm="opp"] option:checked').textContent();
+  await page.reload();
+  await expect(page.locator("#gm-list .gm-row")).toContainText(`vs ${chosen}`);
+  expect(consoleErrors).toEqual([]);
 });
 
 test("a list saved to My lists comes back after a reload, can be edited and deleted", async ({ page, consoleErrors }) => {
