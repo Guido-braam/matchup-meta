@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { parseLog } from "../../site/js/battlelog.js";
 import { createGameStore, memoryBackend } from "../../site/js/gamestore.js";
 import { newList } from "../../site/js/mylists.js";
-import { cardsSeen, fitVersion, addLog, missingCards, refreshGame, exportReminder, iosSafari } from "../../site/js/mygames.js";
+import { cardsSeen, fitVersion, addLog, missingCards, refreshGame, exportReminder, iosSafari, linkLater } from "../../site/js/mygames.js";
 
 const LOG2 = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
 const LOG1 = readFileSync(new URL("../fixtures/battle-logs/01-loss-prizes-no-codes.txt", import.meta.url), "utf8");
@@ -74,6 +74,25 @@ test("pasting: a new game is saved with its list, the same log again is a duplic
   assert.equal(r1.status, "added");
   assert.equal(r1.record.listId, null);
   assert.equal((await store.games()).length, 2);
+});
+
+test("a game pasted before its list was saved is linked once a list fits", () => {
+  const g = { id: "x", listId: null, listVersion: null, game: G2 };
+  assert.equal(linkLater(g, []), g); // no lists yet: unchanged
+  assert.equal(linkLater(g, [list("Old", MINE.slice(1))]), g); // misses a card: unchanged
+  const kanga = list("Kanga", MINE), r = linkLater(g, [kanga]);
+  assert.deepEqual([r.listId, r.listVersion], [kanga.id, 1]);
+  const other = { ...g, listId: "picked" };
+  assert.equal(linkLater(other, [kanga]), other); // a game with a list keeps it
+  const none = { ...g, listId: "" };
+  assert.equal(linkLater(none, [kanga]), none); // "no list" picked on purpose stays
+});
+
+test("a game no list fits gets the Deck list picked above the Paste button", async () => {
+  const store = createGameStore(memoryBackend()), kanga = list("Kanga", MINE.slice(1));
+  const r = await addLog(LOG2, { store, lists: [kanga], index: null, labs: null, lastListId: kanga.id });
+  assert.equal(r.record.listId, kanga.id);
+  assert.equal(r.record.listVersion, 1);
 });
 
 test("export reminder: games added after the last export, and that export over 14 days old or never", () => {

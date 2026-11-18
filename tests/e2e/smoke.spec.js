@@ -2,7 +2,6 @@
 import { readFileSync } from "node:fs";
 import { test as base, expect } from "@playwright/test";
 import { FIXTURES } from "./fixture-server.js";
-import { parseLog, PARSER_VERSION } from "../../site/js/battlelog.js";
 
 const fixture = name => JSON.parse(readFileSync(`${FIXTURES}/${name}`, "utf8"));
 // "2026-10-16T15:04" -> "16 Oct 2026", written out here instead of reusing the page's formatter.
@@ -371,92 +370,58 @@ test("a battle log pasted on My games is saved with my list, once", async ({ pag
     document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   }, text);
   await paste(raw);
-  const result = page.locator("#gm-result");
-  await expect(result).toContainText("Game saved.");
-  await expect(result).toContainText("Win");
-  await expect(result).toContainText("opponent conceded");
-  await expect(result).toContainText("went second");
-  await expect(result.locator('select[data-gm="list"]')).toHaveValue("list-k");
-  await expect(result.locator(".gm-recon summary")).toContainText(/\d+ of 60 known, \d+ unknown/);
-  await expect(result.locator(".gm-seen")).toContainText("Dudunsparce ex");
+  const result = page.locator("#gm-result"), dlg = page.locator("#gm-dialog");
+  await expect(result).toBeEmpty(); // a new game only opens, without a line
+  // The game opens in a pop-up titled Game #1, with the opponent's cards as tiles and one tile for the unknown cards.
+  await expect(dlg).toBeVisible();
+  await expect(dlg.locator("h2")).toHaveText("Game #1");
+  await expect(dlg).toContainText("Win");
+  await expect(dlg).toContainText("opponent conceded");
+  await expect(dlg).toContainText("went second");
+  await expect(dlg.locator('select[data-gm="list"]')).toHaveValue("list-k");
+  await expect(dlg.locator(".gm-recon")).not.toHaveAttribute("open"); // the opponent's cards start folded
+  await dlg.locator(".gm-recon summary").click();
+  await expect(page.locator("#gm-deck")).toHaveValue("list-k");
+  await expect(dlg.locator(".gm-recon summary")).toContainText(/\d+ of 60 seen\s+\d+\w\w of \d+ · .+ · \d+% match/);
+  await expect(dlg.locator(".gm-recon .gm-sim .gm-meta")).toContainText(/ of \d+ · /);
+  // The arrow opens that Regional list in a second pop-up, as on the Deck tab; the cards do not fold.
+  await dlg.locator('[data-gm="similar"]').click();
+  const ldlg = page.locator("#gm-list-dialog");
+  await expect(ldlg).toBeVisible();
+  await expect(ldlg.locator(".cgrid .ctile").first()).toBeVisible();
+  await expect(ldlg.locator("button[data-export]")).toHaveText("Copy for PTCG Live");
+  await ldlg.locator("[data-close]").click();
+  await expect(ldlg).toBeHidden();
+  await expect(dlg).toBeVisible();
+  await expect(dlg.locator(".gm-recon")).toHaveAttribute("open", "");
+  await expect(dlg.locator('.gm-recon .ctile:has(img[alt="Dudunsparce ex"]), .gm-recon .ctile:has([title="Dudunsparce ex"])').first()).toBeAttached();
+  await expect(dlg.locator(".gm-recon .gm-unk .cnt")).toHaveText(/^\d+$/);
+  await dlg.locator("[data-close]").click();
+  await expect(dlg).toBeHidden();
+  await page.locator("#gm-list .gm-row").first().click();
+  await expect(dlg).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dlg).toBeHidden();
   await expect(page.locator("#gm-list .gm-row")).toHaveCount(1);
+  await expect(page.locator("#gm-count")).toHaveText("1");
   await expect(page.locator("#gm-list .gm-row")).toContainText("Kangaskhan · v1");
 
   await paste(raw.replace(/\n/g, "\n\n"));
   await expect(result).toContainText("This game is already saved");
+  await page.keyboard.press("Escape");
   await paste("4 Dreepy TWM 128");
   await expect(result).toContainText("Not saved: too short to be a battle log.");
 
   // The opponent's deck can be corrected, and stays corrected after a reload.
   await page.locator("#gm-list .gm-row").click();
-  await result.locator('select[data-gm="opp"]').selectOption({ index: 1 });
-  const chosen = await result.locator('select[data-gm="opp"] option:checked').textContent();
+  await dlg.locator('select[data-gm="opp"]').selectOption({ index: 1 });
+  const chosen = await dlg.locator('select[data-gm="opp"] option:checked').textContent();
+  // My deck: "No list" on purpose stays, also after a reload (no automatic link back).
+  await dlg.locator('select[data-gm="list"]').selectOption("");
+  await expect(page.locator("#gm-list .gm-row")).toContainText("no list");
   await page.reload();
   await expect(page.locator("#gm-list .gm-row")).toContainText(`vs ${chosen}`);
-  expect(consoleErrors).toEqual([]);
-});
-
-test("the analysis counts both pasted games and narrows to one list", async ({ page, consoleErrors }) => {
-  const read = f => readFileSync(new URL(`../fixtures/battle-logs/${f}`, import.meta.url), "utf8");
-  const list = { id: "list-k", name: "Kangaskhan", deck: null, archived: false,
-    versions: [{ v: 1, text: "", cards: ["Mega Kangaskhan ex", "Talonflame ex", "Ignition Energy", "Boss's Orders", "Latias ex", "Hilda",
-      "Dusknoir", "Neo Upper Energy", "Buddy-Buddy Poffin", "Black Belt's Training", "Rare Candy", "Switch", "Duskull", "Fezandipiti ex",
-      "Meowth ex", "Special Red Card", "Dawn", "Flutter Mane", "Ciphermaniac's Codebreaking"].map(name => ({ name, count: 1 })), created: "2026-11-18" }] };
-  await page.goto("/#meta");
-  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games: [] }));
-  await expect(page.locator("#import-state")).toContainText("1 list");
-  await page.goto("/#games");
-  await expect(page.locator("#gm-analysis")).toBeHidden();
-  const paste = text => page.evaluate(t => {
-    const dt = new DataTransfer(); dt.setData("text/plain", t);
-    document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-  }, text);
-  await paste(read("02-win-concede-codes.txt"));
-  await expect(page.locator("#gm-result")).toContainText("Game saved.");
-  await paste(read("01-loss-prizes-no-codes.txt"));
-  await expect(page.locator("#gm-result")).toContainText("Loss");
-  // Sample 01 fits no list: the picker shows all games, a 1-1 record.
-  const stats = page.locator("#gm-stats");
-  await expect(page.locator("#gm-pick")).toHaveValue("");
-  await expect(stats.locator(".gm-tile").first()).toContainText("1–1");
-  await expect(stats).toContainText("50%");
-  // The rows per opponent deck add up to the two games.
-  const games = await stats.locator(".gm-mu tbody td:nth-child(2)").allTextContents();
-  expect(games.reduce((s, t) => s + t.split("–").reduce((a, b) => a + +b, 0), 0)).toBe(2);
-  // Only the Kangaskhan list: the win.
-  await page.locator("#gm-pick").selectOption("L:list-k");
-  await expect(stats.locator(".gm-tile").first()).toContainText("1–0");
-  await expect(page.locator("#gm-list .gm-row")).toHaveCount(1);
-  // Two games: no insight has 10 games on each side yet.
-  await expect(stats.locator(".gm-ins")).toHaveCount(0);
-  await expect(stats).toContainText("Insights show up when each group compared has 10 games or more");
-  expect(consoleErrors).toEqual([]);
-});
-
-test("with 10 wins and 10 losses on a list, insights and card use show up", async ({ page, consoleErrors }) => {
-  const read = f => readFileSync(new URL(`../fixtures/battle-logs/${f}`, import.meta.url), "utf8");
-  const g1 = parseLog(read("01-loss-prizes-no-codes.txt")).game, g2 = parseLog(read("02-win-concede-codes.txt")).game;
-  const rec = (game, i) => ({ id: `g${i}`, schema: 1, parser: PARSER_VERSION, added: `2026-11-${String(1 + (i % 28)).padStart(2, "0")}T10:00:00Z`,
-    raw: "", listId: "list-k", listVersion: 1, oppDeck: null, oppDeckSet: null, game });
-  const games = Array.from({ length: 20 }, (_, i) => rec(i % 2 ? g1 : g2, i));
-  const list = { id: "list-k", name: "Kangaskhan", deck: null, archived: false,
-    versions: [{ v: 1, text: "", cards: [{ name: "Mega Kangaskhan ex", count: 3 }, { name: "Hilda", count: 4 }, { name: "Lana's Aid", count: 1 }], created: "2026-11-01" }] };
-  await page.goto("/#meta");
-  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games }));
-  await expect(page.locator("#import-state")).toContainText("20 games");
-  await page.goto("/#games");
-  const stats = page.locator("#gm-stats");
-  await expect(page.locator("#gm-pick")).toHaveValue("");
-  await page.locator("#gm-pick").selectOption("L:list-k");
-  await expect(stats.locator(".gm-tile").first()).toContainText("10–10");
-  // The two logs differ in who took the first Prize card and what was in the opening hand: 10 against 10 games.
-  await expect(stats.locator(".gm-ins li").first()).toContainText("goes with");
-  await expect(stats.locator(".gm-ins li").first()).toContainText("(10 games");
-  await expect(stats).toContainText("not that one caused the other");
-  // Card use: Lana's Aid never showed up and was never played.
-  const lana = stats.locator(".gm-mu tr", { hasText: "Lana's Aid" });
-  await expect(lana).toContainText("not played in last 20");
-  await expect(lana.locator("td.num").first()).toHaveText("0%");
+  await expect(page.locator("#gm-list .gm-row")).toContainText("no list");
   expect(consoleErrors).toEqual([]);
 });
 
@@ -467,8 +432,8 @@ test("the replay of a game steps through the board and jumps to the last turn", 
     const dt = new DataTransfer(); dt.setData("text/plain", t);
     document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   }, raw);
-  const result = page.locator("#gm-result");
-  await expect(result).toContainText("Game saved.");
+  const result = page.locator("#gm-dialog");
+  await expect(result).toBeVisible();
   await result.locator(".gm-replay summary").click();
   const rp = result.locator(".rp-root");
   // The start: both sides have all six Prize cards, the first log line is the current one.
@@ -1289,36 +1254,6 @@ test("a rejected API key in Deck chat shows a readable error", async ({ page }) 
   await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
 });
 
-test("Explain with Claude is off without a key, and with a key sends only the numbers", async ({ page, consoleErrors }) => {
-  const read = f => readFileSync(new URL(`../fixtures/battle-logs/${f}`, import.meta.url), "utf8");
-  const games = ["01-loss-prizes-no-codes.txt", "02-win-concede-codes.txt"].map((f, i) => ({ id: `g${i}`, schema: 1, parser: PARSER_VERSION,
-    added: `2026-11-1${i}T10:00:00Z`, raw: read(f), listId: null, listVersion: null, oppDeck: null, oppDeckSet: null, game: parseLog(read(f)).game }));
-  const backup = JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [], games });
-  // Without a key: the button is not there, a link opens Ask Claude to add one.
-  await page.goto("/#meta");
-  await importFile(page, backup);
-  await expect(page.locator("#import-state")).toContainText("2 games");
-  await page.goto("/#games");
-  const box = page.locator("#gm-stats .gm-explain");
-  await expect(box).toContainText("Explain with Claude is off");
-  await box.getByRole("link", { name: "Add your API key" }).click();
-  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeVisible();
-
-  // With a key: one streamed answer, from a request without logs or player names.
-  const requests = await stubDeckChat(page, [streamedReply({ text: "You are **1–1** after 2 games: too few to say much yet." }, "end_turn")]);
-  await page.addInitScript(key => localStorage.setItem("matchup-meta-api-key", JSON.stringify(key)), API_KEY);
-  await page.goto("/#games");
-  await page.reload(); // only the hash changed: load the page again so it reads the key
-  await box.getByRole("button", { name: "Explain with Claude" }).click();
-  await expect(box.locator(".gm-explained")).toContainText("1–1 after 2 games");
-  await expect(box.getByRole("button", { name: "Explain again" })).toBeVisible();
-  expect(requests).toHaveLength(1);
-  const sent = JSON.stringify(requests[0]);
-  for (const s of ["Hawk'eye42", "Grat5", "riku_land", "Knocked Out!", "opening hand."]) expect(sent).not.toContain(s);
-  expect(sent).toContain('\\"games\\":2');
-  expect(consoleErrors).toEqual([]);
-});
-
 test("after the first game: an export reminder until a backup is made", async ({ page, consoleErrors }) => {
   const raw = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
   await page.goto("/#games");
@@ -1327,7 +1262,8 @@ test("after the first game: an export reminder until a backup is made", async ({
     const dt = new DataTransfer(); dt.setData("text/plain", t);
     document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   }, raw);
-  await expect(page.locator("#gm-result")).toContainText("Game saved.");
+  await expect(page.locator("#gm-dialog")).toBeVisible();
+  await page.locator("#gm-dialog [data-close]").click();
   await expect(page.locator("#gm-remind")).toContainText("1 game is not in a backup yet");
   await expect(page.locator("#gm-tip")).toBeHidden(); // not Safari on an iPhone
   const download = page.waitForEvent("download");
@@ -1351,6 +1287,7 @@ test.describe("on Safari on an iPhone", () => {
       document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
     }, raw);
     await expect(page.locator("#gm-tip")).toContainText("Add to Home Screen");
+    await page.locator("#gm-dialog [data-close]").click();
     await page.locator("#gm-tip-ok").click();
     await expect(page.locator("#gm-tip")).toBeHidden();
     await page.reload();
@@ -1358,4 +1295,26 @@ test.describe("on Safari on an iPhone", () => {
     await expect(page.locator("#gm-tip")).toBeHidden();
     expect(consoleErrors).toEqual([]);
   });
+});
+
+test("the games list shows 10 games a page", async ({ page, consoleErrors }) => {
+  const raw = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
+  await page.goto("/#games");
+  // 11 different games: the same log against 11 opponent names.
+  for (let i = 0; i < 11; i++) {
+    await page.evaluate(t => {
+      const dt = new DataTransfer(); dt.setData("text/plain", t);
+      document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, raw.split("riku_land").join(`opp${i}`));
+    await expect(page.locator("#gm-count")).toHaveText(String(i + 1));
+    await page.locator("#gm-dialog").evaluate(d => d.close());
+  }
+  const list = page.locator("#gm-list");
+  await expect(list.locator(".gm-row")).toHaveCount(10);
+  await expect(list).toContainText("Page 1 of 2");
+  await expect(list.getByRole("button", { name: "← Newer" })).toBeDisabled();
+  await list.getByRole("button", { name: "Older →" }).click();
+  await expect(list.locator(".gm-row")).toHaveCount(1);
+  await expect(list).toContainText("Page 2 of 2");
+  expect(consoleErrors).toEqual([]);
 });

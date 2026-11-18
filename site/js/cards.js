@@ -123,8 +123,18 @@ if (typeof document !== "undefined") document.addEventListener("click", e => {
   o.className = "card-zoom";
   o.innerHTML = `<img src="${esc(img.getAttribute("src"))}" alt="${esc(img.alt)}">`;
   o.addEventListener("click", () => o.remove());
-  document.body.append(o);
+  (img.closest("dialog[open]") || document.body).append(o); // in an open modal dialog, or it shows behind it
 }, true);
+// In a pop-up the 2.5× hover zoom (style.css) grows from the point that keeps it inside the visible part of the pop-up,
+// so it does not make the pop-up scroll.
+if (typeof document !== "undefined") document.addEventListener("mouseover", e => {
+  const t = e.target.closest?.(".ctile"), box = t?.closest(".dlg-body");
+  if (!box || !t.querySelector("img")) return;
+  const S = 2.5, c = box.getBoundingClientRect(), r = t.getBoundingClientRect();
+  // Origin o (0-1) per axis: the grown tile spans [start - o·size·(S-1), that + size·S], which must stay in [lo, hi].
+  const fit = (start, size, lo, hi) => Math.min(1, Math.max(0, Math.min((start - lo) / (size * (S - 1)), Math.max((start + size * S - hi) / (size * (S - 1)), 0.5))));
+  t.style.transformOrigin = `${fit(r.left, r.width, c.left, c.left + box.clientWidth) * 100}% ${fit(r.top, r.height, c.top, c.top + box.clientHeight) * 100}%`;
+});
 
 // De Card index één keer per paginalading ophalen; elke aanroep krijgt dezelfde promise. Mislukt het, dan null.
 let indexReq = null;

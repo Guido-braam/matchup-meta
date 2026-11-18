@@ -37,7 +37,7 @@ function score(seen, list, names) {
 }
 
 const MIN_SCORE = 0.8;
-// -> {seen, known, unknown, similar: [{deckId, deckName, event, place, of, score}] (best 3), deck: id or null}.
+// -> {seen, known, unknown, similar: [{deckId, deckName, event, place, of, score, cards}] (best 3), deck: id or null}.
 // The deck is the best list's deck only when it explains at least 80% and no list of another deck does as well:
 // a game where only Ultra Ball and Boss's Orders were seen says nothing about the deck.
 export function reconstruct(game, labs, side = "opp") {
@@ -50,7 +50,7 @@ export function reconstruct(game, labs, side = "opp") {
     .sort((x, y) => y.s - x.s || x.l.place - y.l.place);
   out.similar = ranked.slice(0, 3).map(({ a, l, s }) => ({
     deckId: a.id, deckName: a.name, event: (labs.events[l.e]?.name || "").replace(/^Regional Championship /, ""),
-    place: l.place, of: l.of, score: Math.round(s * 1000) / 1000,
+    place: l.place, of: l.of, score: Math.round(s * 1000) / 1000, cards: l.cards,
   }));
   const best = ranked[0], rival = ranked.find(r => r.a.id !== best?.a.id);
   if (best && best.s >= MIN_SCORE && (!rival || best.s > rival.s)) out.deck = best.a.id;
