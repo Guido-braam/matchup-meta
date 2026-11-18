@@ -1318,3 +1318,44 @@ test("Explain with Claude is off without a key, and with a key sends only the nu
   expect(sent).toContain('\\"games\\":2');
   expect(consoleErrors).toEqual([]);
 });
+
+test("after the first game: an export reminder until a backup is made", async ({ page, consoleErrors }) => {
+  const raw = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
+  await page.goto("/#games");
+  await expect(page.locator("#gm-remind")).toBeHidden();
+  await page.evaluate(t => {
+    const dt = new DataTransfer(); dt.setData("text/plain", t);
+    document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, raw);
+  await expect(page.locator("#gm-result")).toContainText("Game saved.");
+  await expect(page.locator("#gm-remind")).toContainText("1 game is not in a backup yet");
+  await expect(page.locator("#gm-tip")).toBeHidden(); // not Safari on an iPhone
+  const download = page.waitForEvent("download");
+  await page.locator("#gm-remind-export").click();
+  expect((await download).suggestedFilename()).toBe("matchup-meta.json");
+  await expect(page.locator("#gm-remind")).toBeHidden();
+  await page.reload();
+  await expect(page.locator("#gm-list .gm-row")).toHaveCount(1);
+  await expect(page.locator("#gm-remind")).toBeHidden();
+  expect(consoleErrors).toEqual([]);
+});
+
+test.describe("on Safari on an iPhone", () => {
+  test.use({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Mobile/15E148 Safari/604.1" });
+  test("the home screen tip shows once there are games, and stays away after Got it", async ({ page, consoleErrors }) => {
+    const raw = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
+    await page.goto("/#games");
+    await expect(page.locator("#gm-tip")).toBeHidden(); // no games yet
+    await page.evaluate(t => {
+      const dt = new DataTransfer(); dt.setData("text/plain", t);
+      document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, raw);
+    await expect(page.locator("#gm-tip")).toContainText("Add to Home Screen");
+    await page.locator("#gm-tip-ok").click();
+    await expect(page.locator("#gm-tip")).toBeHidden();
+    await page.reload();
+    await expect(page.locator("#gm-list .gm-row")).toHaveCount(1);
+    await expect(page.locator("#gm-tip")).toBeHidden();
+    expect(consoleErrors).toEqual([]);
+  });
+});

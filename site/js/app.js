@@ -3,7 +3,7 @@
 import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS } from "./calc.js";
 import { createGameStore, exportBackup, importBackup } from "./gamestore.js";
 import { deckOf, newList, saveVersion, latest } from "./mylists.js";
-import { initMyGames } from "./mygames.js";
+import { initMyGames, LAST_EXPORT_KEY } from "./mygames.js";
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
 import { createAI } from "./ai.js";
@@ -847,6 +847,8 @@ $("export-settings").addEventListener("click", async () => {
   a.click();
   URL.revokeObjectURL(a.href);
   importState("");
+  storage.write(LAST_EXPORT_KEY, new Date().toISOString()); // for the export reminder on My games
+  if (current === "games") myGames.render();
 });
 $("import-settings").addEventListener("click", () => $("import-file").click());
 $("import-file").addEventListener("change", async e => {

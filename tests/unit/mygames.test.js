@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { parseLog } from "../../site/js/battlelog.js";
 import { createGameStore, memoryBackend } from "../../site/js/gamestore.js";
 import { newList } from "../../site/js/mylists.js";
-import { cardsSeen, fitVersion, addLog, missingCards, refreshGame } from "../../site/js/mygames.js";
+import { cardsSeen, fitVersion, addLog, missingCards, refreshGame, exportReminder, iosSafari } from "../../site/js/mygames.js";
 
 const LOG2 = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
 const LOG1 = readFileSync(new URL("../fixtures/battle-logs/01-loss-prizes-no-codes.txt", import.meta.url), "utf8");
@@ -74,4 +74,25 @@ test("pasting: a new game is saved with its list, the same log again is a duplic
   assert.equal(r1.status, "added");
   assert.equal(r1.record.listId, null);
   assert.equal((await store.games()).length, 2);
+});
+
+test("export reminder: games added after the last export, and that export over 14 days old or never", () => {
+  const g = added => ({ added });
+  const games = [g("2026-11-01T10:00:00Z"), g("2026-11-10T10:00:00Z"), g("2026-11-17T10:00:00Z")];
+  assert.equal(exportReminder([], null, "2026-11-18T10:00:00Z"), 0); // no games: nothing to back up
+  assert.equal(exportReminder(games, null, "2026-11-18T10:00:00Z"), 3); // never exported
+  assert.equal(exportReminder(games, "2026-11-02T10:00:00Z", "2026-11-18T10:00:00Z"), 2); // 16 days ago, 2 games since
+  assert.equal(exportReminder(games, "2026-11-05T10:00:00Z", "2026-11-18T10:00:00Z"), 0); // 13 days ago: not yet
+  assert.equal(exportReminder(games, "2026-11-17T12:00:00Z", "2026-12-30T10:00:00Z"), 0); // old, but nothing new since
+});
+
+test("the home screen tip is for Safari on iPhone and iPad only, not when opened from the home screen", () => {
+  const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Mobile/15E148 Safari/604.1";
+  const IPAD = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Safari/605.1.15";
+  assert.equal(iosSafari({ userAgent: IPHONE }), true);
+  assert.equal(iosSafari({ userAgent: IPHONE, standalone: true }), false);
+  assert.equal(iosSafari({ userAgent: IPAD, platform: "MacIntel", maxTouchPoints: 5 }), true);
+  assert.equal(iosSafari({ userAgent: IPAD, platform: "MacIntel", maxTouchPoints: 0 }), false); // a Mac
+  assert.equal(iosSafari({ userAgent: IPHONE.replace("Version/19.0", "CriOS/140.0") }), false); // Chrome on iPhone
+  assert.equal(iosSafari({ userAgent: "Mozilla/5.0 (Linux; Android 15) Chrome/140.0 Mobile Safari/537.36" }), false);
 });

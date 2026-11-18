@@ -91,7 +91,7 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 .btn.gm-paste { font-size: 1.05rem; padding: 14px 18px; width: 100%; max-width: 420px; }
 .games-paste .note, .gm-msg { margin: 0; }
 .gm-manual { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-.gm-found { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); }
+.gm-found, .gm-note { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); }
 .gm-card { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
 .gm-head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-weight: 600; }
 .gm-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); max-width: 420px; }
@@ -576,3 +576,4 @@ dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
 .gm-explained > :first-child { margin-top: 0; }
 .gm-explained > :last-child { margin-bottom: 0; }
 .gm-explain .gm-msg:empty { display: none; }
+.gm-note[hidden], .gm-found[hidden] { display: none; }

@@ -68,10 +68,27 @@ export function refreshGame(g, index) {
   return r.ok ? { ...g, parser: PARSER_VERSION, game: r.game } : g;
 }
 
+// Keeping data on phones (ticket 11).
+// Remind to export when games were added after the last export, and that export is over 14 days old or never happened.
+// -> the number of games not in a backup, or 0 for no reminder. lastExport and now: ISO strings.
+export const REMIND_DAYS = 14;
+export function exportReminder(games, lastExport, now) {
+  const fresh = games.filter(g => !lastExport || g.added > lastExport).length;
+  if (!fresh) return 0;
+  return !lastExport || Date.parse(now) - Date.parse(lastExport) > REMIND_DAYS * 864e5 ? fresh : 0;
+}
+// Safari on iPhone or iPad, not opened from the home screen: there Safari may delete the site's data after
+// a week without a visit, so the "add to home screen" tip applies. iPadOS reports itself as a Mac with touch.
+export function iosSafari({ userAgent = "", platform = "", maxTouchPoints = 0, standalone = false } = {}) {
+  const ios = /iPhone|iPad|iPod/.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1);
+  return ios && !standalone && /Safari\//.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
+}
+
 // ---------- View ----------
 // deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null, data: () => data.json or null, isCurrent: () => bool,
 //   ai: () => createAI() client or null without an API key, md: markdown -> safe HTML, aiError: error -> message}.
 const LAST_LIST_KEY = "matchup-meta-last-list", AUTO_KEY = "matchup-meta-clipboard-check";
+export const LAST_EXPORT_KEY = "matchup-meta-last-export", HOME_TIP_KEY = "matchup-meta-home-tip";
 export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data, isCurrent, ai, md, aiError }) {
   let shown = null; // id of the game in the result card
   let pick = null;  // the analysis picker: "" all games, "L:<list id>", "V:<list id>:<version>", "none"; null = not chosen yet
@@ -88,6 +105,8 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data,
     if (r.status === "invalid") return status(`<p class="gm-msg bad">Not saved: ${esc(r.problems.join("; "))}.</p>`);
     if (r.status === "failed") return status(`<p class="gm-msg bad">Not saved: this browser does not allow storage for this site.</p>`);
     if (r.record.listId) storage.write(LAST_LIST_KEY, r.record.listId);
+    // Ask the browser to keep this site's data (Chrome decides by itself; Safari and Firefox may ask or say no).
+    if (r.status === "added") navigator.storage?.persist?.().catch(() => {});
     $("gm-manual").hidden = true; $("gm-text").value = "";
     shown = r.record.id;
     pick = r.record.listId ? "L:" + r.record.listId : "";
@@ -249,6 +268,11 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data,
     if (g) status(card(g, lists, msg)); else if (!msg) status("");
     const label = id => { const l = lists.find(x => x.id === id); return l ? listText(l) : "no list"; };
     $("gm-analysis").hidden = !games.length;
+    // Keeping data: the home screen tip (once, on iPhone/iPad Safari, after the first game) and the export reminder.
+    $("gm-tip").hidden = !games.length || storage.read(HOME_TIP_KEY) === true || !iosSafari(navigator);
+    const behind = remindOff ? 0 : exportReminder(games, storage.read(LAST_EXPORT_KEY), new Date().toISOString());
+    $("gm-remind").hidden = !behind;
+    $("gm-remind-text").textContent = `${behind} game${behind === 1 ? " is" : "s are"} not in a backup yet. Export ${behind === 1 ? "it" : "them"} to a file, so ${behind === 1 ? "it is" : "they are"} safe if this browser clears its data.`;
     $("gm-pick").innerHTML = pickerHtml(games, lists);
     const mine = games.filter(x => picked(x, lists)), pickedList = pick?.startsWith("L:") || pick?.startsWith("V:") ? lists.find(l => l.id === pick.split(":")[1]) : null;
     // The cards of the picked version, or the latest version when all versions of a list are picked.
@@ -287,6 +311,10 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, data,
     const [g, index] = await Promise.all([store.games().then(gs => gs.find(x => x.id === shown)), loadCardIndex().catch(() => null)]);
     if (g) mountReplay(d.querySelector(".rp-root"), g.game, index);
   }, true);
+  let remindOff = false; // "Not now": until the next visit
+  $("gm-tip-ok").addEventListener("click", () => { storage.write(HOME_TIP_KEY, true); $("gm-tip").hidden = true; });
+  $("gm-remind-no").addEventListener("click", () => { remindOff = true; $("gm-remind").hidden = true; });
+  $("gm-remind-export").addEventListener("click", () => document.getElementById("export-settings").click());
   $("gm-pick").addEventListener("change", e => { pick = e.target.value; render(); });
   $("gm-list").addEventListener("click", e => {
     const b = e.target.closest("[data-game]");
