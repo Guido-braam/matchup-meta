@@ -63,6 +63,13 @@ export async function addLog(raw, { store, lists, index, labs, lastListId = null
   return status === "added" ? { status, record, fit } : status === "duplicate" ? { status, record } : { status: "failed" };
 }
 
+// A game saved by an older parser, read again from its raw log; unchanged when it is current or no longer parses.
+export function refreshGame(g, index) {
+  if ((g.parser || 0) >= PARSER_VERSION) return g;
+  const r = parseLog(g.raw, index);
+  return r.ok ? { ...g, parser: PARSER_VERSION, game: r.game } : g;
+}
+
 // ---------- View ----------
 // deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null, isCurrent: () => bool}.
 const LAST_LIST_KEY = "matchup-meta-last-list", AUTO_KEY = "matchup-meta-clipboard-check";
@@ -122,7 +129,11 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
   }
 
   async function render(msg = "") {
-    const [games, lists] = await Promise.all([store.games(), store.lists()]);
+    let [games, lists] = await Promise.all([store.games(), store.lists()]);
+    if (games.some(g => (g.parser || 0) < PARSER_VERSION)) {
+      const index = await loadCardIndex().catch(() => null);
+      games = await Promise.all(games.map(async g => { const n = refreshGame(g, index); if (n !== g) await store.putGame(n); return n; }));
+    }
     games.sort((a, b) => b.added.localeCompare(a.added));
     const g = games.find(x => x.id === shown);
     if (g) status(card(g, lists, msg)); else if (!msg) status("");

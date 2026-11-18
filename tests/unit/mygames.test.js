@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { parseLog } from "../../site/js/battlelog.js";
 import { createGameStore, memoryBackend } from "../../site/js/gamestore.js";
 import { newList } from "../../site/js/mylists.js";
-import { cardsSeen, fitVersion, addLog, missingCards } from "../../site/js/mygames.js";
+import { cardsSeen, fitVersion, addLog, missingCards, refreshGame } from "../../site/js/mygames.js";
 
 const LOG2 = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
 const LOG1 = readFileSync(new URL("../fixtures/battle-logs/01-loss-prizes-no-codes.txt", import.meta.url), "utf8");
@@ -44,6 +44,15 @@ test("the list that has every card I showed is the fit; the last used one wins a
 test("names match across spellings: Basic Energy and apostrophes", () => {
   const l = list("E", ["Psychic Energy", "Bosss Orders"]);
   assert.deepEqual(missingCards(l, [{ name: "Basic Psychic Energy" }, { name: "Boss's Orders" }, { name: "Switch" }]), ["Switch"]);
+});
+
+test("a game saved by an older parser is read again from its raw log", () => {
+  const old = { id: "x", parser: 1, raw: LOG2, game: { result: "stale" } };
+  const fresh = refreshGame(old, null);
+  assert.equal(fresh.game.result, "win");
+  assert.ok(fresh.parser > 1);
+  assert.equal(refreshGame(fresh, null), fresh); // already current: the same object
+  assert.equal(refreshGame({ ...old, raw: "broken" }, null).game.result, "stale"); // no longer parses: kept
 });
 
 test("pasting: a new game is saved with its list, the same log again is a duplicate, a bad paste is refused", async () => {

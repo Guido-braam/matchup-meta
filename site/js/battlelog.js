@@ -12,7 +12,8 @@
 // - "X put N damage counters on Y's Z" often names the wrong owner; this parser keeps the text, gamestate.js decides.
 
 // Bump when a change should apply to games already saved: they are read again from their raw log.
-export const PARSER_VERSION = 1;
+// 2: attach and evolve keep where it happened (at: "Active Spot" | "Bench").
+export const PARSER_VERSION = 2;
 
 const CODE_RE = /^\(([a-z0-9]+(?:-[a-z0-9]+)*_\d+[a-z]?(?:_[a-z0-9]+)*)\)\s*/i;
 
@@ -137,8 +138,8 @@ export function parseLog(raw, index = null) {
       if ((m = /^drew (.+)\.$/.exec(r))) return { type: "draw", side, count: 1, cards: [ref(m[1])] };
       if ((m = /^played (.+) to the (Bench|Active Spot|Stadium spot)\.$/.exec(r))) return { type: "play", side, card: ref(m[1]), to: m[2] };
       if ((m = /^played (.+)\.$/.exec(r))) return { type: "play", side, card: ref(m[1]) };
-      if ((m = /^attached (.+) to (.+) (?:in|on) the (Active Spot|Bench)\.$/.exec(r))) return { type: "attach", side, card: ref(m[1]), pokemon: ref(m[2]) };
-      if ((m = /^evolved (.+) to (.+) (?:in|on) the (Active Spot|Bench)\.$/.exec(r))) return { type: "evolve", side, from: ref(m[1]), card: ref(m[2]) };
+      if ((m = /^attached (.+) to (.+) (?:in|on) the (Active Spot|Bench)\.$/.exec(r))) return { type: "attach", side, card: ref(m[1]), pokemon: ref(m[2]), at: m[3] };
+      if ((m = /^evolved (.+) to (.+) (?:in|on) the (Active Spot|Bench)\.$/.exec(r))) return { type: "evolve", side, from: ref(m[1]), card: ref(m[2]), at: m[3] };
       if ((m = /^retreated (.+) to the Bench\.$/.exec(r))) return { type: "retreat", side, pokemon: ref(m[1]) };
       if ((m = /^took (a|\d+) Prize cards?\.$/.exec(r))) return { type: "prize", side, count: num(m[1]) };
       if ((m = /^took (a|\d+) mulligans?\.$/.exec(r))) return { type: "mulligan", side, count: num(m[1]) };
