@@ -289,8 +289,7 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 .cl-row .pm button{flex:0 0 50%;min-height:0;border:0;border-radius:0;background:transparent;color:#fff;font-size:22px;font-weight:800;text-shadow:0 0 2px #000,0 0 5px #000;cursor:pointer}
 .cl-row .pm [data-pm="-1"]{border-radius:6px 0 0 6px}.cl-row .pm [data-pm="1"]{border-radius:0 6px 6px 0}
 .cl-row .pm button:hover:not(:disabled),.cl-row .pm button:focus-visible{background:rgb(0 0 0/.35);outline:none}
-.cl-row .pm button:disabled{opacity:.3;cursor:not-allowed}
-}
+.cl-row .pm button:disabled{opacity:.3;cursor:not-allowed}}
 .btn:disabled{opacity:.5;cursor:default;border-color:var(--line)}
 .io{gap:6px}
 .io .btn{flex:1 1 auto;white-space:nowrap;padding:7px 10px}
@@ -462,7 +461,14 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
         return `<div class="cl-row">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}${pm}</div>`;
       }).join("")}${cat ? `<div class="cl-row"><button type="button" class="add-tile" data-add="${cat}" aria-label="${addTitle(cat)}">+</button></div>` : ""}</div>`;
     }
-    $("#cardlist").innerHTML = html;
+    // Same cards as now (only counts changed, after − or +): update the counts in place, so the zoomed card under
+    // the mouse stays as it is instead of being drawn anew and zooming in again.
+    const box = $("#cardlist"), t = document.createElement("div"); t.innerHTML = html;
+    const keys = el => [...el.querySelectorAll('[data-pm="-1"]')].map(b => b.dataset.key).join("\n");
+    if (!box.children.length || keys(box) !== keys(t)) { box.innerHTML = html; return; }
+    const pairs = s => { const n = t.querySelectorAll(s); return [...box.querySelectorAll(s)].map((el, i) => [el, n[i]]); };
+    for (const [el, n] of pairs(".cl-head .num, .cnt")) el.textContent = n.textContent;
+    for (const [el, n] of pairs('[data-pm="1"]')) el.disabled = n.disabled;
   }
 
   function fsHTML(fs){
