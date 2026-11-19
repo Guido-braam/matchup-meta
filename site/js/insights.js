@@ -151,3 +151,59 @@ export function turningPoint(game) {
   const ko = game.events.slice(0, at).reverse().find(x => x.type === "ko" && x.side === "me" && x.turn === e.turn);
   return { k: at, turn: e.turn, mine: e.turnSide === "me", sideTurn: e.sideTurn, ko: ko?.pokemon.name ?? null, count: e.count };
 }
+
+// ---------- Turn into advice (spec "Turn into advice") ----------
+// A game turn by turn in short lines, from my side ("you" / "opp"). No player names and no log text.
+const act = e => {
+  const n = c => c?.name ?? "?";
+  switch (e.type) {
+    case "play": return `played ${n(e.card)}`;
+    case "search-play": return `put ${(e.cards || []).map(n).join(", ")} into play`;
+    case "attach": return `attached ${n(e.card)} to ${n(e.pokemon)}`;
+    case "evolve": return `evolved ${n(e.from)} into ${n(e.card)}`;
+    case "attack": return `${n(e.pokemon)} used ${e.attack}${e.target ? ` on ${n(e.target.pokemon)}` : ""}${e.damage ? ` for ${e.damage}` : ""}`;
+    case "ko": return `${e.side === "me" ? "your" : "opp's"} ${n(e.pokemon)} Knocked Out`;
+    case "prize": return `${e.side === "me" ? "you" : "opp"} took ${e.count} Prize card${e.count === 1 ? "" : "s"}`;
+    case "retreat": return `retreated ${n(e.pokemon)}`;
+    case "active": return `${n(e.pokemon)} to Active`;
+    default: return null;
+  }
+};
+export function gameSummary(g, deckName) {
+  const G = g.game, lines = [`${margin(G)} vs ${deckName(oppDeckOf(g))} · went ${G.wentFirst ? "first" : "second"} · Prize cards ${G.prizes.me}–${G.prizes.opp} · ${G.turns} turns` +
+    `${G.reason === "concede" ? ` · ${G.result === "win" ? "opp" : "you"} conceded` : ""}${G.mulligans?.me ? ` · you took ${G.mulligans.me} mulligan(s)` : ""}`];
+  if (G.openingHand?.length) lines.push(`Opening hand: ${G.openingHand.map(c => c.name).join(", ")}`);
+  const turns = new Map();
+  for (const e of G.events) {
+    const a = act(e);
+    if (!a) continue;
+    const k = e.turn ? `T${e.turn} ${e.turnSide === "me" ? "you" : "opp"}` : "Setup";
+    turns.set(k, [...(turns.get(k) || []), e.turn && e.side && e.side !== e.turnSide && e.type !== "ko" && e.type !== "prize" ? `(${e.side === "me" ? "you" : "opp"}) ${a}` : a]);
+  }
+  for (const [k, as] of turns) lines.push(`${k}: ${as.join("; ")}`);
+  return lines.join("\n");
+}
+
+export const ADVICE_GAMES = 20;
+export const ADVICE_SYSTEM = `You are an experienced Pokémon TCG coach (Standard format). A player sends their own results with one deck from Pokémon TCG Live: the numbers of a selection of games, short turn-by-turn summaries of the newest games, and the rules text of the cards in their list and of the cards their opponents showed.
+Give advice on how to play this deck better: sequencing, what to set up first, which Pokémon to put forward or keep back, how to take Prize cards in each matchup, when to use which attack or ability. Do not advise changing the list (cards to add or cut): the player asked only about play.
+Base every point on the data and the card texts: name the turns, games or numbers it comes from. Do not make up cards, games or numbers. With few games, say a point is a first sign.
+Write in English, in Markdown: a heading per theme (for example "Setup", "Prize trade", one heading per opponent deck that stands out), and under it as many short, concrete points as are useful. No introduction and no summary at the end.`;
+
+// The message for Claude. sel: the games of the selection; insights: playInsights(); label: "Cursed Dive v2 vs All opponents";
+// cards: {mine: [card text], theirs: [card text]}.
+export function adviceMessages(sel, { label, insights, deckName, cards }) {
+  const s = summary(sel), p = prizeStats(sel);
+  const games = [...sel].sort((a, b) => b.added.localeCompare(a.added)).slice(0, ADVICE_GAMES);
+  const text = [
+    `# ${label}`,
+    `Record ${record(s)} · going first ${record(s.first)} · going second ${record(s.second)}`,
+    `Prize cards per game: you ${p.me.toFixed(1)}, opponent ${p.opp.toFixed(1)}. Margin classes: ${MARGINS.filter(m => p.classes[m]).map(m => `${m} ${p.classes[m]}`).join(", ")}`,
+    `Matchups: ${matchups(sel).map(m => `${deckName(m.deck)} ${record(m)}`).join(", ")}`,
+    insights.length ? `## Insights\n${insights.map(r => `- ${r.text}${r.early ? " (early sign)" : ""}`).join("\n")}` : "",
+    `## My cards\n${cards.mine.map(t => `- ${t}`).join("\n")}`,
+    `## Opponents' cards seen\n${cards.theirs.map(t => `- ${t}`).join("\n")}`,
+    `## The ${games.length} newest games, turn by turn\n${games.map((g, i) => `### Game ${i + 1}\n${gameSummary(g, deckName)}`).join("\n\n")}`,
+  ].filter(Boolean).join("\n\n");
+  return [{ role: "user", content: `${text}\n\nHow can I play this deck better?` }];
+}

@@ -108,3 +108,19 @@ test("turning point: the last time the Prize count went from level or ahead to b
   assert.equal(turningPoint(loss([pz(2, "me", 2)])), null);
   assert.equal(turningPoint({ result: "win", events: [pz(2, "opp", 2)] }), null);
 });
+
+test("advice: no player names or log text, at most 20 games, newest first", async () => {
+  const { adviceMessages, gameSummary } = await import("../../site/js/insights.js");
+  const ev = [
+    { turn: 1, turnSide: "me", sideTurn: 1, type: "play", side: "me", card: { name: "Duskull" }, text: "Silverhawk played Duskull." },
+    { turn: 1, turnSide: "me", sideTurn: 1, type: "attack", side: "me", pokemon: { name: "Talonflame ex" }, attack: "Talon Hunt", target: { side: "opp", pokemon: { name: "Zorua" } }, damage: 150 },
+  ];
+  const mk = i => ({ listId: "k", listVersion: 1, oppDeck: "drag", oppDeckSet: null, added: `2026-11-${String(i + 1).padStart(2, "0")}`, raw: "Silverhawk played Duskull.",
+    game: { players: { me: "Silverhawk", opp: "k4luy" }, result: i % 2 ? "win" : "loss", reason: "prizes", wentFirst: true, prizes: { me: 6, opp: 4 }, turns: 8, openingHand: [{ name: "Duskull" }], events: ev } });
+  const sel = Array.from({ length: 25 }, (_, i) => mk(i));
+  assert.equal(gameSummary(sel[1], () => "Dragapult").split("\n")[2], "T1 you: played Duskull; Talonflame ex used Talon Hunt on Zorua for 150");
+  const [m] = adviceMessages(sel, { label: "Cursed Dive v1 vs all opponents", insights: [], deckName: () => "Dragapult", cards: { mine: ["Duskull · Basic Pokémon"], theirs: [] } });
+  assert.ok(!/Silverhawk|k4luy/.test(m.content));
+  assert.equal(m.content.match(/^### Game /gm).length, 20);
+  assert.ok(m.content.indexOf("Duskull · Basic") < m.content.indexOf("### Game 1\n"), "cards before games");
+});

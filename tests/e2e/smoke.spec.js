@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { test as base, expect } from "@playwright/test";
 import { FIXTURES } from "./fixture-server.js";
+import { parseLog } from "../../site/js/battlelog.js";
 
 const fixture = name => JSON.parse(readFileSync(`${FIXTURES}/${name}`, "utf8"));
 // "2026-10-16T15:04" -> "16 Oct 2026", written out here instead of reusing the page's formatter.
@@ -1390,5 +1391,39 @@ test("the games list shows 10 games a page", async ({ page, consoleErrors }) => 
   await list.getByRole("button", { name: "Older →" }).click();
   await expect(list.locator(".gm-row")).toHaveCount(1);
   await expect(list).toContainText("Page 2 of 2");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("Analysis: Turn into advice is off without a key, and with one sends no player names and shows the answer", async ({ page, consoleErrors }) => {
+  await seedGames(page, [[2, 1, "dragapult-ex"], [1, 1, "dragapult-ex"]], 1);
+  await page.goto("/#analysis");
+  await expect(page.locator("#an-advice")).toBeDisabled();
+  await expect(page.locator(".an-advice")).toContainText("Needs your Anthropic API key");
+
+  // The fixtures have no full set files: each set answers with its Cards from the fixture index, with a made-up HP.
+  const index = JSON.parse(readFileSync(new URL("../fixtures/cards/index.json", import.meta.url), "utf8")).cards;
+  await page.route(/\/cards\/[^/]+\.json$/, route => {
+    const set = route.request().url().match(/cards\/([^/]+)\.json$/)[1];
+    if (set === "index") return route.fallback();
+    const cards = Object.entries(index).filter(([id]) => id.startsWith(set + "-")).map(([id, c]) => ({ ...c, id, hp: 120 }));
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ id: set, cards }) });
+  });
+  const requests = await stubDeckChat(page, [streamedReply({ text: "## Setup\n\n- Bench two Duskull on turn 1." }, "end_turn")]);
+  await page.evaluate(key => localStorage.setItem("matchup-meta-api-key", JSON.stringify(key)), API_KEY);
+  await page.reload();
+  await page.locator("#an-advice").click();
+  const dlg = page.locator("#an-advice-dialog");
+  await expect(dlg.getByRole("heading", { name: "Setup" })).toBeVisible();
+  await expect(dlg).toContainText("Bench two Duskull on turn 1.");
+  await expect(dlg.locator("#an-advice-stop")).toBeHidden();
+  expect(requests).toHaveLength(1);
+  const sent = JSON.stringify(requests[0]);
+  for (const raw of Object.values(LOGS).map(f => readFileSync(new URL(`../fixtures/battle-logs/${f}`, import.meta.url), "utf8"))) {
+    const g = parseLog(raw).game;
+    for (const name of Object.values(g.players)) expect(sent).not.toContain(name);
+  }
+  expect(sent).toContain("### Game 2");
+  expect(sent).toMatch(/## Opponents' cards seen\\n- \S[^\\]* · HP 120/);
+  expect(sent).toContain("How can I play this deck better?");
   expect(consoleErrors).toEqual([]);
 });

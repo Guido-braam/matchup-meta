@@ -1,16 +1,17 @@
 // The Analysis tab (spec .scratch/analysis-rework): pickers for a list version and an opponent deck, then the
 // summary, the matchups and the insights of those games. The numbers come from insights.js.
 import { latest } from "./mylists.js";
-import { LAST_LIST_KEY, currentGames } from "./mygames.js";
-import { select, summary, matchups, record, prizeStats, MARGINS, playInsights, MIN } from "./insights.js";
+import { LAST_LIST_KEY, currentGames, cardsSeen } from "./mygames.js";
+import { select, summary, matchups, record, prizeStats, MARGINS, playInsights, MIN, adviceMessages, ADVICE_SYSTEM } from "./insights.js";
 import { replay } from "./gamestate.js";
-import { findCard, cardImagePath } from "./cards.js";
+import { findCard, cardImagePath, cardTexts } from "./cards.js";
 
-// deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null}.
+// deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null,
+//        ai: () => createAI(key) or null, md: markdown -> html, aiError: error -> message}.
 // CSS class of a margin class: "Close win" -> "m-close-win".
 export const marginCls = m => "m-" + m.toLowerCase().replace(" ", "-");
 
-export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs }) {
+export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, md, aiError }) {
   let pick = null; // "listId|v" or "listId|all"
   let opp;         // undefined = all opponents, null = Other, else a deck id
   const deckName = id => (id ? labs()?.archetypes.find(a => a.id === id)?.name ?? "Unknown deck" : "Other");
@@ -59,8 +60,43 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs }) {
         <span class="gm-vs">${esc(deckName(m.deck))}</span><span class="an-rec">${record(m)}</span></button>`).join("")}</div>
       <hr class="an-sep">
       <h3 class="an-h">Insights</h3>
-      ${insightsHtml(sel, s, await loadCardIndex().catch(() => null))}`;
+      ${insightsHtml(sel, s, await loadCardIndex().catch(() => null))}
+      <hr class="an-sep">
+      <p class="an-advice"><button type="button" class="btn" id="an-advice"${ai() ? "" : " disabled"}>Turn into advice</button>
+        ${ai() ? `<span class="hint">Claude reads these numbers, your cards and the ${Math.min(sel.length, 20)} newest games, and gives tips on how to play.</span>`
+          : `<span class="hint">Needs your Anthropic API key: add it under <a href="#" data-ask>Ask Claude</a>.</span>`}</p>`;
+    current = { sel, list: lists.find(l => l.id === listId), v };
   }
+  let current = null; // the selection on screen, for Turn into advice
+
+  // Turn into advice: numbers, insights, card texts and short game summaries to Claude; the answer streams into a pop-up.
+  let ctl = null;
+  async function advise() {
+    const { sel, list, v } = current, out = $("an-advice-body"), dlg = $("an-advice-dialog");
+    const label = `${list.name} ${v === "all" ? "all versions" : `v${v}`} vs ${opp === undefined ? "all opponents" : deckName(opp)}`;
+    $("an-advice-title").textContent = `Advice · ${label}`;
+    out.innerHTML = `<p class="thinking">Thinking…</p>`;
+    $("an-advice-stop").hidden = false;
+    dlg.showModal();
+    ctl?.abort(); ctl = new AbortController();
+    try {
+      const index = await loadCardIndex().catch(() => null);
+      const mineCards = (v === "all" ? list.versions : list.versions.filter(x => x.v === v)).flatMap(x => x.cards);
+      const theirs = sel.flatMap(g => cardsSeen(g.game, "opp"));
+      const cards = { mine: await cardTexts(index, mineCards), theirs: await cardTexts(index, theirs) };
+      const insights = playInsights(sel, { replay: replayOf, deckName });
+      const res = await ai().chat({ system: ADVICE_SYSTEM, messages: adviceMessages(sel, { label, insights, deckName, cards }), signal: ctl.signal,
+        onText: t => { out.innerHTML = md(t); } });
+      out.innerHTML = md(res.text) + (res.truncated ? `<p class="hint">Answer cut off.</p>` : "");
+    } catch (e) {
+      out.innerHTML = `<p class="hint err">${esc(e?.code === "cancelled" ? "Stopped." : aiError(e))}</p>`;
+    } finally {
+      $("an-advice-stop").hidden = true;
+    }
+  }
+  $("an-advice-stop").addEventListener("click", () => ctl?.abort());
+  $("an-advice-dialog").addEventListener("click", e => { if (e.target === e.currentTarget || e.target.closest("[data-close]")) e.currentTarget.close(); });
+  $("an-advice-dialog").addEventListener("close", () => ctl?.abort());
 
   // At most 5 one-line insights; too few games: a yellow warning in their place.
   const replays = new WeakMap(); // replay() per game, kept while the game record lives
@@ -76,6 +112,8 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs }) {
   const setOpp = val => { opp = val === "" ? undefined : val === OTHER ? null : val; render(); };
   $("an-opp").addEventListener("change", e => setOpp(e.target.value));
   $("an-body").addEventListener("click", e => {
+    if (e.target.closest("#an-advice")) return advise();
+    if (e.target.closest("[data-ask]")) { e.preventDefault(); return document.getElementById("open-ask")?.click(); }
     const b = e.target.closest("[data-opp]");
     if (b) setOpp(b.dataset.opp === oppValue(opp) ? "" : b.dataset.opp); // a second click shows all opponents again
   });
