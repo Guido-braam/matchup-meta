@@ -8,7 +8,7 @@ import { initAnalysis } from "./analysis.js";
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
 import { createAI } from "./ai.js";
-import { loadCardIndex, findCard, cardTile } from "./cards.js";
+import { loadCardIndex, findCard, cardTile, cardById } from "./cards.js";
 
 // lv = opgeslagen niveau, w = gewicht in de berekening (uit calc.js).
 const LEVEL_LABELS = { 5: "Very often", 4: "Often", 3: "Regularly", 2: "Sometimes", 1: "Rarely", 0: "Never" };
@@ -286,6 +286,28 @@ function renderDeck() {
     ${renderRecommendation(l, R)}
     ${lists.main}`;
   renderChat();
+  renderMyList(a);
+}
+
+// My list: the visitor's own saved lists for this deck (latest version), with a way to its Analysis.
+async function renderMyList(a) {
+  const mine = (await gameStore.lists().catch(() => [])).filter(l => l.deck === a.id && !l.archived);
+  const box = $("my-list");
+  if (!box || !mine.length || D.archetypes[selected]?.id !== a.id) return;
+  const index = await loadCardIndex().catch(() => null);
+  const SEC = { Pokemon: 0, Trainer: 1, Energy: 2 };
+  const grid = cards => {
+    const rows = cards.map(c => ({ c, card: (c.id && cardById(index, c.id)) || findCard(index, "", "", c.name) }));
+    return SECTION_TITLES.map((title, s) => {
+      const r = rows.filter(x => (SEC[x.card?.category] ?? 1) === s);
+      return r.length ? `<div class="sec-title">${title} (${r.reduce((t, x) => t + x.c.count, 0)})</div><div class="cgrid">${r.map(({ c, card }) =>
+        cardTile(card, { name: c.name, cat: CATS[s], count: c.count, note: card || !index ? "" : "card not recognized" })).join("")}</div>` : "";
+    }).join("");
+  };
+  box.innerHTML = `<div class="dl-head"><h3>My list${mine.length > 1 ? "s" : ""}</h3><span class="note">Saved in Deck Lab</span></div>
+    ${mine.map(l => `<details class="list"><summary>${esc(l.name)} · v${latest(l).v}</summary><div class="mini">${grid(latest(l).cards)}</div></details>
+      <p><button class="btn" type="button" data-analysis="${esc(l.id)}">Show in Analysis</button></p>`).join("")}`;
+  box.hidden = false;
 }
 
 // ---------- Regionals: resultaten en decklists ----------
@@ -692,6 +714,7 @@ function renderDecklist(a, R) {
     <div>${exportBtn(l.consensus, true, `${a.name} · consensus list from Matchup Meta`)}</div>
     <p class="note">The Consensus list is the average of all lists, with recent Regionals counting more, and may never have been played exactly like this. Open the list to see the other choices too.</p>
   </section>
+  <section class="panel dl" id="my-list" hidden></section>
   <section class="panel dl" data-reveal-for="cons-details" hidden>
     <div class="dl-head"><h3>Other choices</h3><span class="note">Cards not in the Consensus list but in 3% or more of lists, with the most-played count and the share of lists that play them</span></div>
     ${others.length ? `<div class="mini" data-picks="${esc(JSON.stringify(others.map(u => [u[0], u[2], u[1]])))}"></div>` : `<div class="note">No other cards in 3% or more of lists.</div>`}
@@ -793,6 +816,8 @@ document.querySelector("nav.tabs").addEventListener("click", e => {
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-goto]");
   if (g) { e.preventDefault(); $("dialog-" + g.dataset.goto) ? openDialog(g.dataset.goto) : go(g.dataset.goto); return; }
+  const an = e.target.closest("button[data-analysis]");
+  if (an) { analysis.show(an.dataset.analysis); go("analysis"); window.scrollTo({ top: 0 }); return; }
   const jb = e.target.closest("button[data-jump]");
   if (jb) { document.querySelector(jb.dataset.jump)?.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
   const x = e.target.closest("button[data-export]");

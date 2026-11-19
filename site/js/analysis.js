@@ -117,5 +117,7 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, 
     const b = e.target.closest("[data-opp]");
     if (b) setOpp(b.dataset.opp === oppValue(opp) ? "" : b.dataset.opp); // a second click shows all opponents again
   });
-  return { render };
+  // From the Deck tab: all versions of that list, all opponents.
+  const show = id => { listId = id; v = "all"; opp = undefined; };
+  return { render, show };
 }

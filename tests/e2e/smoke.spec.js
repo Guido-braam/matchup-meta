@@ -496,6 +496,27 @@ test("Analysis: with 10 wins and 10 losses, insights show up without the warning
   expect(consoleErrors).toEqual([]);
 });
 
+test("a deck page shows My list for that deck, and Show in Analysis opens its analysis", async ({ page, consoleErrors }) => {
+  const mk = (id, name, deck) => ({ id, name, deck, archived: false, versions: [{ v: 1, text: "", cards: [{ name: "Dreepy", count: 4 }], created: "2026-11-18" }] });
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [mk("list-o", "Other", null), mk("list-d", "My Dragapult", "dragapult-ex")], games: [] }));
+  await expect(page.locator("#import-state")).toContainText("list");
+  await page.goto("/#deck/dragapult-ex");
+  const box = page.locator("#my-list");
+  await expect(box.locator("h3")).toHaveText("My list");
+  await expect(box.locator("summary")).toHaveText("My Dragapult · v1");
+  await box.locator("summary").click();
+  await expect(box.locator(".ctile .cnt")).toHaveText(["4"]);
+  await box.getByRole("button", { name: "Show in Analysis" }).click();
+  await expect(page).toHaveURL(/#analysis$/);
+  await expect(page.locator("#an-deck")).toHaveValue("list-d");
+  // A deck without a saved list has no My list.
+  await page.goto("/#deck/n-zoroark");
+  await expect(page.locator("#deck-detail h2")).toBeVisible();
+  await expect(box).toBeHidden();
+  expect(consoleErrors).toEqual([]);
+});
+
 test("the replay of a game steps through the board and jumps to the last turn", async ({ page, consoleErrors }) => {
   const raw = readFileSync(new URL("../fixtures/battle-logs/01-loss-prizes-no-codes.txt", import.meta.url), "utf8");
   await page.goto("/#games");
