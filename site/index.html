@@ -89,7 +89,7 @@
       <!-- A list from My lists under its deck heading: only after a change, instead of the save block above. -->
       <div slot="save" class="panel lab-save lab-changes" id="ml-changes" hidden>
         <div class="lab-save-row"><span class="name-wrap"><input id="ml-dlg-name" type="text" aria-label="Name of this list" placeholder="Deck Name" maxlength="60"><span class="name-sfx" aria-hidden="true"><span id="ml-name-ghost"></span><span id="ml-name-sfx"></span></span></span><select id="ml-dlg-deck" aria-label="Deck of this list"></select></div>
-        <div class="lab-save-row" id="ml-ch-act" hidden><p class="note">You changed this list.</p><button class="btn primary" type="button" id="ml-changes-btn">Save changes</button><button class="btn" type="button" id="ml-changes-new" hidden>Save as new list</button></div>
+        <div class="lab-save-row" id="ml-ch-act" hidden><p class="note">You changed this list.</p><button class="btn primary" type="button" id="ml-changes-btn">Save list</button></div>
       </div>
     </div>
   </section>
@@ -150,12 +150,8 @@
 </dialog>
 <dialog class="dlg ml-dlg" id="ml-dialog" aria-labelledby="ml-dlg-title">
   <div class="dlg-head">
-    <h2 id="ml-dlg-title">Save changes</h2>
-    <div class="ml-dlg-btns">
-      <button class="btn primary" type="button" id="ml-dlg-save">Save changes</button>
-      <button class="btn" type="button" id="ml-dlg-new" hidden>Save as new list</button>
-      <button class="dlg-x" type="button" data-close aria-label="Close">×</button>
-    </div>
+    <div><h2 id="ml-dlg-title">Save list</h2><p class="note ml-dlg-sub" id="ml-dlg-sub"></p></div>
+    <button class="btn" type="button" data-close>Cancel</button>
   </div>
   <div class="dlg-body">
     <div class="ml-diff">
@@ -164,6 +160,7 @@
     </div>
     <p class="note" id="ml-dlg-state" role="status"></p>
   </div>
+  <div class="dlg-foot ml-dlg-foot"><button class="btn primary" type="button" id="ml-dlg-save">Save list</button></div>
 </dialog>
 
 <dialog class="dlg gm-dlg" id="gm-dialog" aria-labelledby="gm-dialog-title">
