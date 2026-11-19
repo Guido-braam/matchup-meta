@@ -1133,7 +1133,7 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await page.getByRole("button", { name: "Which deck should I play at locals?" }).click();
   await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeVisible();
   await expect(page.locator("#advice-run")).toBeDisabled();
-  await page.getByRole("link", { name: "API key settings" }).click();
+  await page.getByRole("link", { name: "Add your Anthropic API key" }).click();
   await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeHidden();
   await expect(page.getByRole("dialog", { name: "API key" })).toBeVisible();
   await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
@@ -1167,6 +1167,7 @@ test("with an API key Advice runs, stays after a reload, and Remove key turns it
   expect(JSON.parse(await stored(page, "matchup-meta-api-key"))).toBe(API_KEY);
   await page.goto("/#advice");
   await expect(page.locator("#advice-run")).toBeEnabled();
+  await expect(page.locator("#advice-state").getByRole("link")).toHaveText("Manage Anthropic API key");
 
   await page.locator("#advice-run").click();
   const result = page.locator("#advice-result");

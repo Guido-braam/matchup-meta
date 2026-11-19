@@ -1147,10 +1147,15 @@ function adviceList(a, p) {
 const adviceWhen = x => new Date(x.createdAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 function renderAdvice() {
   const run = $("advice-run"), state = $("advice-state");
+  // Under the button: a link to the API key pop-up, unless a message (running, error, stopped) is showing.
+  const keyLink = !state.textContent || state.querySelector('a[data-goto="key"]');
   if (!apiKey) {
     run.disabled = true;
-    state.textContent = "Add your Anthropic API key above to turn on Advice."; state.className = "hint";
-  } else if (!adviceCtl) run.disabled = false;
+    state.innerHTML = `<a href="#key" data-goto="key">Add your Anthropic API key</a> to turn on Advice.`; state.className = "hint";
+  } else {
+    if (!adviceCtl) run.disabled = false;
+    if (keyLink) { state.innerHTML = `<a href="#key" data-goto="key">Manage Anthropic API key</a>`; state.className = "hint"; }
+  }
   const out = $("advice-result");
   if (!advice || !D) { out.innerHTML = ""; return; }
   const R = advice.result || {};
