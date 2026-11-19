@@ -464,8 +464,13 @@ test("Analysis: the pickers set the games, a matchup click sets the opponent", a
   await seedGames(page, [[2, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [2, 2, "n-zoroark"], [1, 2, ""]]);
   await page.goto("/#analysis");
   const [fs, prz] = [page.locator(".an-ins li").nth(0), page.locator(".an-ins li").nth(1)];
-  // Starts on the latest version: v2 has a win and a loss, both going second.
-  await expect(page.locator("#an-version")).toHaveValue("list-k|2");
+  // Starts on all versions of the deck; the versions list goes All, then newest first.
+  await expect(page.locator("#an-deck")).toHaveValue("list-k");
+  await expect(page.locator("#an-version")).toHaveValue("all");
+  await expect(page.locator("#an-version option")).toHaveText(["All versions (5)", "v2 (2)", "v1 (3)"]);
+  await expect(fs).toHaveText("Going first 0–0 · going second 2–3");
+  // v2 has a win and a loss, both going second.
+  await page.locator("#an-version").selectOption("2");
   await expect(fs).toHaveText("Going first 0–0 · going second 1–1");
   // The win (2–0, opponent conceded) is Dominant, the loss (3–6 on Prize cards) Clear.
   await expect(prz).toHaveText("Prize cards per game: you 4.5 · opponent 3.0");
@@ -473,7 +478,7 @@ test("Analysis: the pickers set the games, a matchup click sets the opponent", a
   await expect(page.locator(".an-seg").first()).toHaveAttribute("title", "Dominant win: 1");
   // Too few games for more insights: a warning below the two lines.
   await expect(page.locator(".an-warn")).toHaveText("Insights show up from 5 games in each group, for example 5 wins and 5 losses. This selection has 2 games (1–1).");
-  await page.locator("#an-version").selectOption("list-k|all");
+  await page.locator("#an-version").selectOption("all");
   await expect(fs).toHaveText("Going first 0–0 · going second 2–3");
   await expect(page.locator(".an-mu").first()).toHaveText(/Dragapult\s*1–2/);
   await page.locator(".an-mu").first().click();

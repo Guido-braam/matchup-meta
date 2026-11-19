@@ -1,6 +1,5 @@
 // The Analysis tab (spec .scratch/analysis-rework): pickers for a list version and an opponent deck, then the
 // summary, the matchups and the insights of those games. The numbers come from insights.js.
-import { latest } from "./mylists.js";
 import { LAST_LIST_KEY, currentGames, cardsSeen } from "./mygames.js";
 import { select, summary, matchups, record, prizeStats, MARGINS, playInsights, MIN, adviceMessages, ADVICE_SYSTEM } from "./insights.js";
 import { replay } from "./gamestate.js";
@@ -12,7 +11,7 @@ import { findCard, cardImagePath, cardTexts } from "./cards.js";
 export const marginCls = m => "m-" + m.toLowerCase().replace(" ", "-");
 
 export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, md, aiError }) {
-  let pick = null; // "listId|v" or "listId|all"
+  let listId = null, v = "all"; // the deck (a saved list) and its version: a number or "all"
   let opp;         // undefined = all opponents, null = Other, else a deck id
   const deckName = id => (id ? labs()?.archetypes.find(a => a.id === id)?.name ?? "Unknown deck" : "Other");
   const OTHER = "~other";
@@ -26,18 +25,18 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, 
       $("an-body").innerHTML = `<p class="note">Save your list in <a href="#lab">Deck Lab</a> and paste a few games on <a href="#games">My games</a> first.</p>`;
       return;
     }
-    // Start on the latest version of the last used list.
-    if (!pick || !used.some(l => pick.startsWith(l.id + "|"))) {
-      const l = used.find(x => x.id === storage.read(LAST_LIST_KEY)) ?? used[0];
-      pick = `${l.id}|${latest(l).v}`;
+    // Start on all versions of the last used list.
+    if (!used.some(l => l.id === listId)) {
+      listId = (used.find(x => x.id === storage.read(LAST_LIST_KEY)) ?? used[0]).id;
+      v = "all";
     }
-    const [listId, vs] = pick.split("|"), v = vs === "all" ? "all" : +vs;
-    const count = (id, v) => select(games, { listId: id, v }).length;
-    $("an-version").innerHTML = used.map(l => [
-      `<option value="${esc(l.id)}|all">${esc(l.name)} · all versions (${count(l.id, "all")})</option>`,
-      ...[...l.versions].reverse().map(x => `<option value="${esc(l.id)}|${x.v}">${esc(l.name)} · v${x.v} (${count(l.id, x.v)})</option>`),
-    ].join("")).join("");
-    $("an-version").value = pick;
+    const count = v => select(games, { listId, v }).length, list = used.find(l => l.id === listId);
+    $("an-deck").innerHTML = used.map(l => `<option value="${esc(l.id)}">${esc(l.name)} (${select(games, { listId: l.id }).length})</option>`).join("");
+    $("an-deck").value = listId;
+    // All versions first, then the newest version down to v1.
+    $("an-version").innerHTML = `<option value="all">All versions (${count("all")})</option>` +
+      [...list.versions].reverse().map(x => `<option value="${x.v}">v${x.v} (${count(x.v)})</option>`).join("");
+    $("an-version").value = String(v);
 
     const mine = select(games, { listId, v });
     const mus = matchups(mine);
@@ -63,7 +62,7 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, 
       <p class="an-advice"><button type="button" class="btn" id="an-advice"${ai() ? "" : " disabled"}>Turn into advice</button>
         ${ai() ? `<span class="hint">Claude reads these numbers, your cards and the ${Math.min(sel.length, 20)} newest games, and gives tips on how to play.</span>`
           : `<span class="hint">Needs your Anthropic API key: add it under <a href="#" data-ask>Ask Claude</a>.</span>`}</p>`;
-    current = { sel, list: lists.find(l => l.id === listId), v };
+    current = { sel, list, v };
   }
   let current = null; // the selection on screen, for Turn into advice
 
@@ -109,7 +108,8 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, 
     return `${fixed}${list.map(r => `<li>${r.card ? img(r.card) : ""}<span>${esc(r.text)}${r.early ? ` <span class="an-early">early sign</span>` : ""}</span></li>`).join("")}</ul>`;
   }
 
-  $("an-version").addEventListener("change", e => { pick = e.target.value; opp = undefined; render(); });
+  $("an-deck").addEventListener("change", e => { listId = e.target.value; v = "all"; opp = undefined; render(); });
+  $("an-version").addEventListener("change", e => { v = e.target.value === "all" ? "all" : +e.target.value; opp = undefined; render(); });
   const setOpp = val => { opp = val === "" ? undefined : val === OTHER ? null : val; render(); };
   $("an-opp").addEventListener("change", e => setOpp(e.target.value));
   $("an-body").addEventListener("click", e => {
