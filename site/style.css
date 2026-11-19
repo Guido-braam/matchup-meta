@@ -385,6 +385,8 @@ code.path { font: 0.8rem ui-monospace, "Cascadia Mono", Consolas, monospace; bac
 .key-panel { margin-bottom: 12px; }
 .key-panel h2 { margin-bottom: 4px; }
 .key-panel .note { margin: 0; }
+.key-panel .note + .note { margin-top: 8px; }
+#ai-key { background: none; padding: 0; margin: 0; } /* the key pop-up holds only this block: no panel inside the pop-up */
 .key-panel form { margin-top: 10px; }
 #key-input { font: 500 0.92rem var(--font-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; flex: 1 1 220px; min-width: 0; max-width: 420px; }
 .field-label { font-weight: 600; font-size: 0.9rem; }
@@ -591,6 +593,7 @@ dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
 
 /* My games notes (mygames.js). */
 .gm-note[hidden], .gm-found[hidden] { display: none; }
+.key-head { justify-content: flex-end; }
 .tier-ask { margin: 16px 0 0; }
 .an-advice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; }
 .an-advice-body :is(h3, h4, h5) { font-size: 1rem; margin: 14px 0 4px; }
