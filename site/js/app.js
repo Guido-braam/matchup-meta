@@ -396,6 +396,8 @@ let changesRun = 0;
 async function updateChanges() {
   const run = ++changesRun, l = labList && listById(labList);
   if (!l) return void ($("ml-changes").hidden = true);
+  const typed = $("ml-dlg-name").value;
+  $("ml-name-ghost").textContent = typed;
   const d = cardDiff(latest(l).cards, (await DeckLab.current()).cards), changed = d.out.length + d.in.length > 0;
   const frozen = changed && await frozenNow(l);
   if (run !== changesRun) return;
@@ -407,6 +409,10 @@ async function updateChanges() {
   const renamed = renamedOf(l);
   $("ml-changes-btn").textContent = saveLabel(renamed, frozen);
   $("ml-changes-new").hidden = !renamed;
+  // After the name: the version this list gets when saved, or New list for a new name.
+  const top = latest(l).v;
+  $("ml-name-sfx").textContent = !typed.trim() ? "" : chName(l) !== l.name ? " · New list"
+    : ` · v${changed ? (frozen ? top + 1 : top) : labVer ?? top}`;
 }
 let guessRun = 0;
 async function guessDeck() {
