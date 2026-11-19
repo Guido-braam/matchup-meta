@@ -364,6 +364,7 @@ const mlState = $("ml-state"), mlManage = $("ml-manage"), mlArchive = $("ml-arch
 const mlGear = Object.assign(document.createElement("span"), { className: "ml-gear",
   innerHTML: `<button type="button" class="gear-btn" aria-label="List options" aria-haspopup="true" aria-expanded="false">⚙</button>` });
 mlGear.append(mlManage);
+$("ml-dlg-deck").after(mlGear); // in the save block, right of the deck
 const menuOpen = async open => {
   mlManage.hidden = !open; mlGear.firstChild.setAttribute("aria-expanded", String(open)); disarmDelete();
   // Delete only a list without games; with games, Archive it.
@@ -470,21 +471,25 @@ function openMine(l, v) {
 function renderLabArch() {
   const box = $("lab-arch"), l = labList && listById(labList), a = labArch && D?.archetypes[labArch.i];
   box.hidden = !a && !l;
-  if (!a) { if (l) box.replaceChildren(Object.assign(document.createElement("h2"), { textContent: l.name })); }
+  // Next to the list: its version, when it has more than v1.
+  const ver = l && l.versions.length > 1 ? `<select id="lab-arch-ver" aria-label="Version of ${esc(l.name)}">${
+    [...l.versions].reverse().map(x => `<option value="${x.v}">v${x.v}</option>`).join("")}</select>` : "";
+  if (!a) { if (l) box.innerHTML = `<h2>${esc(l.name)}</h2>${ver}`; }
   else {
   // My lists of this deck first (the one in Deck Lab also when archived), then the lists from the data.
   const own = myLists.filter(l => l.deck === a.id && (!l.archived || l.id === labList));
   const lists = archLists(a).map((o, k) => `<option value="${k}">${esc(o.label)}</option>`).join("");
   box.innerHTML = `<h2>${esc(a.name)}</h2><select id="lab-arch-list" aria-label="List of ${esc(a.name)}">${own.length
-    ? `<optgroup label="My lists">${own.map(l => `<option value="m:${esc(l.id)}">${esc(listLabel(l))}</option>`).join("")}</optgroup><optgroup label="Lists">${lists}</optgroup>`
-    : lists}</select>`;
+    ? `<optgroup label="My lists">${own.map(l => `<option value="m:${esc(l.id)}">${esc(l.name)}</option>`).join("")}</optgroup><optgroup label="Lists">${lists}</optgroup>`
+    : lists}</select>${ver}`;
   $("lab-arch-list").value = labArch.v;
   }
-  if (l) box.querySelector("h2").append(mlGear);
+  if (ver) $("lab-arch-ver").value = String(labVer ?? latest(l).v);
 }
 $("lab-arch").addEventListener("change", e => {
   const v = e.target.value, l = v.startsWith("m:") && listById(v.slice(2));
-  if (l) openMine(l); else if (labArch) openArch(labArch.i, Number(v));
+  if (e.target.id === "lab-arch-ver") openMine(listById(labList), Number(v));
+  else if (l) openMine(l); else if (labArch) openArch(labArch.i, Number(v));
 });
 // Open my list: the lists as rows with their games won and lost, the latest version on top; the arrow shows all versions.
 $("mylist-btn").addEventListener("click", async () => {
