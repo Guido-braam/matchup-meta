@@ -359,7 +359,22 @@ let labList = null;        // id van de lijst uit My lists die nu in Deck Lab st
 let labVer = null;         // de versie daarvan die geladen is (de nieuwste, of een oudere uit Open my list)
 const listById = id => myLists.find(l => l.id === id);
 const listLabel = l => `${l.name} · v${latest(l).v}`;
-const mlState = $("ml-state"), mlManage = $("ml-manage"); // next to the heading of an own list, else in the Save block
+const mlState = $("ml-state"), mlManage = $("ml-manage"), mlArchive = $("ml-archive"), mlDelete = $("ml-delete");
+// A gear next to the heading of an own list opens its menu: Archive, Delete.
+const mlGear = Object.assign(document.createElement("span"), { className: "ml-gear",
+  innerHTML: `<button type="button" class="gear-btn" aria-label="List options" aria-haspopup="true" aria-expanded="false">⚙</button>` });
+mlGear.append(mlManage);
+const menuOpen = async open => {
+  mlManage.hidden = !open; mlGear.firstChild.setAttribute("aria-expanded", String(open)); disarmDelete();
+  // Delete only a list without games; with games, Archive it.
+  const l = open && listById(labList), n = l ? await gamesOf(l) : 0;
+  mlDelete.disabled = n > 0;
+  mlDelete.title = n ? `${n} game${n === 1 ? "" : "s"} under this list: archive it instead` : "";
+};
+const gamesOf = async l => (await gameStore.games()).filter(g => g.listId === l.id).length;
+mlGear.firstChild.addEventListener("click", () => menuOpen(mlManage.hidden));
+document.addEventListener("click", e => { if (!mlManage.hidden && !mlGear.contains(e.target)) menuOpen(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !mlManage.hidden) { menuOpen(false); mlGear.firstChild.focus(); } });
 const deckChoices = () => [...(D?.archetypes || L?.archetypes || [])].sort((a, b) => a.name.localeCompare(b.name));
 const deckOpts = decks => decks.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
 async function refreshMyLists() {
@@ -376,14 +391,14 @@ function renderSaveBar(msg = "") {
   $("ml-deck").value = l?.deck && decks.some(a => a.id === l.deck) ? l.deck : "";
   if (!l) guessDeck();
   mlState.textContent = msg || (l ? `In My lists as ${l.name} · v${labVer ?? latest(l).v}${l.archived ? " (archived)" : ""}.` : "");
-  mlManage.hidden = !l;
+  mlManage.hidden = true; mlGear.firstChild.setAttribute("aria-expanded", "false");
   $("ml-save-box").hidden = !!l; // an own list saves through the changes block
   if (l) { // its name and deck in the changes block
     $("ml-dlg-name").value = l.name;
     $("ml-dlg-deck").innerHTML = `<option value="">No deck</option>` + deckOpts(decks);
     $("ml-dlg-deck").value = $("ml-dlg-deck").dataset.v0 = decks.some(a => a.id === l.deck) ? l.deck : "";
   }
-  $("ml-archive").textContent = l?.archived ? "Unarchive" : "Archive";
+  mlArchive.textContent = l?.archived ? "Unarchive" : "Archive";
   disarmDelete();
   updateChanges();
 }
@@ -455,16 +470,17 @@ function openMine(l, v) {
 function renderLabArch() {
   const box = $("lab-arch"), l = labList && listById(labList), a = labArch && D?.archetypes[labArch.i];
   box.hidden = !a && !l;
-  if (!l) $("ml-save-box").append(mlState, mlManage);
-  if (!a) { if (l) box.replaceChildren(Object.assign(document.createElement("h2"), { textContent: l.name }), mlState, mlManage); return; }
+  if (!a) { if (l) box.replaceChildren(Object.assign(document.createElement("h2"), { textContent: l.name })); }
+  else {
   // My lists of this deck first (the one in Deck Lab also when archived), then the lists from the data.
   const own = myLists.filter(l => l.deck === a.id && (!l.archived || l.id === labList));
   const lists = archLists(a).map((o, k) => `<option value="${k}">${esc(o.label)}</option>`).join("");
   box.innerHTML = `<h2>${esc(a.name)}</h2><select id="lab-arch-list" aria-label="List of ${esc(a.name)}">${own.length
     ? `<optgroup label="My lists">${own.map(l => `<option value="m:${esc(l.id)}">${esc(listLabel(l))}</option>`).join("")}</optgroup><optgroup label="Lists">${lists}</optgroup>`
     : lists}</select>`;
-  if (l) box.append(mlState, mlManage);
   $("lab-arch-list").value = labArch.v;
+  }
+  if (l) box.querySelector("h2").append(mlGear);
 }
 $("lab-arch").addEventListener("change", e => {
   const v = e.target.value, l = v.startsWith("m:") && listById(v.slice(2));
@@ -555,26 +571,27 @@ $("ml-dlg-save").addEventListener("click", async () => {
   else { list = { ...l, deck }; msg = `Saved ${listLabel(list)}.`; }
   if (await storeList(list, msg)) $("ml-dialog").close(); else $("ml-dlg-state").textContent = NO_STORAGE;
 });
-$("ml-archive").addEventListener("click", async () => {
+mlArchive.addEventListener("click", async () => {
   const l = listById(labList);
   if (!l) return;
+  menuOpen(false);
   await gameStore.putList({ ...l, archived: !l.archived });
   await refreshMyLists();
 });
-// Verwijderen in twee klikken, zoals Reset; de games van de lijst gaan mee.
+// Verwijderen in twee klikken, zoals Reset; alleen een lijst zonder games.
 let deleteArmed = null;
-function disarmDelete() { clearTimeout(deleteArmed); deleteArmed = null; $("ml-delete").textContent = "Delete"; $("ml-delete").classList.remove("danger-confirm"); }
-$("ml-delete").addEventListener("click", async e => {
+function disarmDelete() { clearTimeout(deleteArmed); deleteArmed = null; mlDelete.textContent = "Delete"; mlDelete.classList.remove("danger-confirm"); }
+mlDelete.addEventListener("click", async e => {
   const l = listById(labList);
   if (!l) return;
+  if (await gamesOf(l)) return;
   if (!deleteArmed) {
-    const n = (await gameStore.games()).filter(g => g.listId === l.id).length;
-    e.target.textContent = n ? `Delete with ${n} game${n === 1 ? "" : "s"}? Click again` : "Click again to delete";
+    e.target.textContent = "Click again to delete";
     e.target.classList.add("danger-confirm");
     deleteArmed = setTimeout(disarmDelete, 3000);
     return;
   }
-  disarmDelete();
+  disarmDelete(); menuOpen(false);
   if (!(await gameStore.deleteList(l.id))) return renderSaveBar("Could not delete: this browser does not allow storage for this site.");
   labList = null;
   DeckLab.label("");
