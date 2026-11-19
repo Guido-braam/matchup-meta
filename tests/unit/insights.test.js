@@ -1,7 +1,7 @@
 // Analysis: selection, summary and matchups on made-up Game records with known totals.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { select, summary, matchups, oppDeckOf, record, margin, prizeStats, firstOrSecond, mainPokemon, setupOnTime, prizeLeadByTurn, firstKnockOut, closeLosses, playInsights } from "../../site/js/insights.js";
+import { select, summary, matchups, oppDeckOf, record, margin, prizeStats, firstOrSecond, mainPokemon, setupOnTime, prizeLeadByTurn, firstKnockOut, closeLosses, playInsights, turningPoint } from "../../site/js/insights.js";
 
 const g = (result, wentFirst, oppDeck, { listId = "k", listVersion = 1, oppDeckSet = null } = {}) =>
   ({ listId, listVersion, oppDeck, oppDeckSet, game: { result, wentFirst } });
@@ -93,4 +93,18 @@ test("close losses per matchup, and at most 5 insights, largest gap first", () =
   const all = playInsights(games, { replay: fakeReplay, deckName: () => "Dragapult" });
   assert.ok(all.length <= 5 && all.every((r, i) => !i || all[i - 1].gap >= r.gap));
   assert.equal(all[0].text, "Going first 0–5 · going second 5–0");
+});
+
+test("turning point: the last time the Prize count went from level or ahead to behind", () => {
+  const pz = (turn, side, count) => ({ turn, turnSide: side, sideTurn: Math.ceil(turn / 2), type: "prize", side, count });
+  const ko = (turn, name) => ({ turn, turnSide: "opp", sideTurn: Math.ceil(turn / 2), type: "ko", side: "me", pokemon: { name } });
+  const loss = events => ({ result: "loss", events });
+  // Behind, level, ahead, then behind for good on turn 9.
+  const t = turningPoint(loss([pz(4, "opp", 1), pz(4, "me", 1), pz(8, "me", 2), ko(9, "Talonflame ex"), pz(9, "opp", 3), pz(11, "opp", 2)]));
+  assert.deepEqual(t, { k: 4, turn: 9, mine: false, sideTurn: 5, ko: "Talonflame ex", count: 3 });
+  // Never ahead: the first Prize card the opponent took.
+  assert.equal(turningPoint(loss([pz(2, "opp", 2), pz(4, "opp", 4)])).k, 0);
+  // A concession while ahead, and a win: no turning point.
+  assert.equal(turningPoint(loss([pz(2, "me", 2)])), null);
+  assert.equal(turningPoint({ result: "win", events: [pz(2, "opp", 2)] }), null);
 });

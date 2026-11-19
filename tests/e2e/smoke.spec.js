@@ -520,6 +520,11 @@ test("the replay of a game steps through the board and jumps to the last turn", 
   // Tapping a line in the log moves the board there.
   await rp.locator('.rp-log li[data-k="0"]').click();
   await expect(rp.locator(".rp-side.opp .rp-stats")).toContainText("Prizes 6");
+  // The turning point of this loss: the opponent took 4 Prize cards on turn 9; the link moves the replay there.
+  await expect(result.locator(".gm-turning")).toContainText("Turning point: turn 9 (opponent's turn 5) · Mega Kangaskhan ex was Knocked Out, 4 Prize cards");
+  await result.locator('[data-gm="turning"]').click();
+  await expect(rp.locator(".rp-log li.now")).toHaveAttribute("data-k", "168");
+  await expect(rp.locator('[data-rp="turn"]')).toHaveValue("9");
   expect(consoleErrors).toEqual([]);
 });
 

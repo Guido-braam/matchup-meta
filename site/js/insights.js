@@ -134,3 +134,20 @@ export function playInsights(games, { replay, deckName }) {
   return [firstOrSecond(games), setupOnTime(games, replay), prizeLeadByTurn(games), firstKnockOut(games), ...closeLosses(games, deckName)]
     .filter(r => r && r.gap >= MIN_GAP).sort((a, b) => b.gap - a.gap).slice(0, MAX_INSIGHTS);
 }
+
+// The turning point of a lost game: the Prize card after which I was behind until the end (the last time the
+// Prize count went from level or ahead to behind). -> {k: event index, turn, mine, sideTurn, ko, count} or null.
+export function turningPoint(game) {
+  if (game.result !== "loss") return null;
+  let lead = 0, at = -1;
+  game.events.forEach((e, i) => {
+    if (e.type !== "prize") return;
+    const before = lead;
+    lead += e.side === "me" ? e.count : -e.count;
+    if (before >= 0 && lead < 0) at = i;
+  });
+  if (lead >= 0 || at < 0) return null;
+  const e = game.events[at];
+  const ko = game.events.slice(0, at).reverse().find(x => x.type === "ko" && x.side === "me" && x.turn === e.turn);
+  return { k: at, turn: e.turn, mine: e.turnSide === "me", sideTurn: e.sideTurn, ko: ko?.pokemon.name ?? null, count: e.count };
+}

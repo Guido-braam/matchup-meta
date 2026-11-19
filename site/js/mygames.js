@@ -6,7 +6,7 @@ import { latest } from "./mylists.js";
 import { reconstruct } from "./opponent.js";
 import { mountReplay } from "./replay.js";
 import { cardTile, cardById, findCard } from "./cards.js";
-import { norm, margin } from "./insights.js";
+import { norm, margin, turningPoint } from "./insights.js";
 
 export const GAME_SCHEMA = 1;
 
@@ -152,6 +152,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
     return `<div class="gm-head"><span class="pill ${G.result === "win" ? "good" : "bad"}">${margin(G)}</span>
         <span>${esc(reason)}</span><span>· went ${G.wentFirst ? "first" : "second"}</span><span>· ${G.turns} turns</span><span>· Prize cards ${G.prizes.me}–${G.prizes.opp}</span></div>
       <p class="gm-msg gm-meta">Added ${fmt(g.added)}</p>
+      ${turningHtml(G)}
       <hr class="gm-sep">
       ${!lists.length ? `<p class="gm-msg">Save your list in <a href="#lab">Deck Lab</a> first, then pick it under My deck.</p>` : ""}
       ${!list && lists.length ? `<p class="gm-msg warn">No list in My lists has every card you showed in this game. Pick the one you played under My deck.</p>` : ""}
@@ -164,6 +165,15 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
       </div>
       ${reconHtml(reconstruct(G, labs()), index)}
       <details class="gm-replay"><summary>Replay</summary><div class="rp-root"></div></details>`;
+  }
+
+  // A lost game: the turn it turned against me, with a link into the replay.
+  function turningHtml(G) {
+    const t = turningPoint(G);
+    if (!t) return "";
+    const what = `${t.ko ? `${esc(t.ko)} was Knocked Out, ` : ""}${t.count} Prize card${t.count === 1 ? "" : "s"}`;
+    return `<p class="gm-msg gm-turning">Turning point: turn ${t.turn} (${t.mine ? "your" : "opponent's"} turn ${t.sideTurn}) · ${what}
+      <button class="link-btn" type="button" data-gm="turning" data-k="${t.k}">Show in replay</button></p>`;
   }
 
   // What the opponent showed, as card tiles with the copies proven plus one tile for the unknown cards,
@@ -269,13 +279,25 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
     render();
   });
   // Replay: built when opened (toggle does not bubble, so listen in the capture phase).
-  $("gm-game").addEventListener("toggle", async e => {
-    const d = e.target;
-    if (!d.classList?.contains("gm-replay") || !d.open || d.dataset.ready) return;
+  let replayAt = 0; // the event the replay starts on; "Show in replay" sets it
+  async function mount(d) {
     d.dataset.ready = "1";
     const [g, index] = await Promise.all([store.games().then(gs => gs.find(x => x.id === shown)), loadCardIndex().catch(() => null)]);
-    if (g) mountReplay(d.querySelector(".rp-root"), g.game, index);
+    if (g) mountReplay(d.querySelector(".rp-root"), g.game, index, replayAt);
+    replayAt = 0;
+  }
+  $("gm-game").addEventListener("toggle", e => {
+    const d = e.target;
+    if (d.classList?.contains("gm-replay") && d.open && !d.dataset.ready) mount(d);
   }, true);
+  $("gm-game").addEventListener("click", e => {
+    const b = e.target.closest('[data-gm="turning"]');
+    if (!b) return;
+    const d = dlg.querySelector(".gm-replay");
+    replayAt = +b.dataset.k;
+    if (d.open) mount(d); else d.open = true;
+    d.scrollIntoView({ block: "start", behavior: "smooth" });
+  });
   let remindOff = false; // "Not now": until the next visit
   $("gm-tip-ok").addEventListener("click", () => { storage.write(HOME_TIP_KEY, true); $("gm-tip").hidden = true; });
   $("gm-remind-no").addEventListener("click", () => { remindOff = true; $("gm-remind").hidden = true; });
