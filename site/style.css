@@ -170,6 +170,7 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 .lab-save .note:empty { display: none; }
 .lab-save.panel { margin-top: 0; padding: 16px; }
 .lab-changes .note { flex: 1; }
+.lab-changes { gap: 16px; }
 .lab-arch .note { flex-basis: 100%; margin: 0; }
 .lab-arch .note:empty { display: none; }
 .ml-dlg { width: min(640px, calc(100% - 32px)); }
