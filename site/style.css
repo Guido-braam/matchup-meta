@@ -129,7 +129,8 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 /* Analysis tab */
 .an-panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 #an-body { display: flex; flex-direction: column; gap: 10px; }
-.an-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; }
+.an-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; } /* Deck and Version left, Opponent right */
+@media (max-width: 600px) { .an-pick { grid-template-columns: 1fr 1fr; } .an-pick > :last-child { grid-column: 1 / -1; } }
 .an-pick .gm-field { max-width: none; min-width: 0; }
 .an-sep { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .an-h { margin: 0; font-size: 0.95rem; }
