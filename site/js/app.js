@@ -95,9 +95,9 @@ function renderContinentNote() {
 $("continent").addEventListener("change", e => { continent = e.target.value; saveSettings(); renderAll(); });
 
 // "N decks you never meet are left out. Show them": per pagina, standaard verborgen, niet bewaard.
-const showNever = { tiers: false, deck: false };
-const neverLine = (key, n) => !n ? "" : `${n} deck${n === 1 ? "" : "s"} you never meet ${n === 1 ? "is" : "are"} ${showNever[key] ? "shown" : "left out"}. `
-  + `<button type="button" class="link-btn" data-never="${key}">${showNever[key] ? "Hide" : "Show"} them</button>`;
+const showNever = { tiers: false, deck: false, pick: false };
+const neverLine = (key, n, what = "them") => !n ? "" : `${n} deck${n === 1 ? "" : "s"} you never meet ${n === 1 ? "is" : "are"} ${showNever[key] ? "shown" : "left out"}. `
+  + `<button type="button" class="link-btn" data-never="${key}">${showNever[key] ? "Hide" : "Show"} ${what}</button>`;
 
 // ---------- Tier list ----------
 function renderTiers() {
@@ -397,7 +397,7 @@ function renderSaveBar(msg = "") {
   $("ml-save-box").hidden = !!l; // an own list saves through the changes block
   if (l) { // its name and deck in the changes block
     $("ml-dlg-name").value = l.name;
-    $("ml-dlg-deck").innerHTML = `<option value="">No deck</option>` + deckOpts(decks);
+    $("ml-dlg-deck").innerHTML = `<option value="" hidden>Other</option>` + deckOpts(decks);
     $("ml-dlg-deck").value = $("ml-dlg-deck").dataset.v0 = decks.some(a => a.id === l.deck) ? l.deck : "";
     syncPickBtn($("ml-dlg-deck"));
   }
@@ -407,7 +407,7 @@ function renderSaveBar(msg = "") {
 }
 // The changes block of an own list: its name and deck, and Save once the cards, the name or the deck differ.
 const chName = l => $("ml-dlg-name").value.trim() || l.name;
-const renamedOf = l => chName(l) !== l.name || $("ml-dlg-deck").value !== $("ml-dlg-deck").dataset.v0;
+const renamedOf = l => chName(l) !== l.name || ($("ml-dlg-deck").value || "other") !== ($("ml-dlg-deck").dataset.v0 || "other"); // no deck is Other
 let changesRun = 0;
 async function updateChanges() {
   const run = ++changesRun, l = labList && listById(labList);
@@ -555,7 +555,7 @@ $("ml-changes-btn").addEventListener("click", async () => {
   const l = listById(labList);
   if (!l) return;
   const { text, cards } = await DeckLab.current(), d = cardDiff(latest(l).cards, cards);
-  const deck = $("ml-dlg-deck").selectedOptions[0]?.textContent ?? "No deck", deckSet = $("ml-dlg-deck").value !== $("ml-dlg-deck").dataset.v0;
+  const deck = $("ml-dlg-deck").selectedOptions[0]?.textContent ?? "Other", deckSet = $("ml-dlg-deck").value !== $("ml-dlg-deck").dataset.v0;
   const action = chName(l) !== l.name ? "new" : d.out.length + d.in.length ? "version" : "deck";
   dlg = { l, text, cards, action };
   $("ml-dlg-sub").textContent = action === "new" ? `Create ${chName(l)}`
@@ -637,11 +637,13 @@ function closePicker() {
 function renderPicker() {
   const q = $("pk-search").value.trim().toLowerCase();
   const cur = pick.sel.value, key = (a, i) => pick.byId ? a.id : String(i);
-  // A list may have no deck: then a No deck choice on top.
-  const none = pick.byId && [...pick.sel.options].some(o => o.value === "" && !o.hidden)
-    ? `<div class="pk-inner pk-none"><button type="button" class="btn${cur === "" ? " current" : ""}" data-pick="">No deck</button></div>` : "";
-  const groups = deckGroups().map(g => ({ ...g, xs: g.xs.filter(x => !q || x.a.name.toLowerCase().includes(q)) })).filter(g => g.xs.length);
-  $("pk-body").innerHTML = none + (groups.length ? `<div class="pk-inner tiers">${groups.map(({ t, xs }) => `
+  // The deck of a list: Other on top (a list without a deck is Other too).
+  const other = pick.byId ? `<div class="pk-inner pk-none"><button type="button" class="btn${cur === "" || cur === "other" ? " current" : ""}" data-pick="other">Other</button></div>` : "";
+  // Decks you never meet are left out, as in the tier list; the current deck always stays.
+  let nNever = 0;
+  const shown = x => level(x.i) !== 0 || key(x.a, x.i) === cur || (nNever++, showNever.pick);
+  const groups = deckGroups().map(g => ({ ...g, xs: g.xs.filter(x => (!q || x.a.name.toLowerCase().includes(q)) && shown(x)) })).filter(g => g.xs.length);
+  $("pk-body").innerHTML = other + (groups.length ? `<div class="pk-inner tiers">${groups.map(({ t, xs }) => `
     <div class="tier ${t === "none" ? "tier-none" : `tier-${t}`}">
       <div class="tier-label">${t === "none" ? "–" : t}${t === "none" ? "<small>no tier</small>" : ""}</div>
       <div class="tiles">${xs.map(({ a, i }) => {
@@ -650,7 +652,8 @@ function renderPicker() {
         return `<button type="button" class="tile${on ? " current" : ""}" data-pick="${esc(key(a, i))}"${off ? " disabled" : ""}${on ? ' aria-current="true"' : ""}>
           ${spritesHtml(a)}<span class="name">${esc(a.name)}</span>${off ? '<span class="pk-off">no list</span>' : ""}</button>`;
       }).join("")}</div>
-    </div>`).join("")}</div>` : `<div class="state">No decks found.</div>`);
+    </div>`).join("")}</div>` : `<div class="state">No decks found.</div>`)
+    + (nNever ? `<p class="note never-line pk-inner">${neverLine("pick", nNever, "uncommon decks")}</p>` : "");
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("button[data-picker]");
@@ -1026,7 +1029,7 @@ document.addEventListener("click", e => {
   if (!b) return;
   const key = b.dataset.never;
   showNever[key] = !showNever[key];
-  renderCurrent();
+  if (key === "pick") renderPicker(); else renderCurrent();
   document.querySelector(`button[data-never="${key}"]`)?.focus(); // de knop is opnieuw getekend
 });
 $("meta-search").addEventListener("input", renderMeta);
