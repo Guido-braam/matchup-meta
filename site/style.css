@@ -78,8 +78,9 @@ nav.tabs button {
 }
 /* Telefoon: titel en knoppen op de eerste regel, de tabs over de volle breedte eronder (na de knopregel, anders wint die) */
 @media (max-width: 640px) {
-  nav.tabs { order: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; gap: 3px; overflow: visible; }
-  nav.tabs button { padding: 9px 4px; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; }
+  /* Five buttons on a phone: each column as wide as its label, so none is cut off. */
+  nav.tabs { order: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto; width: 100%; gap: 2px; overflow: visible; }
+  nav.tabs button { padding: 9px 3px; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; }
 }
 nav.tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
 /* Deck-tab: alleen op een deckpagina, iets donkerder dan de andere twee. */
