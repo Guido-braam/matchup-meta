@@ -631,6 +631,27 @@ test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   expect(consoleErrors).toEqual([]);
 });
 
+test("after Load a deck archetype a heading names the loaded list, and its dropdown loads another one", async ({ page, consoleErrors }) => {
+  await page.goto("/#lab");
+  await page.locator("button[data-picker=lab-select]").click();
+  await page.locator("#picker button.tile", { hasText: /^\s*Dragapult\s*$/ }).click();
+  const head = page.locator("#lab-arch"), lab = page.locator("#lab-host");
+  await expect(head.locator("h2")).toHaveText("Dragapult");
+  const pick = head.getByRole("combobox", { name: "List of Dragapult" });
+  await expect(pick.locator("option:checked")).toHaveText("Consensus list");
+  await expect(pick.locator("option").nth(1)).toHaveText("1st of 7 · Brisbane");
+  // Saving it to My lists suggests the loaded deck archetype; there is no "automatic" choice.
+  await expect(page.locator("#ml-deck")).toHaveValue("dragapult-ex");
+  await expect(page.locator("#ml-deck option", { hasText: /automatic/i })).toHaveCount(0);
+  await pick.selectOption({ label: "2nd of 7 · Baltimore" });
+  await expect(lab.locator("#src")).toHaveText("Dragapult · 2nd of 7 · Baltimore");
+  await expect(pick.locator("option:checked")).toHaveText("2nd of 7 · Baltimore");
+  // Another source (Reset) takes the heading away.
+  await lab.locator("#btn-reset").click();
+  await expect(head).toBeHidden();
+  expect(consoleErrors).toEqual([]);
+});
+
 // Trainers and Energy are usually pasted without set code: Deck Lab finds them by name.
 const BY_NAME_LIST = PASTED_LIST
   .replace(/^(\d+ .+?) (?:[A-Z]{3} \d+)$/gm, (line, head) => /Drakloak|Dreepy|Dragapult|Dudunsparce/.test(line) ? line : head)

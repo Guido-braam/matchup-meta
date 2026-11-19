@@ -370,22 +370,59 @@ async function refreshMyLists() {
 function renderSaveBar(msg = "") {
   const l = labList && listById(labList);
   $("ml-name").value = l ? l.name : "";
-  // The deck of the list: picked by hand, or found from its Pokémon when left on Automatic.
+  // The deck of the list: its saved deck, else the loaded deck archetype, else the best fit on its Pokémon.
   const decks = [...(D?.archetypes || L?.archetypes || [])].sort((a, b) => a.name.localeCompare(b.name));
-  $("ml-deck").innerHTML = `<option value="">Deck: automatic</option>` + decks.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
+  $("ml-deck").innerHTML = `<option value="" hidden>Deck…</option>` + decks.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
   $("ml-deck").value = l?.deck && decks.some(a => a.id === l.deck) ? l.deck : "";
+  if (!l) guessDeck();
   $("ml-state").textContent = msg || (l ? `In My lists as ${listLabel(l)}${l.archived ? " (archived)" : ""}.` : "");
   $("ml-manage").hidden = !l;
   $("ml-archive").textContent = l?.archived ? "Unarchive" : "Archive";
   disarmDelete();
 }
-$("lab-host").addEventListener("lab-source", () => { labList = null; renderSaveBar(); });
+let guessRun = 0;
+async function guessDeck() {
+  const run = ++guessRun;
+  let id = labSel != null ? D?.archetypes[labSel]?.id : null;
+  if (!id) { const { cards } = await DeckLab.current(); id = deckOf(cards, L, await loadCardIndex().catch(() => null))?.id; }
+  if (run === guessRun && !labList && id) $("ml-deck").value = id;
+}
+$("lab-host").addEventListener("lab-source", () => { labList = null; labSel = null; renderSaveBar(); labArch = null; renderLabArch(); });
+// A list typed or pasted straight into the field: guess its deck once there is something to go on.
+$("lab-host").addEventListener("input", e => { if (e.composedPath()[0].id === "deck" && !labList && !$("ml-deck").value) guessDeck(); });
+
+// Deck Lab heading after Load a deck archetype: the deck, and which of its lists is loaded with the others to pick.
+let labArch = null;        // {i: deck index, k: list index in archLists} or null
+function archLists(a) {
+  const l = L && labsById.get(a.id);
+  if (!l?.lists.length) return [];
+  const R = l.ml?.signal ? recommend(l) : null;
+  return [...(R ? [{ label: "Recommended list", cards: R.best.x.cards }] : []), { label: "Consensus list", cards: l.consensus },
+    ...l.lists.map(x => ({ label: `${x.place ? `${ord(x.place)} of ${nl(x.of)}` : "No finish"} · ${cityOf(x.e)}`, cards: x.cards }))];
+}
+function openArch(i, k = 0) {
+  const a = D.archetypes[i], o = archLists(a)[k];
+  if (!o) return false;
+  DeckLab.open($("lab-host"), exportText(o.cards), `${a.name} · ${o.label}`); // lab-source clears the heading first
+  labSel = i; labArch = { i, k }; renderLabArch(); guessDeck();
+  return true;
+}
+function renderLabArch() {
+  const box = $("lab-arch");
+  box.hidden = !labArch || !D;
+  if (box.hidden) return;
+  const a = D.archetypes[labArch.i];
+  box.innerHTML = `<h2>${esc(a.name)}</h2><select id="lab-arch-list" aria-label="List of ${esc(a.name)}">${archLists(a).map((o, k) =>
+    `<option value="${k}">${esc(o.label)}</option>`).join("")}</select>`;
+  $("lab-arch-list").value = String(labArch.k);
+}
+$("lab-arch").addEventListener("change", e => { if (labArch) openArch(labArch.i, Number(e.target.value)); });
 $("mylist-select").addEventListener("change", e => {
   const l = listById(e.target.value);
   e.target.value = "";
   if (!l) return;
-  labSel = null; renderLabSelect();
   DeckLab.open($("lab-host"), latest(l).text, listLabel(l));
+  renderLabSelect();
   labList = l.id; renderSaveBar();
 });
 $("ml-save").addEventListener("click", async () => {
@@ -832,8 +869,10 @@ document.addEventListener("click", e => {
   const lb = e.target.closest("button[data-lab]");
   if (lb) {
     const k = Number(lb.dataset.lab);
-    labSel = current === "deck" ? selected : null;
-    DeckLab.open($("lab-host"), exportText(exportLists[k] || []), labLabels.get(k) || "List from Matchup Meta");
+    const i = current === "deck" ? selected : null;
+    // A list of this deck: open it with the heading; any other list as before.
+    const ak = i == null ? -1 : archLists(D.archetypes[i]).findIndex(o => o.cards === exportLists[k]);
+    if (ak < 0 || !openArch(i, ak)) { DeckLab.open($("lab-host"), exportText(exportLists[k] || []), labLabels.get(k) || "List from Matchup Meta"); labSel = i; guessDeck(); }
     go("lab"); window.scrollTo({ top: 0 });
     return;
   }
@@ -847,11 +886,7 @@ document.addEventListener("click", e => {
 });
 $("lab-select").addEventListener("change", e => {
   if (e.target.value === "") return;
-  const i = Number(e.target.value), a = D.archetypes[i], l = labsById.get(a.id);
-  const p = labListFor(a, l, l?.ml?.signal ? recommend(l) : null);
-  if (!p) return;
-  labSel = i;
-  DeckLab.open($("lab-host"), p.text, p.label);
+  openArch(Number(e.target.value));
 });
 document.addEventListener("click", e => {
   const b = e.target.closest("button[data-never]");

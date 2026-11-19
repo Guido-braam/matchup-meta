@@ -86,6 +86,11 @@ nav.tabs button[aria-selected="true"] { background: var(--surface); color: var(-
 /* Deck-tab: alleen op een deckpagina, iets donkerder dan de andere twee. */
 nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%); color: var(--fg); cursor: default; }
 .lab-load .picker-btn { width: 100%; }
+/* After Load a deck archetype: the deck and which of its lists is loaded. */
+.lab-arch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 16px; margin-bottom: 16px; }
+.lab-arch h2 { font-size: 1.15rem; margin: 0; }
+.lab-arch select { min-width: 0; max-width: 100%; margin-left: auto; }
+@media (max-width: 600px) { .lab-arch { flex-direction: column; align-items: stretch; } .lab-arch select { margin-left: 0; } }
 /* "or" between My lists and the deck archetypes, as above the load block; gone without My lists. */
 .lab-or { text-align: center; font-size: 14px; margin: 0; }
 #mylist-select[hidden] + .lab-or { display: none; }
@@ -159,6 +164,8 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 .lab-save { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .lab-save-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lab-save-row input { flex: 1; min-width: 0; }
+/* Phone: the name on its own line, the deck and Save under it. */
+@media (max-width: 600px) { .lab-save-row input { flex-basis: 100%; } .lab-save-row select { flex: 1; min-width: 0; } }
 .lab-save .note { margin: 0; }
 .lab-save .note:empty { display: none; }
 button:focus-visible, select:focus-visible, input:focus-visible, .tile:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
