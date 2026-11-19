@@ -115,3 +115,12 @@ test("the home screen tip is for Safari on iPhone and iPad only, not when opened
   assert.equal(iosSafari({ userAgent: IPHONE.replace("Version/19.0", "CriOS/140.0") }), false); // Chrome on iPhone
   assert.equal(iosSafari({ userAgent: "Mozilla/5.0 (Linux; Android 15) Chrome/140.0 Mobile Safari/537.36" }), false);
 });
+
+test("a game keeps its version: missing cards compare with that version, not the latest", () => {
+  const l = list("Kanga", MINE);
+  const v2 = { ...l, versions: [...l.versions, { v: 2, text: "", cards: [{ name: "Switch", count: 1 }], created: "x" }] };
+  const mine = cardsSeen(G2, "me");
+  assert.deepEqual(missingCards(v2, mine, 1), []);
+  assert.ok(missingCards(v2, mine).length > 0); // the latest (v2) lacks most of them
+  assert.ok(missingCards(v2, mine, 9).length > 0); // an unknown version counts as the latest
+});

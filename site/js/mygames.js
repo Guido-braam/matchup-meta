@@ -27,9 +27,12 @@ export function cardsSeen(game, side) {
   return [...seen.values()];
 }
 
-// Names of cards I showed that the list's latest version does not have.
-export function missingCards(list, mine) {
-  const have = new Set(latest(list).cards.map(c => norm(c.name)));
+// A version of a list by number; the latest when v is missing or unknown.
+export const versionOf = (list, v) => list.versions.find(x => x.v === v) ?? latest(list);
+
+// Names of cards I showed that version v of the list (default: the latest) does not have.
+export function missingCards(list, mine, v = null) {
+  const have = new Set(versionOf(list, v).cards.map(c => norm(c.name)));
   return mine.filter(c => !have.has(norm(c.name))).map(c => c.name);
 }
 
@@ -108,7 +111,8 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
   const deckName = id => labs()?.archetypes.find(a => a.id === id)?.name ?? "Unknown deck";
   const fmt = iso => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + " " +
     new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const listText = l => `${l.name} · v${latest(l).v}`;
+  // A list with the version of game g (a game never changes version), else its latest version.
+  const listText = (l, g = null) => `${l.name} · v${(g?.listId === l.id ? versionOf(l, g.listVersion) : latest(l)).v}`;
   const status = html => { $("gm-result").innerHTML = html; };
 
   async function handle(text) {
@@ -131,12 +135,12 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
   // The game in the pop-up: result, list, opponent's deck and cards, replay.
   function card(g, lists, index) {
     const G = g.game, list = lists.find(l => l.id === g.listId);
-    const miss = list ? missingCards(list, cardsSeen(G, "me")) : [];
+    const miss = list ? missingCards(list, cardsSeen(G, "me"), g.listVersion) : [];
     const reason = { prizes: "on Prize cards", concede: G.result === "win" ? "opponent conceded" : "you conceded" }[G.reason] || "";
     const decks = [...(labs()?.archetypes || [])].sort((a, b) => a.name.localeCompare(b.name));
     const opp = g.oppDeckSet ?? g.oppDeck;
     const listOpts = lists.filter(l => !l.archived || l.id === g.listId)
-      .map(l => `<option value="${esc(l.id)}"${l.id === g.listId ? " selected" : ""}>${esc(listText(l))}</option>`).join("");
+      .map(l => `<option value="${esc(l.id)}"${l.id === g.listId ? " selected" : ""}>${esc(listText(l, g))}</option>`).join("");
     return `<div class="gm-head"><span class="pill ${G.result === "win" ? "good" : "bad"}">${G.result === "win" ? "Win" : "Loss"}</span>
         <span>${esc(reason)}</span><span>· went ${G.wentFirst ? "first" : "second"}</span><span>· ${G.turns} turns</span><span>· Prize cards ${G.prizes.me}–${G.prizes.opp}</span></div>
       <p class="gm-msg gm-meta">Added ${fmt(g.added)}</p>
@@ -198,7 +202,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
     const last = storage.read(LAST_LIST_KEY);
     $("gm-deck").innerHTML = `<option value="">Pick a list…</option>` + lists.filter(l => !l.archived || l.id === last)
       .map(l => `<option value="${esc(l.id)}"${l.id === last ? " selected" : ""}>${esc(listText(l))}</option>`).join("");
-    const label = id => { const l = lists.find(x => x.id === id); return l ? listText(l) : "no list"; };
+    const label = g => { const l = lists.find(x => x.id === g.listId); return l ? listText(l, g) : "no list"; };
     // Keeping data: the home screen tip (once, on iPhone/iPad Safari, after the first game) and the export reminder.
     $("gm-tip").hidden = !games.length || storage.read(HOME_TIP_KEY) === true || !iosSafari(navigator);
     const behind = remindOff ? 0 : exportReminder(games, storage.read(LAST_EXPORT_KEY), new Date().toISOString());
@@ -214,7 +218,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
     $("gm-list").innerHTML = games.length ? games.slice(page * PER_PAGE, (page + 1) * PER_PAGE).map(x => `<button type="button" class="gm-row${x.id === shown ? " current" : ""}" data-game="${esc(x.id)}">
         <span class="pill ${x.game.result === "win" ? "good" : "bad"}">${x.game.result === "win" ? "W" : "L"}</span>
         <span class="gm-vs">vs ${esc(deckName(x.oppDeckSet ?? x.oppDeck))}</span>
-        <span class="gm-meta">${x.game.wentFirst ? "1st" : "2nd"} · ${esc(label(x.listId))} · ${fmt(x.added)}</span></button>`).join("") + pager
+        <span class="gm-meta">${x.game.wentFirst ? "1st" : "2nd"} · ${esc(label(x))} · ${fmt(x.added)}</span></button>`).join("") + pager
       : `<p class="note">No games yet. Paste your first battle log above.</p>`;
   }
 
@@ -247,6 +251,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
   $("gm-game").addEventListener("change", e => {
     if (e.target.dataset.gm === "opp") update(shown, { oppDeckSet: e.target.value || "" });
     // My deck: "" = no list on purpose, so a list saved later does not link it (linkLater only takes null).
+    // Picking another list is a correction: the game gets that list's latest version.
     if (e.target.dataset.gm === "list") store.lists().then(ls => {
       const l = ls.find(x => x.id === e.target.value);
       update(shown, { listId: l?.id ?? "", listVersion: l ? latest(l).v : null });

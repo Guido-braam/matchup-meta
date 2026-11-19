@@ -425,6 +425,28 @@ test("a battle log pasted on My games is saved with my list, once", async ({ pag
   expect(consoleErrors).toEqual([]);
 });
 
+test("a game played with v1 stays on v1 after the list gets a v2, without a false warning", async ({ page, consoleErrors }) => {
+  const raw = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
+  const mine = ["Mega Kangaskhan ex", "Talonflame ex", "Ignition Energy", "Boss's Orders", "Latias ex", "Hilda", "Dusknoir",
+    "Neo Upper Energy", "Buddy-Buddy Poffin", "Black Belt's Training", "Rare Candy", "Switch", "Duskull", "Fezandipiti ex",
+    "Meowth ex", "Special Red Card", "Dawn", "Flutter Mane", "Ciphermaniac's Codebreaking"];
+  const list = { id: "list-k", name: "Kangaskhan", deck: null, archived: false, versions: [
+    { v: 1, text: "", cards: mine.map(name => ({ name, count: 1 })), created: "2026-11-18" },
+    { v: 2, text: "", cards: [{ name: "Switch", count: 4 }], created: "2026-11-19" }] };
+  // A game saved by an older parser is read again from its raw log when the tab opens.
+  const game = { id: "g1", schema: 1, parser: 0, added: "2026-11-18T10:00:00Z", raw, listId: "list-k", listVersion: 1, oppDeck: null, oppDeckSet: null };
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games: [game] }));
+  await expect(page.locator("#import-state")).toContainText("1 game");
+  await page.goto("/#games");
+  await expect(page.locator("#gm-list .gm-row")).toContainText("Kangaskhan · v1");
+  await page.locator("#gm-list .gm-row").click();
+  const dlg = page.locator("#gm-dialog");
+  await expect(dlg.locator('select[data-gm="list"] option:checked')).toHaveText("Kangaskhan · v1");
+  await expect(dlg.locator(".gm-msg.warn")).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+});
+
 test("the replay of a game steps through the board and jumps to the last turn", async ({ page, consoleErrors }) => {
   const raw = readFileSync(new URL("../fixtures/battle-logs/01-loss-prizes-no-codes.txt", import.meta.url), "utf8");
   await page.goto("/#games");
