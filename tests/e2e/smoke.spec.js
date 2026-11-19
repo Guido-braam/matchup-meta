@@ -188,9 +188,9 @@ test("an image that fails to load falls back to the placeholder", async ({ page,
   expect(consoleErrors.filter(e => !e.includes("Failed to load resource"))).toEqual([]);
 });
 
-test("the header has two tabs and two equal buttons for My meta and Ask Claude", async ({ page, consoleErrors }) => {
+test("the header has the tabs and two equal buttons for My meta and Ask Claude", async ({ page, consoleErrors }) => {
   await page.goto("/");
-  await expect(page.getByRole("tab")).toHaveText(["Tier list", "Deck Lab", "My games"]);
+  await expect(page.getByRole("tab")).toHaveText(["Tier list", "Deck Lab", "My games", "Analysis"]);
   for (const name of ["My meta", "Ask Claude"]) {
     const b = page.locator("header").getByRole("button", { name, exact: true });
     await expect(b).toHaveClass("btn"); // same style, neither highlighted
@@ -470,6 +470,8 @@ test("Analysis: the pickers set the games, a matchup click sets the opponent", a
   await expect(page.locator(".an-prz")).toHaveText("Prize cards per game: you 2.5 · opponent 3.0 · close games 0 of 2");
   await expect(page.locator(".an-seg")).toHaveText(["1", "1"]);
   await expect(page.locator(".an-seg").first()).toHaveAttribute("title", "Dominant win: 1");
+  // Too few games for insights: a warning in their place.
+  await expect(page.locator(".an-warn")).toHaveText("Insights show up from 5 games in each group, for example 5 wins and 5 losses. This selection has 2 games (1–1).");
   await page.locator("#an-version").selectOption("list-k|all");
   await expect(sum).toContainText(/^2–3 /);
   await expect(page.locator(".an-mu").first()).toHaveText(/Dragapult\s*1–2/);
@@ -480,6 +482,15 @@ test("Analysis: the pickers set the games, a matchup click sets the opponent", a
   await expect(sum).toContainText(/^0–1 /);
   await page.locator("#an-opp").selectOption("");
   await expect(sum).toContainText(/^2–3 /);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("Analysis: with 10 wins and 10 losses, insights show up without the warning", async ({ page, consoleErrors }) => {
+  await seedGames(page, [...Array(10).fill([2, 1, "dragapult-ex"]), ...Array(10).fill([1, 1, "dragapult-ex"])], 1);
+  await page.goto("/#analysis");
+  await expect(page.locator(".an-ins li").first()).toBeVisible();
+  await expect(page.locator(".an-warn")).toHaveCount(0);
+  await expect(page.locator(".an-ins")).not.toContainText("early sign");
   expect(consoleErrors).toEqual([]);
 });
 
