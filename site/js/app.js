@@ -403,7 +403,10 @@ async function updateChanges() {
   $("ml-ch-act").hidden = !changed && !renamedOf(l);
   const old = labVer != null && labVer !== latest(l).v;
   $("ml-changes").querySelector(".note").textContent = old ? `This is v${labVer}; the latest is v${latest(l).v}.` : "You changed this list.";
-  $("ml-changes-btn").textContent = frozen ? "Save new version" : "Save changes";
+  // A new name or deck: rename this list and save, or keep it and save a new list.
+  const renamed = renamedOf(l);
+  $("ml-changes-btn").textContent = saveLabel(renamed, frozen);
+  $("ml-changes-new").hidden = !renamed;
 }
 let guessRun = 0;
 async function guessDeck() {
@@ -517,9 +520,10 @@ $("ml-save").addEventListener("click", async () => {
   const list = newList({ name: $("ml-name").value.trim() || deck?.name || "My list", deck: deck?.id ?? null, text, cards });
   if (!(await storeList(list, `Saved to My lists as ${listLabel(list)}.`))) renderSaveBar(NO_STORAGE);
 });
-// The changes of an own list: a pop-up to rename it or change its deck, with the cards taken out and put in.
+// The changes of an own list: a pop-up with the cards taken out and put in, and the one button that was clicked.
+const saveLabel = (renamed, frozen) => renamed ? "Rename list and save changes" : frozen ? "Save new version" : "Save changes";
 let dlg = null;            // {l, text, cards, frozen}
-$("ml-changes-btn").addEventListener("click", async () => {
+async function openChanges(asNew) {
   const l = listById(labList);
   if (!l) return;
   const { text, cards } = await DeckLab.current(), frozen = await frozenNow(l);
@@ -527,18 +531,17 @@ $("ml-changes-btn").addEventListener("click", async () => {
   const d = cardDiff(latest(l).cards, cards);
   const li = xs => xs.map(([k, n]) => `<li><span class="num">${n}×</span> ${esc(k)}</li>`).join("") || `<li class="note">Nothing</li>`;
   $("ml-out").innerHTML = li(d.out); $("ml-in").innerHTML = li(d.in);
-  $("ml-dlg-title").textContent = frozen ? "Save new version" : "Save changes";
-  $("ml-dlg-state").textContent = frozen ? `Games were played with v${latest(l).v}, so it stays as it is.` : "";
-  dlgButtons();
+  const label = asNew ? "Save as new list" : saveLabel(renamedOf(l), frozen);
+  $("ml-dlg-title").textContent = label;
+  $("ml-dlg-save").textContent = label;
+  $("ml-dlg-save").hidden = asNew; $("ml-dlg-new").hidden = !asNew;
+  $("ml-dlg-state").textContent = asNew ? `${l.name} stays as it is.` : frozen ? `Games were played with v${latest(l).v}, so it stays as it is.` : "";
   document.querySelectorAll("dialog[open]").forEach(x => x.close());
   $("ml-dialog").showModal();
-});
-const dlgName = () => chName(dlg.l);
-function dlgButtons() {
-  const renamed = renamedOf(dlg.l);
-  $("ml-dlg-save").textContent = renamed ? "Rename list and save changes" : dlg.frozen ? "Save new version" : "Save changes";
-  $("ml-dlg-new").hidden = !renamed;
 }
+$("ml-changes-btn").addEventListener("click", () => openChanges(false));
+$("ml-changes-new").addEventListener("click", () => openChanges(true));
+const dlgName = () => chName(dlg.l);
 $("ml-dlg-name").addEventListener("input", () => updateChanges());
 $("ml-dlg-deck").addEventListener("change", () => updateChanges());
 $("ml-dlg-save").addEventListener("click", async () => {
