@@ -3,7 +3,7 @@
 import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS } from "./calc.js";
 import { createGameStore, exportBackup, importBackup } from "./gamestore.js";
 import { deckOf, newList, saveVersion, latest, cardDiff } from "./mylists.js";
-import { initMyGames, LAST_EXPORT_KEY } from "./mygames.js";
+import { initMyGames, LAST_EXPORT_KEY, versionOf } from "./mygames.js";
 import { initAnalysis } from "./analysis.js";
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
@@ -356,6 +356,7 @@ function renderLabSelect() {
 // Lijsten die de bezoeker in Deck Lab bewaart om games aan te koppelen (gamestore.js, mylists.js).
 let myLists = [];          // alle lijsten uit de store
 let labList = null;        // id van de lijst uit My lists die nu in Deck Lab staat, anders null
+let labVer = null;         // de versie daarvan die geladen is (de nieuwste, of een oudere uit Open my list)
 const listById = id => myLists.find(l => l.id === id);
 const listLabel = l => `${l.name} · v${latest(l).v}`;
 const mlState = $("ml-state"), mlManage = $("ml-manage"); // next to the heading of an own list, else in the Save block
@@ -365,11 +366,7 @@ const deckOpts = decks => decks.map(a => `<option value="${esc(a.id)}">${esc(a.n
 const frozenNow = async l => { const v = latest(l).v; return (await gameStore.games()).some(g => g.listId === l.id && g.listVersion === v); };
 async function refreshMyLists() {
   myLists = (await gameStore.lists()).sort((a, b) => a.name.localeCompare(b.name));
-  const sel = $("mylist-select"), opt = l => `<option value="${esc(l.id)}">${esc(listLabel(l))}</option>`;
-  const active = myLists.filter(l => !l.archived), archived = myLists.filter(l => l.archived);
-  sel.innerHTML = `<option value="">Open one of My lists…</option>` + active.map(opt).join("") +
-    (archived.length ? `<optgroup label="Archived">${archived.map(opt).join("")}</optgroup>` : "");
-  sel.hidden = !myLists.length;
+  $("mylist-btn").hidden = !myLists.length;
   renderSaveBar(); renderLabArch();
 }
 function renderSaveBar(msg = "") {
@@ -380,7 +377,7 @@ function renderSaveBar(msg = "") {
   $("ml-deck").innerHTML = `<option value="" hidden>Deck…</option>` + deckOpts(decks);
   $("ml-deck").value = l?.deck && decks.some(a => a.id === l.deck) ? l.deck : "";
   if (!l) guessDeck();
-  mlState.textContent = msg || (l ? `In My lists as ${listLabel(l)}${l.archived ? " (archived)" : ""}.` : "");
+  mlState.textContent = msg || (l ? `In My lists as ${l.name} · v${labVer ?? latest(l).v}${l.archived ? " (archived)" : ""}.` : "");
   mlManage.hidden = !l;
   $("ml-save-box").hidden = !!l; // an own list saves through the changes block
   $("ml-archive").textContent = l?.archived ? "Unarchive" : "Archive";
@@ -396,6 +393,8 @@ async function updateChanges() {
   const frozen = changed && await frozenNow(l);
   if (run !== changesRun) return;
   $("ml-changes").hidden = !changed;
+  const old = labVer != null && labVer !== latest(l).v;
+  $("ml-changes").querySelector(".note").textContent = old ? `This is v${labVer}; the latest is v${latest(l).v}.` : "You changed this list.";
   $("ml-changes-btn").textContent = frozen ? "Save new version" : "Save changes";
 }
 let guessRun = 0;
@@ -405,7 +404,7 @@ async function guessDeck() {
   if (!id) { const { cards } = await DeckLab.current(); id = deckOf(cards, L, await loadCardIndex().catch(() => null))?.id; }
   if (run === guessRun && !labList && id) $("ml-deck").value = id;
 }
-$("lab-host").addEventListener("lab-source", () => { labList = null; labSel = null; renderSaveBar(); labArch = null; renderLabArch(); });
+$("lab-host").addEventListener("lab-source", () => { labList = null; labVer = null; labSel = null; renderSaveBar(); labArch = null; renderLabArch(); renderLabSelect(); });
 // A list edited in Deck Lab itself (− / +, adding cards): guess its deck once there is something to go on.
 $("lab-host").addEventListener("lab-edit", () => { if (!labList && !$("ml-deck").value) guessDeck(); updateChanges(); });
 
@@ -422,19 +421,20 @@ function openArch(i, k = 0) {
   const a = D.archetypes[i], o = archLists(a)[k];
   if (!o) return false;
   DeckLab.open($("lab-host"), exportText(o.cards), ""); // no label: the heading names the list; lab-source clears the heading first
-  labSel = i; labArch = { i, v: String(k) }; renderLabArch(); guessDeck();
+  labSel = i; labArch = { i, v: String(k) }; renderLabArch(); renderLabSelect(); guessDeck();
   return true;
 }
 // A list from My lists in Deck Lab: under the heading of its deck (the dropdown selects it), else its name as heading.
-function showMine(l) {
+function showMine(l, v = latest(l).v) {
   const i = D ? D.archetypes.findIndex(a => a.id === l.deck) : -1;
-  labList = l.id;
+  labList = l.id; labVer = v;
   if (i < 0) { labArch = null; DeckLab.label(""); } else { labSel = i; labArch = { i, v: `m:${l.id}` }; DeckLab.label(""); }
   renderLabArch(); renderLabSelect();
 }
-function openMine(l) {
-  DeckLab.open($("lab-host"), latest(l).text, ""); // lab-source clears the heading and labList first
-  showMine(l); renderSaveBar();
+function openMine(l, v) {
+  const ver = versionOf(l, v);
+  DeckLab.open($("lab-host"), ver.text, ""); // lab-source clears the heading and labList first
+  showMine(l, ver.v); renderSaveBar();
 }
 function renderLabArch() {
   const box = $("lab-arch"), l = labList && listById(labList), a = labArch && D?.archetypes[labArch.i];
@@ -454,10 +454,41 @@ $("lab-arch").addEventListener("change", e => {
   const v = e.target.value, l = v.startsWith("m:") && listById(v.slice(2));
   if (l) openMine(l); else if (labArch) openArch(labArch.i, Number(v));
 });
-$("mylist-select").addEventListener("change", e => {
-  const l = listById(e.target.value);
-  e.target.value = "";
-  if (l) openMine(l);
+// Open my list: the lists as rows with their games won and lost, the latest version on top; the arrow shows all versions.
+$("mylist-btn").addEventListener("click", async () => {
+  const games = await gameStore.games(), decks = D?.archetypes || L?.archetypes || [];
+  const date = s => s ? new Date(s).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+  const score = gs => {
+    const w = gs.filter(g => g.game?.result === "win").length, x = gs.filter(g => g.game?.result === "loss").length;
+    return gs.length ? `<span class="ml-wl"><b class="w">${w}</b> W · <b class="l">${x}</b> L</span>` : `<span class="ml-wl note">No games</span>`;
+  };
+  const item = l => {
+    const gs = games.filter(g => g.listId === l.id), a = decks.find(d => d.id === l.deck), cur = latest(l), id = esc(l.id);
+    const vers = [...l.versions].reverse().map(x => `<button type="button" class="ml-row ml-ver" data-open="${id}" data-v="${x.v}">
+      <span class="ml-name">v${x.v}${x.v === cur.v ? " (latest)" : ""}<small>${date(x.created)}</small></span>${score(gs.filter(g => g.listVersion === x.v))}</button>`).join("");
+    return `<div class="ml-item"><div class="ml-top">
+      <button type="button" class="ml-row" data-open="${id}" data-v="${cur.v}">${a?.sprites ? spritesHtml(a) : ""}
+        <span class="ml-name">${esc(l.name)}<small>${esc(a?.name ?? "No deck")} · v${cur.v} · ${date(cur.created)}</small></span>${score(gs)}</button>
+      <button type="button" class="ml-more" aria-expanded="false" aria-label="All versions of ${esc(l.name)}">▾</button>
+    </div><div class="ml-vers" hidden>${vers}</div></div>`;
+  };
+  const active = myLists.filter(l => !l.archived), archived = myLists.filter(l => l.archived);
+  $("ml-pick-body").innerHTML = `<div class="ml-items">${active.map(item).join("")}</div>` +
+    (archived.length ? `<h3 class="ml-group">Archived</h3><div class="ml-items">${archived.map(item).join("")}</div>` : "");
+  document.querySelectorAll("dialog[open]").forEach(d => d.close());
+  $("ml-pick").showModal();
+});
+$("ml-pick-body").addEventListener("click", e => {
+  const m = e.target.closest(".ml-more");
+  if (m) {
+    const box = m.closest(".ml-item").querySelector(".ml-vers");
+    box.hidden = !box.hidden; m.setAttribute("aria-expanded", String(!box.hidden)); m.textContent = box.hidden ? "▾" : "▴";
+    return;
+  }
+  const r = e.target.closest("[data-open]"), l = r && listById(r.dataset.open);
+  if (!l) return;
+  $("ml-pick").close();
+  openMine(l, Number(r.dataset.v));
 });
 // Store a list and show it in Deck Lab. -> false when the browser does not allow storage.
 async function storeList(list, msg) {

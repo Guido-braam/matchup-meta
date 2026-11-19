@@ -76,13 +76,13 @@
     <div id="lab-host">
       <div slot="arch" class="lab-arch" id="lab-arch" hidden></div>
       <div slot="load" class="lab-load">
-        <select id="mylist-select" aria-label="Open one of My lists" hidden></select>
+        <button class="btn picker-btn" type="button" id="mylist-btn" aria-haspopup="dialog" hidden>Open my list…</button>
         <p class="hint lab-or">or</p>
         <select id="lab-select" aria-label="Load a deck archetype into Deck Lab" hidden></select>
         <button class="btn picker-btn" type="button" data-picker="lab-select" data-title="Load a deck archetype into Deck Lab" data-placeholder="Load a deck archetype…" aria-haspopup="dialog">Load a deck archetype…</button>
       </div>
       <div slot="save" class="panel lab-save" id="ml-save-box">
-        <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Name (optional)" maxlength="60"><select id="ml-deck" aria-label="Deck of this list"></select><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>
+        <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Deck Name (optional)" maxlength="60"><select id="ml-deck" aria-label="Deck of this list"></select><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>
         <p class="note" id="ml-state" role="status"></p>
         <div class="lab-save-row" id="ml-manage" hidden><button class="link-btn" type="button" id="ml-archive">Archive</button><button class="link-btn" type="button" id="ml-delete">Delete</button></div>
       </div>
@@ -143,6 +143,10 @@
   </footer>
 </div>
 
+<dialog class="dlg ml-pick" id="ml-pick" aria-labelledby="ml-pick-title">
+  <div class="dlg-head"><h2 id="ml-pick-title">My lists</h2><button class="dlg-x" type="button" data-close aria-label="Close">×</button></div>
+  <div class="dlg-body" id="ml-pick-body"></div>
+</dialog>
 <dialog class="dlg ml-dlg" id="ml-dialog" aria-labelledby="ml-dlg-title">
   <div class="dlg-head">
     <h2 id="ml-dlg-title">Save changes</h2>

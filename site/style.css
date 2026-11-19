@@ -93,7 +93,7 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 @media (max-width: 600px) { .lab-arch { flex-direction: column; align-items: stretch; } .lab-arch select { margin-left: 0; } }
 /* "or" between My lists and the deck archetypes, as above the load block; gone without My lists. */
 .lab-or { text-align: center; font-size: 14px; margin: 0; }
-#mylist-select[hidden] + .lab-or { display: none; }
+#mylist-btn[hidden] + .lab-or { display: none; }
 /* My games */
 .games-paste { display: flex; flex-direction: column; gap: 10px; }
 #page-games > .panel { padding: 16px; margin-bottom: 16px; }
@@ -173,6 +173,22 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 .lab-arch .note { flex-basis: 100%; margin: 0; }
 .lab-arch .note:empty { display: none; }
 .ml-dlg { width: min(640px, calc(100% - 32px)); }
+.ml-pick { width: min(720px, calc(100% - 32px)); }
+.ml-items { display: grid; gap: 8px; }
+.ml-group { font-size: 13px; color: var(--muted); margin: 16px 0 8px; }
+.ml-item { background: var(--surface-2); border-radius: var(--radius); overflow: hidden; }
+.ml-top { display: flex; }
+.ml-row { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 56px; padding: 8px 12px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ml-row:hover, .ml-more:hover { background: var(--surface); }
+.ml-row .sprites { flex: none; }
+.ml-name { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 700; overflow-wrap: anywhere; }
+.ml-name small { font-weight: 400; font-size: 0.8rem; color: var(--muted); }
+.ml-wl { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ml-wl .w { color: var(--good); } .ml-wl .l { color: var(--bad); }
+.ml-more { flex: none; width: 48px; border: 0; border-left: 1px solid var(--line); background: none; color: inherit; font-size: 1.1rem; cursor: pointer; }
+.ml-vers { border-top: 1px solid var(--line); }
+.ml-ver { width: 100%; min-height: 44px; padding-left: 24px; }
+.ml-ver + .ml-ver { border-top: 1px solid var(--line); }
 .ml-dlg-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
 .ml-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
 .ml-diff h3 { font-size: 14px; margin: 0 0 6px; }

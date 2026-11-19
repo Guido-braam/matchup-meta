@@ -118,6 +118,7 @@ if (typeof document !== "undefined") document.addEventListener("keydown", e => {
 if (typeof document !== "undefined") document.addEventListener("click", e => {
   const img = e.composedPath()[0];
   if (!(img instanceof HTMLImageElement) || !img.parentNode?.classList?.contains("ctile")) return;
+  if (img.closest("[data-own-zoom]")) return; // that list opens its own pop-up (Deck Lab: the card with − and +)
   e.preventDefault(); e.stopPropagation();
   const o = document.createElement("div");
   o.className = "card-zoom";

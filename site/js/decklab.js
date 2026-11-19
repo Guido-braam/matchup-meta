@@ -291,6 +291,18 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 .cl-row .pm [data-pm="-1"]{border-radius:6px 0 0 6px}.cl-row .pm [data-pm="1"]{border-radius:0 6px 6px 0}
 .cl-row .pm button:hover:not(:disabled),.cl-row .pm button:focus-visible{background:rgb(0 0 0/.35);outline:none}
 .cl-row .pm button:disabled{opacity:.3;cursor:not-allowed}}
+/* Touch: no − and + in the overview; a tap on a card opens it with its count and big − and + (#cz). */
+@media (hover:none){.cl-row .pm{display:none}.cl-row .ctile{cursor:pointer}}
+#cz{width:100vw;max-width:100vw;height:100dvh;max-height:none;margin:0;border-radius:0;background:rgb(0 0 0/.92);color:#fff;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+.cz-in{height:100%;display:flex;flex-direction:column;align-items:center;gap:12px}
+.cz-in .x{align-self:flex-end;color:#fff}
+.cz-card{flex:1;min-height:0;width:100%;display:grid;place-items:center}
+.cz-card .ctile{width:min(100%,calc((100dvh - 220px) * 63 / 88));height:auto;aspect-ratio:63/88}
+.cz-card .ctile img{cursor:default}
+.cz-n{font-size:16px}.cz-n .num{font-size:28px;font-weight:800;margin-right:6px}
+.cz-pm{display:flex;gap:12px;width:100%;max-width:420px}
+.cz-pm .btn{flex:1;min-height:60px;font-size:32px;font-weight:800;line-height:1}
+.btn[hidden]{display:none}
 .btn:disabled{opacity:.5;cursor:default;border-color:var(--line)}
 .io{gap:6px}
 .io .btn{flex:1 1 auto;white-space:nowrap;padding:7px 10px}
@@ -422,11 +434,17 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
     <slot name="save" class="full-only"></slot>
     <div class="count-bar full-only" id="total-badge" role="status" hidden></div>
     <div class="panel full-only">
-      <div class="cardlist" id="cardlist"></div>
+      <div class="cardlist" id="cardlist" data-own-zoom></div>
     </div>
   </aside>
   <main><section id="view" class="stack"></section></main>
 </div>
+<dialog id="cz" aria-label="Card in the deck"><div class="cz-in">
+  <button class="x" type="button" data-czx aria-label="Close">×</button>
+  <div class="cz-card" id="cz-card"></div>
+  <div class="cz-n"><span class="num" id="cz-n"></span>in the deck</div>
+  <div class="cz-pm"><button class="btn" type="button" data-cz="-1" aria-label="Remove one">−</button><button class="btn primary" type="button" data-cz="1" aria-label="Add one">+</button></div>
+</div></dialog>
 <dialog id="imp" aria-labelledby="imp-t"><form method="dialog" class="col">
   <div class="row" style="justify-content:space-between"><h2 id="imp-t">Import deck</h2><button class="x" value="cancel" aria-label="Close">×</button></div>
   <p class="hint">Paste a list from Pokémon TCG Live or Limitless. It replaces the list in Deck Lab.</p>
@@ -460,7 +478,7 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
         const k = esc(e.key), n = esc(e.name);
         const pm = `<div class="pm"><button type="button" data-pm="-1" data-key="${k}" aria-label="Remove one ${n}">−</button>`
           + (cat ? `<button type="button" data-pm="1" data-key="${k}" aria-label="Add one ${n}"${canAdd(e) ? "" : " disabled"}>+</button>` : "") + "</div>";
-        return `<div class="cl-row">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}${pm}</div>`;
+        return `<div class="cl-row" data-key="${k}">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}${pm}</div>`;
       }).join("")}${cat ? `<div class="cl-row"><button type="button" class="add-tile" data-add="${cat}" aria-label="${addTitle(cat)}">+</button></div>` : ""}</div>`;
     }
     // Same cards as now (only counts changed, after − or +): update the counts in place, so the zoomed card under
@@ -597,7 +615,7 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
     const index = await loadCardIndex();
     entries = parse(serialize(rows), index);
     root.host.classList.toggle("empty", !rows.length);
-    $("#btn-export").disabled = !rows.length;
+    $("#btn-export").hidden = !rows.length;
     TH = null; renderList(); renderAnalysis();
   }
   // Another list came in (open, Import, Clear): the page hears it as "lab-source" on the host (My lists in app.js).
@@ -615,6 +633,21 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
     if (!srcLabel) srcLabel = "Edited"; else if (!/\(edited\)$|^Edited$/.test(srcLabel)) srcLabel += " (edited)";
     root.host.dispatchEvent(new CustomEvent("lab-edit"));
     return load();
+  }
+  // ---------- One card, big (touch): its count with − and + under it ----------
+  let czKey = null;
+  function openZoom(key){
+    const e = entries.find(x => x.key === key); if (!e) return;
+    [...document.querySelectorAll("dialog[open]"), ...root.querySelectorAll("dialog[open]")].forEach(d => d.close());
+    czKey = key;
+    $("#cz-card").innerHTML = cardTile(e.card, {name: e.name, cat: e.cat || "pokemon", note: e.cat ? tagOf(e) : "card not recognized"});
+    renderZoom(); $("#cz").showModal();
+  }
+  function renderZoom(){
+    const e = entries.find(x => x.key === czKey);
+    if (!e) return $("#cz").close(); // the last copy is out
+    $("#cz-n").textContent = e.count;
+    $('[data-cz="1"]').disabled = !e.cat || !canAdd(e);
   }
   // ---------- Add a card ----------
   let searchReq = null, addCat = null, shown = [];
@@ -663,6 +696,7 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
     // − / + in the card list. The list is drawn again, so the focus goes back to the same button (or its partner).
     $("#cardlist").addEventListener("click", async e => {
       const a = e.target.closest("button[data-add]"); if (a) return openAdd(a.dataset.add);
+      const t = e.target.closest(".ctile"); if (t) return openZoom(t.closest(".cl-row").dataset.key);
       const b = e.target.closest("button[data-pm]"); if (!b || b.disabled) return;
       const {key, pm} = b.dataset;
       rows = bump(rows, await loadCardIndex(), key, +pm);
@@ -683,6 +717,13 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
       b.textContent = "Copied"; setTimeout(() => { b.textContent = "Export deck"; }, 1500);
     };
     $("#btn-clear").onclick = () => setList("", "");
+    const cz = $("#cz");
+    cz.addEventListener("click", async e => {
+      if (e.target === cz || e.target.closest("[data-czx]") || e.target.classList.contains("cz-card")) return cz.close();
+      const b = e.target.closest("button[data-cz]"); if (!b || b.disabled) return;
+      rows = bump(rows, await loadCardIndex(), czKey, +b.dataset.cz);
+      await edited(); renderZoom();
+    });
     // Add a card: search, then − / + per result; the pop-up stays open while you add.
     const add = $("#add"), addQ = $("#add-q"), addList = $("#add-list");
     addQ.addEventListener("input", renderResults);
