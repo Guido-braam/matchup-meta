@@ -604,6 +604,7 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
     entries = parse(serialize(rows), index);
     root.host.classList.toggle("empty", !rows.length);
     $("#btn-export").hidden = !rows.length;
+    $("#btn-import").textContent = rows.length ? "Import deck (overwrite)" : "Import deck";
     TH = null; renderList(); renderAnalysis();
     // The deck check (60 cards, at most 1 ACE SPEC) for the page to show in its save block: "lab-check".
     root.host.dispatchEvent(new CustomEvent("lab-check", {detail: {empty: !rows.length, total: totalOf(entries), warnings: deckWarnings(entries)}}));
