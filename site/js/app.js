@@ -639,9 +639,9 @@ function renderPicker() {
   const cur = pick.sel.value, key = (a, i) => pick.byId ? a.id : String(i);
   // The deck of a list: Other on top (a list without a deck is Other too).
   const other = pick.byId ? `<div class="pk-inner pk-none"><button type="button" class="btn${cur === "" || cur === "other" ? " current" : ""}" data-pick="other">Other</button></div>` : "";
-  // Decks you never meet are left out, as in the tier list; the current deck always stays.
+  // Decks you never meet are left out, as in the tier list; the current deck always stays, and a search shows them all.
   let nNever = 0;
-  const shown = x => level(x.i) !== 0 || key(x.a, x.i) === cur || (nNever++, showNever.pick);
+  const shown = x => q || level(x.i) !== 0 || key(x.a, x.i) === cur || (nNever++, showNever.pick);
   const groups = deckGroups().map(g => ({ ...g, xs: g.xs.filter(x => (!q || x.a.name.toLowerCase().includes(q)) && shown(x)) })).filter(g => g.xs.length);
   $("pk-body").innerHTML = other + (groups.length ? `<div class="pk-inner tiers">${groups.map(({ t, xs }) => `
     <div class="tier ${t === "none" ? "tier-none" : `tier-${t}`}">
