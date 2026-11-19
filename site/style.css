@@ -86,6 +86,9 @@ nav.tabs button[aria-selected="true"] { background: var(--surface); color: var(-
 /* Deck-tab: alleen op een deckpagina, iets donkerder dan de andere twee. */
 nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%); color: var(--fg); cursor: default; }
 .lab-load .picker-btn { width: 100%; }
+/* "or" between My lists and the deck archetypes, as above the load block; gone without My lists. */
+.lab-or { text-align: center; font-size: 14px; margin: 0; }
+#mylist-select[hidden] + .lab-or { display: none; }
 /* My games */
 .games-paste { display: flex; flex-direction: column; gap: 10px; }
 #page-games > .panel { padding: 16px; margin-bottom: 16px; }

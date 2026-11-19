@@ -76,8 +76,9 @@
     <div id="lab-host">
       <div slot="load" class="lab-load">
         <select id="mylist-select" aria-label="Open one of My lists" hidden></select>
-        <select id="lab-select" aria-label="Load a deck into Deck Lab" hidden></select>
-        <button class="btn picker-btn" type="button" data-picker="lab-select" data-title="Load a deck into Deck Lab" data-placeholder="Load a deck…" aria-haspopup="dialog">Load a deck…</button>
+        <p class="hint lab-or">or</p>
+        <select id="lab-select" aria-label="Load a deck archetype into Deck Lab" hidden></select>
+        <button class="btn picker-btn" type="button" data-picker="lab-select" data-title="Load a deck archetype into Deck Lab" data-placeholder="Load a deck archetype…" aria-haspopup="dialog">Load a deck archetype…</button>
       </div>
       <div slot="save" class="lab-save">
         <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Name (optional)" maxlength="60"><select id="ml-deck" aria-label="Deck of this list"></select><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>

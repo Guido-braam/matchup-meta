@@ -347,7 +347,7 @@ function deckOptions(needLists) {
 function renderLabSelect() {
   if (!D) return;
   const sel = $("lab-select");
-  sel.innerHTML = `<option value="">Load a deck…</option>` + deckOptions(true);
+  sel.innerHTML = `<option value="">Load a deck archetype…</option>` + deckOptions(true);
   sel.value = labSel == null ? "" : String(labSel);
   syncPickBtn(sel);
 }

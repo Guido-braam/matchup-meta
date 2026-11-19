@@ -622,7 +622,7 @@ test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   // One card short: the count bar shows up.
   await lab.locator("#deck").fill(PASTED_LIST.replace(/^4 /m, "3 "));
   await expect(lab.locator("#total-badge")).toHaveText("59 / 60 cards. A deck needs exactly 60.");
-  // Reset empties the list: the bar goes away and the start screen with Load a deck is back.
+  // Reset empties the list: the bar goes away and the start screen with Load a deck archetype is back.
   await lab.locator("#btn-reset").click();
   await expect(lab.locator("#deck")).toHaveValue("");
   await expect(lab.locator("#total-badge")).toBeHidden();
