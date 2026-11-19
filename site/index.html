@@ -106,13 +106,13 @@
     <div id="advice-result"></div>
   </dialog>
 
-  <dialog class="modal" id="dialog-key" aria-label="API key">
-    <form method="dialog" class="modal-head key-head">
+  <dialog class="modal" id="dialog-key" aria-labelledby="key-title">
+    <form method="dialog" class="modal-head">
+      <h2 id="key-title">Add Anthropic API key</h2>
       <button class="dlg-x" aria-label="Close">×</button>
     </form>
     <div class="panel data-panel key-panel" id="ai-key">
       <div id="key-off">
-        <h2>Add Anthropic API key</h2>
         <p class="note">With a key, Claude helps you in three places: it advises which deck to play at your locals, answers questions about a deck in Deck chat, and turns your Analysis into tips on how to play. Everything else on the site works without a key.</p>
         <p class="note">The site calls Claude straight from your browser with your own key, so Anthropic bills your account for what you use. Create a key in the <a href="https://platform.claude.com/settings/keys" rel="noopener">Claude Console</a> and paste it below. The key is stored only in this browser, only sent to Anthropic, and never part of an export.</p>
         <form class="upload-row" id="key-form">

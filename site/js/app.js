@@ -1091,6 +1091,7 @@ $("advice-result").addEventListener("change", e => {
 function renderKey() {
   $("key-off").hidden = !!apiKey;
   $("key-on").hidden = !apiKey;
+  $("key-title").textContent = apiKey ? "Anthropic API key" : "Add Anthropic API key";
   $("key-on-text").textContent = apiKey ? `Advice, Deck chat and Turn into advice use your Anthropic API key ending in …${apiKey.slice(-4)}. It is stored only in this browser.` : "";
 }
 $("key-form").addEventListener("submit", e => {

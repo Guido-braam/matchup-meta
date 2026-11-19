@@ -593,7 +593,6 @@ dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
 
 /* My games notes (mygames.js). */
 .gm-note[hidden], .gm-found[hidden] { display: none; }
-.key-head { justify-content: flex-end; }
 .tier-ask { margin: 16px 0 0; }
 .an-advice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; }
 .an-advice-body :is(h3, h4, h5) { font-size: 1rem; margin: 14px 0 4px; }

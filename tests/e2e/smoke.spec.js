@@ -1135,9 +1135,9 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await expect(page.locator("#advice-run")).toBeDisabled();
   await page.getByRole("link", { name: "Add your Anthropic API key" }).click();
   await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeHidden();
-  await expect(page.getByRole("dialog", { name: "API key" })).toBeVisible();
-  await expect(page.locator("#ai-key")).toContainText("Add Anthropic API key");
-  await expect(page.getByLabel("Anthropic API key")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Add Anthropic API key" })).toBeVisible();
+  await expect(page.locator("#key-title")).toHaveText("Add Anthropic API key");
+  await expect(page.getByLabel("Anthropic API key", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove key" })).toBeHidden();
   await page.keyboard.press("Escape");
 
@@ -1147,8 +1147,8 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await expect(chat.getByRole("link", { name: "Add your API key" })).toBeVisible();
   await expect(chat.locator("#chat-input")).toHaveCount(0);
   await chat.getByRole("link", { name: "Add your API key" }).click();
-  await expect(page.getByRole("dialog", { name: "API key" })).toBeVisible();
-  await expect(page.getByLabel("Anthropic API key")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Add Anthropic API key" })).toBeVisible();
+  await expect(page.getByLabel("Anthropic API key", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#page-deck")).toBeVisible(); // the dialog opened over the deck page
   await page.locator("#tab-tierlist").click();
@@ -1161,7 +1161,7 @@ test("with an API key Advice runs, stays after a reload, and Remove key turns it
   const requests = await stubMessagesApi(page, 200, message(ADVICE_ANSWER));
   await page.goto("/#key");
 
-  await page.getByLabel("Anthropic API key").fill(API_KEY);
+  await page.getByLabel("Anthropic API key", { exact: true }).fill(API_KEY);
   await page.getByRole("button", { name: "Save key" }).click();
   await expect(page.locator("#ai-key")).toContainText("stored only in this browser");
   expect(JSON.parse(await stored(page, "matchup-meta-api-key"))).toBe(API_KEY);
@@ -1206,7 +1206,7 @@ test("with an API key Advice runs, stays after a reload, and Remove key turns it
   await page.goto("/#key");
   await page.getByRole("button", { name: "Remove key" }).click();
   expect(await stored(page, "matchup-meta-api-key")).toBeNull();
-  await expect(page.locator("#ai-key")).toContainText("Add Anthropic API key");
+  await expect(page.locator("#key-title")).toHaveText("Add Anthropic API key");
   await expect(page.locator("#advice-run")).toBeDisabled();
   await page.keyboard.press("Escape");
   await openDeck(page, "Dragapult");
