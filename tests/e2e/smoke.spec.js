@@ -463,26 +463,26 @@ const seedGames = async (page, specs, versions = 2) => {
 test("Analysis: the pickers set the games, a matchup click sets the opponent", async ({ page, consoleErrors }) => {
   await seedGames(page, [[2, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [2, 2, "n-zoroark"], [1, 2, ""]]);
   await page.goto("/#analysis");
-  const sum = page.locator(".an-sum").first();
+  const [fs, prz] = [page.locator(".an-ins li").nth(0), page.locator(".an-ins li").nth(1)];
   // Starts on the latest version: v2 has a win and a loss, both going second.
   await expect(page.locator("#an-version")).toHaveValue("list-k|2");
-  await expect(sum).toHaveText("1–1 · going first 0–0 · going second 1–1");
+  await expect(fs).toHaveText("Going first 0–0 · going second 1–1");
   // The win (2–0, opponent conceded) is Dominant, the loss (3–6 on Prize cards) Clear.
-  await expect(page.locator(".an-prz")).toHaveText("Prize cards per game: you 2.5 · opponent 3.0 · close games 0 of 2");
+  await expect(prz).toHaveText("Prize cards per game: you 2.5 · opponent 3.0 · close games 0 of 2");
   await expect(page.locator(".an-seg")).toHaveText(["1", "1"]);
   await expect(page.locator(".an-seg").first()).toHaveAttribute("title", "Dominant win: 1");
-  // Too few games for insights: a warning in their place.
+  // Too few games for more insights: a warning below the two lines.
   await expect(page.locator(".an-warn")).toHaveText("Insights show up from 5 games in each group, for example 5 wins and 5 losses. This selection has 2 games (1–1).");
   await page.locator("#an-version").selectOption("list-k|all");
-  await expect(sum).toContainText(/^2–3 /);
+  await expect(fs).toHaveText("Going first 0–0 · going second 2–3");
   await expect(page.locator(".an-mu").first()).toHaveText(/Dragapult\s*1–2/);
   await page.locator(".an-mu").first().click();
   await expect(page.locator("#an-opp")).toHaveValue("dragapult-ex");
-  await expect(sum).toContainText(/^1–2 /);
+  await expect(fs).toHaveText("Going first 0–0 · going second 1–2");
   await page.locator("#an-opp").selectOption("~other");
-  await expect(sum).toContainText(/^0–1 /);
+  await expect(fs).toHaveText("Going first 0–0 · going second 0–1");
   await page.locator("#an-opp").selectOption("");
-  await expect(sum).toContainText(/^2–3 /);
+  await expect(fs).toHaveText("Going first 0–0 · going second 2–3");
   expect(consoleErrors).toEqual([]);
 });
 

@@ -1,7 +1,7 @@
 // Analysis: selection, summary and matchups on made-up Game records with known totals.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { select, summary, matchups, oppDeckOf, record, margin, prizeStats, firstOrSecond, mainPokemon, setupOnTime, prizeLeadByTurn, firstKnockOut, closeLosses, playInsights, turningPoint } from "../../site/js/insights.js";
+import { select, summary, matchups, oppDeckOf, record, margin, prizeStats, mainPokemon, setupOnTime, prizeLeadByTurn, firstKnockOut, closeLosses, playInsights, turningPoint } from "../../site/js/insights.js";
 
 const g = (result, wentFirst, oppDeck, { listId = "k", listVersion = 1, oppDeckSet = null } = {}) =>
   ({ listId, listVersion, oppDeck, oppDeckSet, game: { result, wentFirst } });
@@ -60,10 +60,10 @@ const atk = { turnSide: "me", sideTurn: 1, type: "attack", side: "me", pokemon: 
 const times = (n, f) => Array.from({ length: n }, f);
 
 test("insights need 5 games in each group, and are an early sign below 10", () => {
-  assert.equal(firstOrSecond([...times(5, () => play("win")), ...times(4, () => play("loss", { wentFirst: false }))]), null);
-  const r = firstOrSecond([...times(5, () => play("win")), ...times(5, () => play("loss", { wentFirst: false }))]);
-  assert.equal(r.text, "Going first 5–0 · going second 0–5");
-  assert.deepEqual([r.gap, r.early], [1, true]);
+  const close = n => times(n, () => play("loss", { prizes: { me: 5, opp: 6 } }));
+  assert.deepEqual(closeLosses(close(4), () => "Dragapult"), []);
+  const [r] = closeLosses(close(5), () => "Dragapult");
+  assert.deepEqual([r.text, r.gap, r.early], ["Close losses vs Dragapult: 5 of 5", 1, true]);
 });
 
 test("setup on time: the Pokémon that attacked most, in play by my turn 2", () => {
@@ -92,7 +92,7 @@ test("close losses per matchup, and at most 5 insights, largest gap first", () =
   assert.deepEqual(closeLosses(games, () => "Dragapult").map(r => r.text), ["Close losses vs Dragapult: 3 of 5"]);
   const all = playInsights(games, { replay: fakeReplay, deckName: () => "Dragapult" });
   assert.ok(all.length <= 5 && all.every((r, i) => !i || all[i - 1].gap >= r.gap));
-  assert.equal(all[0].text, "Going first 0–5 · going second 5–0");
+  assert.equal(all[0].text, "Close losses vs Dragapult: 3 of 5");
 });
 
 test("turning point: the last time the Prize count went from level or ahead to behind", () => {

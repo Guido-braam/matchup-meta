@@ -131,13 +131,11 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 #an-body { display: flex; flex-direction: column; gap: 10px; }
 .an-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; }
 .an-pick .gm-field { max-width: none; min-width: 0; }
-.an-sum { margin: 0; font-variant-numeric: tabular-nums; }
 .an-sep { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .an-h { margin: 0; font-size: 0.95rem; }
 .an-mus { display: flex; flex-direction: column; gap: 2px; }
 .an-mu { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .an-mu:hover, .an-mu.current { border-color: var(--line); background: var(--surface-2); }
-.an-prz { color: var(--muted); font-size: 0.9rem; }
 .an-bar { display: flex; gap: 2px; height: 22px; border-radius: 6px; overflow: hidden; }
 .an-seg { display: grid; place-items: center; min-width: 22px; font: 700 0.75rem var(--font-body); font-variant-numeric: tabular-nums; }
 .m-dominant-win { background: var(--good); color: var(--accent-fg); }

@@ -70,12 +70,6 @@ function startOfMyTurn(game, n) {
 // Prize cards I took minus those the opponent took, up to and including event k.
 const leadAt = (game, k) => game.events.slice(0, k + 1).reduce((s, e) => s + (e.type === "prize" ? (e.side === "me" ? e.count : -e.count) : 0), 0);
 
-export function firstOrSecond(games) {
-  const a = games.filter(g => g.game.wentFirst), b = games.filter(g => !g.game.wentFirst);
-  if (!enough(a, b)) return null;
-  return { text: `Going first ${record(wl(a))} · going second ${record(wl(b))}`, gap: Math.abs(share(a) - share(b)), early: early(a, b) };
-}
-
 // My Pokémon that attacked most often in these games (Knock Outs in the log do not name the attacker).
 export function mainPokemon(games) {
   const n = new Map();
@@ -131,7 +125,7 @@ export function closeLosses(games, deckName) {
 
 // The insights of a selection, largest gap first, at most MAX_INSIGHTS. replay: gamestate.js replay().
 export function playInsights(games, { replay, deckName }) {
-  return [firstOrSecond(games), setupOnTime(games, replay), prizeLeadByTurn(games), firstKnockOut(games), ...closeLosses(games, deckName)]
+  return [setupOnTime(games, replay), prizeLeadByTurn(games), firstKnockOut(games), ...closeLosses(games, deckName)]
     .filter(r => r && r.gap >= MIN_GAP).sort((a, b) => b.gap - a.gap).slice(0, MAX_INSIGHTS);
 }
 
