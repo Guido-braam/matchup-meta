@@ -126,6 +126,18 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 .pill.bad { color: var(--bad); background: color-mix(in oklab, var(--bad) 14%, transparent); }
 .gm-vs { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gm-meta { font-size: 0.82rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Analysis tab */
+.an-panel { display: flex; flex-direction: column; gap: 12px; }
+#an-body { display: flex; flex-direction: column; gap: 10px; }
+.an-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; }
+.an-pick .gm-field { max-width: none; min-width: 0; }
+.an-sum { margin: 0; font-variant-numeric: tabular-nums; }
+.an-sep { border: 0; border-top: 1px solid var(--line); margin: 2px 0; }
+.an-h { margin: 0; font-size: 0.95rem; }
+.an-mus { display: flex; flex-direction: column; gap: 2px; }
+.an-mu { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.an-mu:hover, .an-mu.current { border-color: var(--line); background: var(--surface-2); }
+.an-rec { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
 .lab-load { display: flex; flex-direction: column; gap: 8px; }
 .lab-save { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .lab-save-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

@@ -8,7 +8,7 @@ const fixture = name => JSON.parse(readFileSync(`${FIXTURES}/${name}`, "utf8"));
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const day = s => { const [y, m, d] = s.slice(0, 10).split("-").map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; };
 // The two tabs and the Ask Claude button in the header; My meta is a popup, not a view.
-const VIEWS = { tierlist: "#tab-tierlist", lab: "#tab-lab", advice: "#open-ask" };
+const VIEWS = { tierlist: "#tab-tierlist", lab: "#tab-lab", analysis: "#tab-analysis", advice: "#open-ask" };
 const metaDialog = page => page.locator("#dialog-meta");
 // A deck page is reached only by clicking a deck; it has no tab.
 const openDeck = async (page, name) => {
@@ -444,6 +444,38 @@ test("a game played with v1 stays on v1 after the list gets a v2, without a fals
   const dlg = page.locator("#gm-dialog");
   await expect(dlg.locator('select[data-gm="list"] option:checked')).toHaveText("Kangaskhan · v1");
   await expect(dlg.locator(".gm-msg.warn")).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+});
+
+// Saved games for the Analysis tab, imported as a backup: [log, version, opponent deck] each, log 1 a loss, 2 a win.
+const LOGS = { 1: "01-loss-prizes-no-codes.txt", 2: "02-win-concede-codes.txt" };
+const seedGames = async (page, specs, versions = 2) => {
+  const list = { id: "list-k", name: "Kangaskhan", deck: null, archived: false,
+    versions: Array.from({ length: versions }, (_, i) => ({ v: i + 1, text: "", cards: [], created: "2026-11-18" })) };
+  const games = specs.map(([log, v, opp], i) => ({ id: `g${i}`, schema: 1, parser: 0, added: `2026-11-18T10:${String(i).padStart(2, "0")}:00Z`,
+    raw: readFileSync(new URL(`../fixtures/battle-logs/${LOGS[log]}`, import.meta.url), "utf8"), listId: "list-k", listVersion: v, oppDeck: null, oppDeckSet: opp }));
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games }));
+  await expect(page.locator("#import-state")).toContainText("game");
+};
+
+test("Analysis: the pickers set the games, a matchup click sets the opponent", async ({ page, consoleErrors }) => {
+  await seedGames(page, [[2, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [2, 2, "n-zoroark"], [1, 2, ""]]);
+  await page.goto("/#analysis");
+  const sum = page.locator(".an-sum");
+  // Starts on the latest version: v2 has a win and a loss, both going second.
+  await expect(page.locator("#an-version")).toHaveValue("list-k|2");
+  await expect(sum).toHaveText("1–1 · going first 0–0 · going second 1–1");
+  await page.locator("#an-version").selectOption("list-k|all");
+  await expect(sum).toContainText(/^2–3 /);
+  await expect(page.locator(".an-mu").first()).toHaveText(/Dragapult\s*1–2/);
+  await page.locator(".an-mu").first().click();
+  await expect(page.locator("#an-opp")).toHaveValue("dragapult-ex");
+  await expect(sum).toContainText(/^1–2 /);
+  await page.locator("#an-opp").selectOption("~other");
+  await expect(sum).toContainText(/^0–1 /);
+  await page.locator("#an-opp").selectOption("");
+  await expect(sum).toContainText(/^2–3 /);
   expect(consoleErrors).toEqual([]);
 });
 

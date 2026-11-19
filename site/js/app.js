@@ -4,6 +4,7 @@ import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS } from "./calc.js";
 import { createGameStore, exportBackup, importBackup } from "./gamestore.js";
 import { deckOf, newList, saveVersion, latest } from "./mylists.js";
 import { initMyGames, LAST_EXPORT_KEY } from "./mygames.js";
+import { initAnalysis } from "./analysis.js";
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
 import { createAI } from "./ai.js";
@@ -63,6 +64,7 @@ const gameStore = createGameStore(); // My lists en games (IndexedDB); opent pas
 // De My games-tab (mygames.js). Pijlfuncties, want $, esc en L staan verderop in dit bestand.
 const myGames = initMyGames({ $: id => $(id), esc: s => esc(s), store: gameStore, storage, loadCardIndex: () => loadCardIndex(), labs: () => L, isCurrent: () => current === "games",
   listView: (cards, index, label) => cardGrid(cards, index) + exportBtn(cards, false, label) }); // a Regional list, as on the Deck tab
+const analysis = initAnalysis({ $: id => $(id), esc: s => esc(s), store: gameStore, storage, loadCardIndex: () => loadCardIndex(), labs: () => L });
 // Eigen Anthropic API key van de bezoeker; zonder key staan Advice en Deck chat uit (ADR 0002).
 let apiKey = null;
 const chatOn = () => !!apiKey;
@@ -716,9 +718,9 @@ function copyExport(btn) {
 }
 
 // ---------- Navigatie ----------
-// Drie vaste tabs; het deck is een pagina via de hash, met een tijdelijke Deck-tab.
+// Vier vaste tabs; het deck is een pagina via de hash, met een tijdelijke Deck-tab.
 // My meta en Ask Claude zijn popups (<dialog id="dialog-<naam>">) over de pagina.
-const TABS = ["tierlist", "lab", "games"];
+const TABS = ["tierlist", "lab", "games", "analysis"];
 const PAGES = [...TABS, "deck"];
 let current = "tierlist";
 function show(page) {
@@ -770,6 +772,7 @@ function go(h) {
 addEventListener("hashchange", route);
 function renderCurrent() {
   if (current === "games") { myGames.render(); return; }
+  if (current === "analysis") { analysis.render(); return; }
   if (current === "lab") { DeckLab.mount($("lab-host")); refreshMyLists(); if (D) { recompute(); renderLabSelect(); } return; }
   if (!D) return;
   recompute();

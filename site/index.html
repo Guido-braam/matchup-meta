@@ -19,6 +19,7 @@
       <button role="tab" id="tab-tierlist" data-tab="tierlist" aria-selected="true">Tier list</button>
       <button role="tab" id="tab-lab" data-tab="lab" aria-selected="false">Deck Lab</button>
       <button role="tab" id="tab-games" data-tab="games" aria-selected="false">My games</button>
+      <button role="tab" id="tab-analysis" data-tab="analysis" aria-selected="false">Analysis</button>
       <button role="tab" id="tab-deck" aria-selected="false" hidden>Deck</button>
     </nav>
     <div class="head-actions">
@@ -58,6 +59,16 @@
     <div class="panel">
       <h2 class="gm-h">Games <span class="gm-count" id="gm-count">0</span></h2>
       <div class="gm-list" id="gm-list"></div>
+    </div>
+  </section>
+
+  <section id="page-analysis" role="tabpanel" aria-labelledby="tab-analysis" hidden>
+    <div class="panel an-panel">
+      <div class="an-pick">
+        <label class="gm-field">Version<select id="an-version"></select></label>
+        <label class="gm-field">Opponent<select id="an-opp"></select></label>
+      </div>
+      <div id="an-body"></div>
     </div>
   </section>
 

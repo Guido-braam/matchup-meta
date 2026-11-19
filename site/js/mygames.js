@@ -81,6 +81,14 @@ export function refreshGame(g, index) {
   return r.ok ? { ...g, parser: PARSER_VERSION, game: r.game } : g;
 }
 
+// All saved games, those saved by an older parser read again and stored back.
+export async function currentGames(store, loadCardIndex) {
+  const games = await store.games();
+  if (!games.some(g => (g.parser || 0) < PARSER_VERSION)) return games;
+  const index = await loadCardIndex().catch(() => null);
+  return Promise.all(games.map(async g => { const n = refreshGame(g, index); if (n !== g) await store.putGame(n); return n; }));
+}
+
 // Keeping data on phones (ticket 11).
 // Remind to export when games were added after the last export, and that export is over 14 days old or never happened.
 // -> the number of games not in a backup, or 0 for no reminder. lastExport and now: ISO strings.
@@ -100,7 +108,7 @@ export function iosSafari({ userAgent = "", platform = "", maxTouchPoints = 0, s
 // ---------- View ----------
 // deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null, isCurrent: () => bool,
 //   listView: (cards, index, label) -> HTML of a Regional list}.
-const LAST_LIST_KEY = "matchup-meta-last-list";
+export const LAST_LIST_KEY = "matchup-meta-last-list";
 export const LAST_EXPORT_KEY = "matchup-meta-last-export", HOME_TIP_KEY = "matchup-meta-home-tip";
 export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCurrent, listView }) {
   let shown = null; // id of the game in the pop-up
@@ -184,11 +192,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
   const pct = p => (p == null ? "–" : Math.round(p * 100) + "%");
 
   async function render(msg = "") {
-    let [games, lists] = await Promise.all([store.games(), store.lists()]);
-    if (games.some(g => (g.parser || 0) < PARSER_VERSION)) {
-      const index = await loadCardIndex().catch(() => null);
-      games = await Promise.all(games.map(async g => { const n = refreshGame(g, index); if (n !== g) await store.putGame(n); return n; }));
-    }
+    let [games, lists] = await Promise.all([currentGames(store, loadCardIndex), store.lists()]);
     // Games pasted before their list was saved get it now.
     games = await Promise.all(games.map(async g => { const n = linkLater(g, lists, storage.read(LAST_LIST_KEY)); if (n !== g) await store.putGame(n); return n; }));
     games.sort((a, b) => b.added.localeCompare(a.added));
