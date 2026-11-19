@@ -525,6 +525,8 @@ test("the deck of a saved list can be set by hand in Deck Lab", async ({ page, c
   await page.goto("/#lab");
   await page.locator("#mylist-select").selectOption("list-d");
   await expect(page.locator("#ml-deck")).toHaveValue("dragapult-ex");
+  // All decks of the tier list, also those without Regionals lists.
+  await expect(page.locator("#ml-deck option[value=gengar-ex]")).toHaveCount(1);
   await page.locator("#ml-deck").selectOption("n-zoroark");
   await page.getByRole("button", { name: "Save to My lists" }).click();
   await expect(page.locator("#ml-state")).toContainText("Deck set to N's Zoroark.");

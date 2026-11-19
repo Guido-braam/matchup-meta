@@ -371,7 +371,7 @@ function renderSaveBar(msg = "") {
   const l = labList && listById(labList);
   $("ml-name").value = l ? l.name : "";
   // The deck of the list: picked by hand, or found from its Pokémon when left on Automatic.
-  const decks = [...(L?.archetypes || [])].sort((a, b) => a.name.localeCompare(b.name));
+  const decks = [...(D?.archetypes || L?.archetypes || [])].sort((a, b) => a.name.localeCompare(b.name));
   $("ml-deck").innerHTML = `<option value="">Deck: automatic</option>` + decks.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
   $("ml-deck").value = l?.deck && decks.some(a => a.id === l.deck) ? l.deck : "";
   $("ml-state").textContent = msg || (l ? `In My lists as ${listLabel(l)}${l.archived ? " (archived)" : ""}.` : "");
@@ -392,7 +392,7 @@ $("ml-save").addEventListener("click", async () => {
   const { text, cards } = await DeckLab.current();
   if (!text.trim()) return;
   const index = await loadCardIndex().catch(() => null);
-  const picked = L?.archetypes.find(a => a.id === $("ml-deck").value);
+  const picked = (D?.archetypes || L?.archetypes)?.find(a => a.id === $("ml-deck").value);
   const deck = picked ? { id: picked.id, name: picked.name } : deckOf(cards, L, index), name = $("ml-name").value.trim();
   const old = labList && listById(labList);
   let list, msg;
