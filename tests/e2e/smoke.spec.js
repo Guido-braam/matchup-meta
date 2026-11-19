@@ -591,6 +591,9 @@ test("a list saved to My lists comes back after a reload as it was saved, and ca
   await page.locator("#ml-save").click();
   await expect(page.locator("#ml-state")).toHaveText("Saved to My lists as My Dragapult · v1.");
   await expect(page.locator("#ml-manage")).toBeVisible();
+  // Saved, it moves under the heading of its deck: selected, at the top of the dropdown.
+  await expect(page.locator("#lab-arch-list option:checked")).toHaveText("My Dragapult · v1");
+  await expect(lab.locator("#src")).toHaveText("");
 
   await page.reload();
   await page.locator("#tab-lab").click();
@@ -598,7 +601,12 @@ test("a list saved to My lists comes back after a reload as it was saved, and ca
   const pick = page.locator("#mylist-select");
   await expect(pick.locator("option", { hasText: "My Dragapult · v1" })).toHaveCount(1);
   await pick.selectOption({ label: "My Dragapult · v1" });
-  await expect(lab.locator("#src")).toHaveText("My Dragapult · v1");
+  // It opens under the heading of its deck, at the top of the dropdown, without a second label.
+  const head = page.locator("#lab-arch");
+  await expect(head.locator("h2")).toHaveText("Dragapult");
+  await expect(head.locator("#lab-arch-list option").first()).toHaveText("My Dragapult · v1");
+  await expect(head.locator("#lab-arch-list option:checked")).toHaveText("My Dragapult · v1");
+  await expect(lab.locator("#src")).toHaveText("");
   await expect(page.locator("#ml-state")).toHaveText("In My lists as My Dragapult · v1.");
   // The saved list comes back line for line: Export gives the imported text.
   await lab.locator("#btn-export").click();
@@ -606,9 +614,10 @@ test("a list saved to My lists comes back after a reload as it was saved, and ca
 
   // No games yet, so an edit (− on Dreepy) changes v1 itself.
   await lab.getByRole("button", { name: "Remove one Dreepy", exact: true }).click();
-  await expect(lab.locator("#src")).toHaveText("My Dragapult · v1 (edited)");
+  await expect(lab.locator("#src")).toHaveText("Edited");
   await page.locator("#ml-save").click();
   await expect(page.locator("#ml-state")).toHaveText("Saved My Dragapult · v1.");
+  await expect(lab.locator("#src")).toHaveText(""); // saved: no "Edited" any more
   await lab.locator("#btn-export").click();
   expect(await clipboard(page)).toBe(PASTED_LIST.replace("Pokémon: 20\n4 Drakloak ASC 159\n4 Dreepy", "Pokémon: 19\n4 Drakloak ASC 159\n3 Dreepy").replace("Total Cards: 60", "Total Cards: 59"));
 

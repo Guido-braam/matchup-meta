@@ -413,7 +413,6 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
   <aside class="side">
     <div class="panel col">
       <slot name="arch"></slot>
-      <div class="count-bar full-only" id="total-badge" role="status" hidden></div>
       <div class="row io"><button class="btn primary" type="button" id="btn-import">Import deck</button><button class="btn" type="button" id="btn-export">Export deck</button><button class="btn full-only" type="button" id="btn-clear">Clear</button></div>
       <p class="hint" id="io-state" role="status"></p>
       <p class="hint or">or</p>
@@ -421,6 +420,7 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
       <p class="hint" id="src"></p>
     </div>
     <div class="panel full-only"><slot name="save"></slot></div>
+    <div class="count-bar full-only" id="total-badge" role="status" hidden></div>
     <div class="panel full-only">
       <div class="cardlist" id="cardlist"></div>
     </div>
@@ -611,7 +611,8 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
   }
   // After an edit in Deck Lab itself (− / + and adding cards): the label gets "(edited)" and the page hears "lab-edit".
   function edited(){
-    if (srcLabel && !srcLabel.endsWith("(edited)")) srcLabel += " (edited)";
+    // Without a label (a list under the heading of its deck) an edit still shows: "Edited".
+    if (!srcLabel) srcLabel = "Edited"; else if (!/\(edited\)$|^Edited$/.test(srcLabel)) srcLabel += " (edited)";
     root.host.dispatchEvent(new CustomEvent("lab-edit"));
     return load();
   }

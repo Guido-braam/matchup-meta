@@ -365,7 +365,7 @@ async function refreshMyLists() {
   sel.innerHTML = `<option value="">Open one of My lists…</option>` + active.map(opt).join("") +
     (archived.length ? `<optgroup label="Archived">${archived.map(opt).join("")}</optgroup>` : "");
   sel.hidden = !myLists.length;
-  renderSaveBar();
+  renderSaveBar(); renderLabArch();
 }
 function renderSaveBar(msg = "") {
   const l = labList && listById(labList);
@@ -392,7 +392,7 @@ $("lab-host").addEventListener("lab-source", () => { labList = null; labSel = nu
 $("lab-host").addEventListener("lab-edit", () => { if (!labList && !$("ml-deck").value) guessDeck(); });
 
 // Deck Lab heading after Load a deck archetype: the deck, and which of its lists is loaded with the others to pick.
-let labArch = null;        // {i: deck index, k: list index in archLists} or null
+let labArch = null;        // {i: deck index, v: "<index in archLists>" or "m:<id in My lists>"} or null
 function archLists(a) {
   const l = L && labsById.get(a.id);
   if (!l?.lists.length) return [];
@@ -404,26 +404,41 @@ function openArch(i, k = 0) {
   const a = D.archetypes[i], o = archLists(a)[k];
   if (!o) return false;
   DeckLab.open($("lab-host"), exportText(o.cards), ""); // no label: the heading names the list; lab-source clears the heading first
-  labSel = i; labArch = { i, k }; renderLabArch(); guessDeck();
+  labSel = i; labArch = { i, v: String(k) }; renderLabArch(); guessDeck();
   return true;
+}
+// A list from My lists in Deck Lab: under the heading of its deck (the dropdown selects it), else with its name as label.
+function showMine(l) {
+  const i = D ? D.archetypes.findIndex(a => a.id === l.deck) : -1;
+  labList = l.id;
+  if (i < 0) { labArch = null; DeckLab.label(listLabel(l)); } else { labSel = i; labArch = { i, v: `m:${l.id}` }; DeckLab.label(""); }
+  renderLabArch(); renderLabSelect();
+}
+function openMine(l) {
+  DeckLab.open($("lab-host"), latest(l).text, ""); // lab-source clears the heading and labList first
+  showMine(l); renderSaveBar();
 }
 function renderLabArch() {
   const box = $("lab-arch");
   box.hidden = !labArch || !D;
   if (box.hidden) return;
   const a = D.archetypes[labArch.i];
-  box.innerHTML = `<h2>${esc(a.name)}</h2><select id="lab-arch-list" aria-label="List of ${esc(a.name)}">${archLists(a).map((o, k) =>
-    `<option value="${k}">${esc(o.label)}</option>`).join("")}</select>`;
-  $("lab-arch-list").value = String(labArch.k);
+  // My lists of this deck first (the one in Deck Lab also when archived), then the lists from the data.
+  const own = myLists.filter(l => l.deck === a.id && (!l.archived || l.id === labList));
+  const lists = archLists(a).map((o, k) => `<option value="${k}">${esc(o.label)}</option>`).join("");
+  box.innerHTML = `<h2>${esc(a.name)}</h2><select id="lab-arch-list" aria-label="List of ${esc(a.name)}">${own.length
+    ? `<optgroup label="My lists">${own.map(l => `<option value="m:${esc(l.id)}">${esc(listLabel(l))}</option>`).join("")}</optgroup><optgroup label="Lists">${lists}</optgroup>`
+    : lists}</select>`;
+  $("lab-arch-list").value = labArch.v;
 }
-$("lab-arch").addEventListener("change", e => { if (labArch) openArch(labArch.i, Number(e.target.value)); });
+$("lab-arch").addEventListener("change", e => {
+  const v = e.target.value, l = v.startsWith("m:") && listById(v.slice(2));
+  if (l) openMine(l); else if (labArch) openArch(labArch.i, Number(v));
+});
 $("mylist-select").addEventListener("change", e => {
   const l = listById(e.target.value);
   e.target.value = "";
-  if (!l) return;
-  DeckLab.open($("lab-host"), latest(l).text, listLabel(l));
-  renderLabSelect();
-  labList = l.id; renderSaveBar();
+  if (l) openMine(l);
 });
 $("ml-save").addEventListener("click", async () => {
   const { text, cards } = await DeckLab.current();
@@ -447,8 +462,8 @@ $("ml-save").addEventListener("click", async () => {
   }
   if (!(await gameStore.putList(list))) return renderSaveBar("Could not save: this browser does not allow storage for this site.");
   labList = list.id;
-  DeckLab.label(listLabel(list));
   await refreshMyLists();
+  showMine(list); // the saved list goes under the heading of its deck, at the top of the dropdown
   renderSaveBar(msg);
 });
 $("ml-archive").addEventListener("click", async () => {
@@ -474,6 +489,7 @@ $("ml-delete").addEventListener("click", async e => {
   if (!(await gameStore.deleteList(l.id))) return renderSaveBar("Could not delete: this browser does not allow storage for this site.");
   labList = null;
   DeckLab.label("");
+  if (labArch?.v.startsWith("m:")) labArch = null;
   await refreshMyLists();
   renderSaveBar(`Deleted ${l.name} from My lists.`);
 });
