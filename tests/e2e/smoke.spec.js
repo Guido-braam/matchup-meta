@@ -468,7 +468,7 @@ test("Analysis: the pickers set the games, a matchup click sets the opponent", a
   await expect(page.locator("#an-version")).toHaveValue("list-k|2");
   await expect(fs).toHaveText("Going first 0–0 · going second 1–1");
   // The win (2–0, opponent conceded) is Dominant, the loss (3–6 on Prize cards) Clear.
-  await expect(prz).toHaveText("Prize cards per game: you 2.5 · opponent 3.0");
+  await expect(prz).toHaveText("Prize cards per game: you 4.5 · opponent 3.0");
   await expect(page.locator(".an-seg")).toHaveText(["1", "1"]);
   await expect(page.locator(".an-seg").first()).toHaveAttribute("title", "Dominant win: 1");
   // Too few games for more insights: a warning below the two lines.

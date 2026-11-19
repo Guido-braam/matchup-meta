@@ -42,6 +42,10 @@ test("prize stats: averages, close games, count per class", () => {
   const s = prizeStats([p("win", 6, 5), p("loss", 5, 6), p("win", 6, 0)]);
   assert.deepEqual([s.me, s.opp, s.close], [17 / 3, 11 / 3, 2]);
   assert.equal(s.classes["Dominant win"], 1);
+  // A concession: the winner counts 6, the other keeps what they took.
+  const c = (result, me, opp) => ({ game: { result, reason: "concede", prizes: { me, opp } } });
+  const t = prizeStats([c("win", 2, 1), c("loss", 3, 4)]);
+  assert.deepEqual([t.me, t.opp], [(6 + 3) / 2, (1 + 6) / 2]);
 });
 
 // Made-up games with a few events. Each game has my turns 1-4 and the opponent's turns 1-3 in order.
