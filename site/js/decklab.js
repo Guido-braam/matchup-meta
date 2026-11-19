@@ -1,6 +1,6 @@
 // ---------- Deck Lab: kansen en testhanden voor één decklijst ----------
 // Draait in een eigen shadow root, zodat de stijlen niet botsen met de rest van de pagina.
-import { findCard, loadCardIndex, cardTile } from "./cards.js";
+import { findCard, loadCardIndex, cardTile, cardById, norm } from "./cards.js";
 
 // ---------- Rows: de lijst zelf ----------
 // Deck Lab bewaart de lijst als rows {count, name, set, num, cat}, één per regel zoals hij binnenkwam,
@@ -57,8 +57,10 @@ export function serialize(rows){
 function cardOfRow(index, r){
   const typed = typedName(r.name), card = findCard(index, r.set, r.num, typed);
   const name = card ? card.name : typed, cat = card ? CAT_OF[card.category] : null;
-  return {card, name, cat, key: cat + "|" + name.toLowerCase()};
+  return {card, name, cat, key: keyOf(cat, name)};
 }
+// "Basic Fire Energy" and "Fire Energy" are the same card.
+const keyOf = (cat, name) => cat + "|" + (cat === "energy" ? name.toLowerCase().replace(/^basic /, "") : name.toLowerCase());
 
 // ---------- Deckregels ----------
 // + mag tot 4 per naam (over alle prints), basis-Energy zonder maximum; een niet-herkende regel krijgt geen +.
@@ -79,6 +81,34 @@ export function bump(rows, index, key, d){
   return out[i].count > 0 ? out : out.filter((_, j) => j !== i);
 }
 
+// ---------- Add a card ----------
+// Search the rows of cards/search.json in one category: every word must be in the name, text, types or stage/type
+// (without accents). Name matches first, then A–Z; at most max rows, total is the number of matches.
+const hayOf = r => norm([r.name, r.text, ...(r.types || []), r.stage?.replace(/(\d)/, " $1"), r.trainerType, r.energyType].filter(Boolean).join(" "));
+export function searchCards(list, cat, query, max = 50){
+  const words = norm(query).split(" ").filter(Boolean);
+  const hits = list.filter(r => { if (CAT_OF[r.category] !== cat) return false; const h = hayOf(r); return words.every(w => h.includes(w)); });
+  const inName = r => words.length && words.every(w => norm(r.name).includes(w)) ? 0 : 1;
+  hits.sort((a, b) => inName(a) - inName(b) || a.name.localeCompare(b.name));
+  return {total: hits.length, rows: hits.slice(0, max)};
+}
+// Set code and number of a Card id for a list line ("sv06-017" -> TWM 17); no code known: no set.
+export function printOf(index, id){
+  const k = id.lastIndexOf("-"), setId = id.slice(0, k), num = id.slice(k + 1).replace(/^0+(?=.)/, "");
+  const code = Object.keys(index?.sets || {}).find(c => index.sets[c].some(s => s.id === setId));
+  return code ? {set: code, num} : {set: "", num: ""};
+}
+export const searchKey = s => keyOf(CAT_OF[s.category], s.name);
+// Add one of a search row. Trainer and Energy: +1 on the entry with that name. Pokémon: +1 on a row of this very
+// Card, else a new row, so another version with the same name (Applin Grass / Dragon) gets its own line.
+// ponytail: an older print of the same Pokémon also gets a new line; compare card text if that bothers.
+export function addRow(rows, index, s){
+  const cat = CAT_OF[s.category], key = searchKey(s);
+  const i = rows.findIndex(r => { const c = cardOfRow(index, r); return c.key === key && (cat !== "pokemon" || c.card?.id === s.id); });
+  if (i >= 0) return rows.map((r, j) => j === i ? {...r, count: r.count + 1} : r);
+  return [...rows, {count: 1, name: s.name, ...printOf(index, s.id), cat}];
+}
+
 export const DeckLab = (() => {
   // Items (en Artazon) waarmee je zonder Supporter Pokémon op je bank krijgt.
   // Dit is strategie, geen kaartdata: de Card index zegt niet welke Items Pokémon zoeken, dus deze lijst blijft.
@@ -86,6 +116,7 @@ export const DeckLab = (() => {
   const CAT_LABEL = {pokemon:"Pokémon",trainer:"Trainer",energy:"Energy"};
   const SUB_LABEL = {item:"Item",supporter:"Supporter",tool:"Tool",stadium:"Stadium",basic:"Basic",special:"Special"};
   const STAGE_LABEL = ["Basic","Stage 1","Stage 2"];
+  const addTitle = cat => `Add ${cat === "energy" ? "an" : "a"} ${CAT_LABEL[cat]} card`;
   const TURNS = 5, N_SIM = 20000, N_QUICK = 10000;
 
   const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -343,7 +374,26 @@ details[open]>summary.zone-t::before{content:"▾"}
 .ctile .ft{padding:3px 5px 4px;font-size:9px;color:var(--muted);text-align:center}
 .card.sm .nm{font-size:8.5px}
 .card.sm .art{font-size:16px}
-.card.sm .ft{display:none}`;
+.card.sm .ft{display:none}
+/* [+] at the end of each block: opens Add a card. */
+.add-tile{aspect-ratio:63/88;width:100%;border:2px dashed var(--line);border-radius:6px;background:none;font-size:24px;font-weight:700;color:var(--muted)}
+.add-tile:hover{border-color:var(--accent);color:var(--accent)}
+/* Add a card: the list scrolls, the search box stays. Full screen on a phone. */
+#add{height:min(720px,calc(100dvh - 32px));max-height:none}
+#add>form{height:100%}
+.add-list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;margin:0 -6px;padding:0 6px}
+.add-it{display:grid;grid-template-columns:52px minmax(0,1fr) 112px;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.add-it .ctile:has(img):hover{transform:none;box-shadow:none}
+.add-info{display:flex;flex-direction:column;min-width:0;font-size:13px}
+.add-info .hint{font-size:11.5px}
+.add-txt{font-size:11.5px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.add-it .pm{align-items:center}
+.add-it .pm .num{min-width:22px;text-align:center;font-weight:700}
+input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;background:var(--sunk);padding:9px 10px}
+@media (max-width:560px){#add{width:100vw;max-width:100vw;height:100dvh;margin:0;border-radius:0}.add-it{grid-template-columns:44px minmax(0,1fr) 104px;gap:8px}}
+/* Click zoom (cards.js) inside a pop-up here; the same as .card-zoom in style.css. */
+.card-zoom{position:fixed;inset:0;z-index:300;display:grid;place-items:center;padding:6px;background:rgb(0 0 0/.85)}
+.card-zoom img{width:min(100%,calc((100dvh - 12px) * 63 / 88));height:auto;border-radius:12px}`;
 
   const MARKUP = `
 <div class="layout">
@@ -369,6 +419,12 @@ details[open]>summary.zone-t::before{content:"▾"}
   <textarea id="imp-text" spellcheck="false" aria-label="List to import"></textarea>
   <p class="hint" id="imp-state" role="status"></p>
   <div class="row"><button class="btn" type="button" id="btn-paste">Paste from clipboard</button><button class="btn primary" type="button" id="imp-go">Import</button></div>
+</form></dialog>
+<dialog id="add" aria-labelledby="add-t"><form method="dialog" class="col">
+  <div class="row" style="justify-content:space-between"><h2 id="add-t">Add a card</h2><button class="x" value="cancel" aria-label="Close">×</button></div>
+  <input id="add-q" type="search" autocomplete="off" spellcheck="false" placeholder="Search name, text or type" aria-label="Search cards">
+  <p class="hint" id="add-state" role="status"></p>
+  <div class="add-list" id="add-list"></div>
 </form></dialog>`;
 
   let root = null, rows = [], rowsReady = Promise.resolve(), entries = [], TH = null, srcLabel = "";
@@ -391,7 +447,7 @@ details[open]>summary.zone-t::before{content:"▾"}
         const pm = `<div class="pm"><button type="button" data-pm="-1" data-key="${k}" aria-label="Remove one ${n}">−</button>`
           + (cat ? `<button type="button" data-pm="1" data-key="${k}" aria-label="Add one ${n}"${canAdd(e) ? "" : " disabled"}>+</button>` : "") + "</div>";
         return `<div class="cl-row">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}${pm}</div>`;
-      }).join("")}</div>`;
+      }).join("")}${cat ? `<div class="cl-row"><button type="button" class="add-tile" data-add="${cat}" aria-label="${addTitle(cat)}">+</button></div>` : ""}</div>`;
     }
     $("#cardlist").innerHTML = html;
   }
@@ -538,6 +594,35 @@ details[open]>summary.zone-t::before{content:"▾"}
     root.host.dispatchEvent(new CustomEvent("lab-edit"));
     return load();
   }
+  // ---------- Add a card ----------
+  let searchReq = null, addCat = null, shown = [];
+  const loadSearch = () => searchReq ??= fetch("cards/search.json").then(r => r.ok ? r.json() : []).catch(() => []);
+  function openAdd(cat){
+    [...document.querySelectorAll("dialog[open]"), ...root.querySelectorAll("dialog[open]")].forEach(d => d.close()); // one pop-up at a time
+    addCat = cat; $("#add-t").textContent = addTitle(cat);
+    $("#add-q").value = ""; $("#add-list").innerHTML = ""; $("#add-state").textContent = "";
+    $("#add").showModal(); $("#add-q").focus();
+    renderResults();
+  }
+  // The results for the search box. A slower earlier search does not overwrite a newer one.
+  let searchRun = 0;
+  async function renderResults(){
+    const run = ++searchRun, [list, index] = await Promise.all([loadSearch(), loadCardIndex()]);
+    if (run !== searchRun) return;
+    const {total, rows: hits} = searchCards(list, addCat, $("#add-q").value);
+    shown = hits;
+    $("#add-state").textContent = !list.length ? "Could not load the cards. Try again later."
+      : !total ? "No cards found." : total > hits.length ? `Showing ${hits.length} of ${total}, refine your search.` : "";
+    const sub = s => s.category === "Pokemon" ? [STAGE_LABEL[{Stage1: 1, Stage2: 2}[s.stage] ?? 0], (s.types || []).join("/"), s.hp ? s.hp + " HP" : ""].filter(Boolean).join(" · ")
+      : s.category === "Trainer" ? (s.trainerType || "Item") : s.energyType === "Special" ? "Special Energy" : "Basic Energy";
+    $("#add-list").innerHTML = hits.map(s => {
+      const e = entries.find(x => x.key === searchKey(s)), n = e ? e.count : 0, p = printOf(index, s.id), nm = esc(s.name), id = esc(s.id);
+      return `<div class="add-it">${cardTile(cardById(index, s.id), {name: s.name, cat: addCat})}
+        <div class="add-info"><b>${nm}</b><span class="hint">${esc(sub(s))}${p.set ? ` · <span class="num">${esc(p.set + " " + p.num)}</span>` : ""}</span><span class="add-txt">${esc((s.text || "").replace(/\s+/g, " "))}</span></div>
+        <div class="pm"><button type="button" data-pm="-1" data-id="${id}" aria-label="Remove one ${nm}"${n ? "" : " disabled"}>−</button><span class="num">${n}</span><button type="button" data-pm="1" data-id="${id}" aria-label="Add one ${nm}"${!e || canAdd(e) ? "" : " disabled"}>+</button></div></div>`;
+    }).join("");
+  }
+
   function mount(host, skipLoad = false){
     if (root) return;
     root = host.attachShadow({mode: "open"});
@@ -555,6 +640,7 @@ details[open]>summary.zone-t::before{content:"▾"}
     $("#imp-go").onclick = () => doImport(impText.value);
     // − / + in the card list. The list is drawn again, so the focus goes back to the same button (or its partner).
     $("#cardlist").addEventListener("click", async e => {
+      const a = e.target.closest("button[data-add]"); if (a) return openAdd(a.dataset.add);
       const b = e.target.closest("button[data-pm]"); if (!b || b.disabled) return;
       const {key, pm} = b.dataset;
       rows = bump(rows, await loadCardIndex(), key, +pm);
@@ -575,6 +661,20 @@ details[open]>summary.zone-t::before{content:"▾"}
       b.textContent = "Copied"; setTimeout(() => { b.textContent = "Export deck"; }, 1500);
     };
     $("#btn-clear").onclick = () => setList("", "");
+    // Add a card: search, then − / + per result; the pop-up stays open while you add.
+    const add = $("#add"), addQ = $("#add-q"), addList = $("#add-list");
+    addQ.addEventListener("input", renderResults);
+    addQ.addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); }); // Enter would close the form
+    add.addEventListener("close", () => $(`button[data-add="${addCat}"]`)?.focus());
+    addList.addEventListener("click", async e => {
+      const b = e.target.closest("button[data-pm]"); if (!b || b.disabled) return;
+      const s = shown.find(r => r.id === b.dataset.id), pm = b.dataset.pm, index = await loadCardIndex();
+      rows = pm === "1" ? addRow(rows, index, s) : bump(rows, index, searchKey(s), -1);
+      await edited();
+      const top = addList.scrollTop; await renderResults(); addList.scrollTop = top;
+      const sel = d => addList.querySelector(`button[data-id="${globalThis.CSS.escape(s.id)}"][data-pm="${d}"]:not(:disabled)`);
+      (sel(pm) || sel(-pm))?.focus();
+    });
     // Deck Lab begint altijd leeg; er wordt geen lijst bewaard tussen bezoeken.
     rows = []; srcLabel = "";
     if (!skipLoad) load();

@@ -690,6 +690,66 @@ test("− and + under each card change the list, with at most 4 per name and war
   expect(consoleErrors).toEqual([]);
 });
 
+test("[+] Trainer opens Add a card: a word from the card text finds it, + adds it and the pop-up stays open", async ({ page, context, consoleErrors }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/#lab");
+  const lab = page.locator("#lab-host"), add = lab.locator("#add");
+  await importList(page, PASTED_LIST);
+  await lab.getByRole("button", { name: "Add a Trainer card" }).click();
+  await expect(add).toBeVisible();
+  await expect(add.getByRole("heading")).toHaveText("Add a Trainer card");
+  await expect(lab.locator("#add-q")).toBeFocused();
+  await expect(lab.locator("#add-state")).toHaveText("Showing 50 of 63, refine your search.");
+  await expect(add.locator(".add-it b").first()).toHaveText("Acerola's Mischief"); // A–Z, Trainers only
+  // A card in the list shows its count; at 3 Boss's Orders + is still on.
+  await lab.locator("#add-q").fill("boss");
+  await expect(add.locator(".add-it")).toHaveCount(1);
+  await expect(add.locator(".add-it .pm .num")).toHaveText("3");
+  // Search on the card text: Hero's Cape "gets +100 HP".
+  await lab.locator("#add-q").fill("+100 hp");
+  await expect(add.locator(".add-it b")).toHaveText(["Hero's Cape"]);
+  await expect(add.locator(".add-it .hint").first()).toContainText("Tool · TEF 152");
+  await add.getByRole("button", { name: "Add one Hero's Cape" }).click();
+  await expect(add.locator(".add-it .pm .num")).toHaveText("1");
+  await expect(add).toBeVisible();
+  // Hero's Cape is an ACE SPEC, next to Unfair Stamp.
+  await expect(lab.locator("#total-badge")).toHaveText("61 / 60 cards. A deck needs exactly 60. 2 ACE SPEC cards. A deck may have only 1.");
+  await expect(lab.locator("#src")).toHaveText("Imported list (edited)");
+  // Enter in the search box does not close the pop-up; × does.
+  await lab.locator("#add-q").press("Enter");
+  await expect(add).toBeVisible();
+  await add.getByRole("button", { name: "Close" }).click();
+  await expect(add).toBeHidden();
+  await expect(lab.locator("#cardlist")).toContainText("Hero's Cape");
+  await lab.locator("#btn-export").click();
+  expect(await clipboard(page)).toContain("Trainer: 33\n");
+  expect(await clipboard(page)).toContain("\n1 Hero's Cape TEF 152\n");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("Add a card works with the keyboard only: Tab to [+], Enter, type, Tab to +, Enter, Esc", async ({ page, consoleErrors }) => {
+  await page.goto("/#lab");
+  const lab = page.locator("#lab-host"), add = lab.locator("#add"), tile = lab.getByRole("button", { name: "Add an Energy card" });
+  for (let i = 0; i < 40 && !(await tile.evaluate(el => el.getRootNode().activeElement === el)); i++) await page.keyboard.press("Tab");
+  await expect(tile).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(add).toBeVisible();
+  await expect(lab.locator("#add-q")).toBeFocused();
+  await page.keyboard.type("fire");
+  await expect(add.locator(".add-it b").first()).toHaveText("Fire Energy");
+  await page.keyboard.press("Tab"); // − is off at 0, so Tab lands on +
+  await expect(add.getByRole("button", { name: "Add one Fire Energy" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await expect(add.locator(".add-it .pm .num").first()).toHaveText("2");
+  await expect(add.getByRole("button", { name: "Add one Fire Energy" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(add).toBeHidden();
+  await expect(lab.getByRole("button", { name: "Add an Energy card" })).toBeFocused();
+  await expect(lab.locator(".cl-head")).toHaveText(["Pokémon0", "Trainer0", "Energy2"]);
+  expect(consoleErrors).toEqual([]);
+});
+
 test("an empty Deck Lab shows Import deck, the deck choice and the three empty blocks; Export and Clear wait for a list", async ({ page, consoleErrors }) => {
   await page.goto("/#lab");
   const lab = page.locator("#lab-host");

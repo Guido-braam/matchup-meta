@@ -2,7 +2,7 @@
 // findCard is puur (index erin, kaart eruit); loadCardIndex is de dunne lader eromheen.
 
 // Naam vergelijkbaar maken: kleine letters, zonder accenten en apostrofs, enkele spaties.
-const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+export const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
   .replace(/['’`]/g, "").replace(/\s+/g, " ").trim();
 
 // Levenshtein-afstand: het minste aantal letters invoegen, weglaten of vervangen.

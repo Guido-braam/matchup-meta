@@ -1,7 +1,7 @@
 // Deck Lab's rows: the shared line parser and serialize, on a small fixture Card index.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseLine, rowsFrom, serialize, canAdd, deckWarnings, bump } from "../../site/js/decklab.js";
+import { parseLine, rowsFrom, serialize, canAdd, deckWarnings, bump, searchCards, printOf, addRow } from "../../site/js/decklab.js";
 
 const INDEX = {
   sets: { ASC: [{ id: "me02", releaseDate: "2026-01-30" }], MEG: [{ id: "me01", releaseDate: "2025-09-26" }], PRSW: [] },
@@ -9,6 +9,7 @@ const INDEX = {
     "me02-158": { name: "Dreepy", category: "Pokemon", stage: "Basic", image: true },
     "me01-114": { name: "Boss's Orders", category: "Trainer", trainerType: "Supporter", image: true },
     "me01-200": { name: "Darkness Energy", category: "Energy", energyType: "Normal", image: true },
+    "sve-015": { name: "Basic Darkness Energy", category: "Energy", energyType: "Normal", image: true }, // older name of the same card
   },
 };
 
@@ -86,4 +87,53 @@ test("bump changes the first row of a card, over its prints, and drops a row at 
   // A line Deck Lab does not know goes by its own name.
   assert.equal(bump(rows, INDEX, "null|dudunsparce", -1).some(x => x.name === "Dudunsparce"), false);
   assert.equal(bump(rows, INDEX, "pokemon|nothing", 1), rows);
+});
+
+// ---------- Add a card ----------
+const SEARCH = [
+  { id: "me01-114", name: "Boss's Orders", category: "Trainer", trainerType: "Supporter", text: "Switch in 1 of your opponent's Benched Pokémon to the Active Spot." },
+  { id: "x-1", name: "Switch", category: "Trainer", trainerType: "Item", text: "Switch your Active Pokémon with 1 of your Benched Pokémon." },
+  { id: "x-2", name: "Pokégear 3.0", category: "Trainer", trainerType: "Item", text: "Look at the top 7 cards of your deck." },
+  { id: "me02-158", name: "Dreepy", category: "Pokemon", stage: "Basic", types: ["Dragon"], hp: 70, text: "Petty Grudge [P] 10" },
+  { id: "x-3", name: "Dreepy", category: "Pokemon", stage: "Basic", types: ["Dragon"], hp: 60, text: "Bite [R][P] 40" },
+  { id: "x-4", name: "Drakloak", category: "Pokemon", stage: "Stage1", types: ["Dragon"], hp: 90, text: "Recon Directive" },
+  { id: "me01-200", name: "Darkness Energy", category: "Energy", energyType: "Normal", text: "" },
+];
+const names = r => r.rows.map(x => x.name);
+
+test("searchCards: one category, every word in name, text or type, without accents", () => {
+  assert.deepEqual(names(searchCards(SEARCH, "trainer", "benched switch")), ["Boss's Orders", "Switch"]);
+  assert.deepEqual(names(searchCards(SEARCH, "trainer", "POKEGEAR")), ["Pokégear 3.0"]);
+  assert.deepEqual(names(searchCards(SEARCH, "trainer", "supporter")), ["Boss's Orders"]);
+  assert.deepEqual(names(searchCards(SEARCH, "pokemon", "stage 1 dragon")), ["Drakloak"]);
+  assert.deepEqual(names(searchCards(SEARCH, "pokemon", "nothing here")), []);
+  assert.deepEqual(names(searchCards(SEARCH, "energy", "")), ["Darkness Energy"]);
+});
+
+test("searchCards: name matches first, then A–Z; at most 50 with the total", () => {
+  // "switch" is in the name of Switch and in the text of Boss's Orders.
+  assert.deepEqual(names(searchCards(SEARCH, "trainer", "switch")), ["Switch", "Boss's Orders"]);
+  assert.deepEqual(names(searchCards(SEARCH, "trainer", "")), ["Boss's Orders", "Pokégear 3.0", "Switch"]);
+  const many = Array.from({ length: 120 }, (_, i) => ({ id: `y-${i}`, name: `Card ${String(i).padStart(3, "0")}`, category: "Trainer", text: "" }));
+  const r = searchCards(many, "trainer", "card");
+  assert.equal(r.total, 120); assert.equal(r.rows.length, 50); assert.equal(r.rows[0].name, "Card 000");
+});
+
+test("printOf: the set code of the Card's set and the number without leading zeros", () => {
+  assert.deepEqual(printOf(INDEX, "me02-058"), { set: "ASC", num: "58" });
+  assert.deepEqual(printOf(INDEX, "me01-000"), { set: "MEG", num: "0" });
+  assert.deepEqual(printOf(INDEX, "zz-5"), { set: "", num: "" });
+});
+
+test("addRow: +1 on the entry of that card, else a new row with set and number", () => {
+  const rows = rowsFrom(LIST, INDEX);
+  const boss = addRow(rows, INDEX, SEARCH[0]);
+  assert.deepEqual(boss.filter(r => r.name === "Boss's Orders").map(r => r.count), [3, 1]); // the first print, as +
+  // "Darkness Energy" is the same card as the list's "Basic {D} Energy".
+  assert.equal(addRow(rows, INDEX, SEARCH[6]).find(r => r.cat === "energy").count, 3);
+  assert.equal(addRow(rows, INDEX, SEARCH[3])[0].count, 5); // the same Dreepy
+  // Another Dreepy (other attacks) gets its own line; so does a card that is not in the list.
+  assert.deepEqual(addRow(rows, INDEX, SEARCH[4]).at(-1), { count: 1, name: "Dreepy", set: "", num: "", cat: "pokemon" });
+  assert.deepEqual(addRow([], INDEX, SEARCH[1]), [{ count: 1, name: "Switch", set: "", num: "", cat: "trainer" }]);
+  assert.equal(serialize(addRow([], INDEX, SEARCH[0])), "Trainer: 1\n1 Boss's Orders MEG 114\n\nTotal Cards: 1");
 });
