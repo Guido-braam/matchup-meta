@@ -81,10 +81,14 @@
         <select id="lab-select" aria-label="Load a deck archetype into Deck Lab" hidden></select>
         <button class="btn picker-btn" type="button" data-picker="lab-select" data-title="Load a deck archetype into Deck Lab" data-placeholder="Load a deck archetype…" aria-haspopup="dialog">Load a deck archetype…</button>
       </div>
-      <div slot="save" class="lab-save">
+      <div slot="save" class="panel lab-save" id="ml-save-box">
         <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Name (optional)" maxlength="60"><select id="ml-deck" aria-label="Deck of this list"></select><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>
         <p class="note" id="ml-state" role="status"></p>
         <div class="lab-save-row" id="ml-manage" hidden><button class="link-btn" type="button" id="ml-archive">Archive</button><button class="link-btn" type="button" id="ml-delete">Delete</button></div>
+      </div>
+      <!-- A list from My lists under its deck heading: only after a change, instead of the save block above. -->
+      <div slot="save" class="panel lab-save lab-changes" id="ml-changes" hidden>
+        <div class="lab-save-row"><p class="note">You changed this list.</p><button class="btn primary" type="button" id="ml-changes-btn">Save changes</button></div>
       </div>
     </div>
   </section>
@@ -138,6 +142,25 @@
     <p id="foot-updated">Loading data…</p>
   </footer>
 </div>
+
+<dialog class="dlg ml-dlg" id="ml-dialog" aria-labelledby="ml-dlg-title">
+  <div class="dlg-head">
+    <h2 id="ml-dlg-title">Save changes</h2>
+    <div class="ml-dlg-btns">
+      <button class="btn primary" type="button" id="ml-dlg-save">Save changes</button>
+      <button class="btn" type="button" id="ml-dlg-new" hidden>Save as new list</button>
+      <button class="dlg-x" type="button" data-close aria-label="Close">×</button>
+    </div>
+  </div>
+  <div class="dlg-body">
+    <div class="lab-save-row"><input id="ml-dlg-name" type="text" aria-label="Name of this list" maxlength="60"><select id="ml-dlg-deck" aria-label="Deck of this list"></select></div>
+    <div class="ml-diff">
+      <div><h3>Taken out</h3><ul id="ml-out"></ul></div>
+      <div><h3>Put in</h3><ul id="ml-in"></ul></div>
+    </div>
+    <p class="note" id="ml-dlg-state" role="status"></p>
+  </div>
+</dialog>
 
 <dialog class="dlg gm-dlg" id="gm-dialog" aria-labelledby="gm-dialog-title">
   <div class="dlg-head">

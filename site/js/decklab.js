@@ -419,7 +419,7 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
       <div class="empty-only"><slot name="load"></slot></div>
       <p class="hint" id="src"></p>
     </div>
-    <div class="panel full-only"><slot name="save"></slot></div>
+    <slot name="save" class="full-only"></slot>
     <div class="count-bar full-only" id="total-badge" role="status" hidden></div>
     <div class="panel full-only">
       <div class="cardlist" id="cardlist"></div>
