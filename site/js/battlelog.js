@@ -14,7 +14,8 @@
 // Bump when a change should apply to games already saved: they are read again from their raw log.
 // 2: attach and evolve keep where it happened (at: "Active Spot" | "Bench").
 // 3: every event keeps its line as `text` (bullet lines added below it), for the replay's log.
-export const PARSER_VERSION = 3;
+// 4: "All Prize cards taken. X wins." is a win on Prize cards (seen in real logs, Nov 2026).
+export const PARSER_VERSION = 4;
 
 const CODE_RE = /^\(([a-z0-9]+(?:-[a-z0-9]+)*_\d+[a-z]?(?:_[a-z0-9]+)*)\)\s*/i;
 
@@ -157,7 +158,7 @@ export function parseLog(raw, index = null) {
       if (r === "ended their turn.") return { type: "end", side };
     }
     if ((m = /(?:^|\. )([^.]+?) wins\.$/.exec(s)) && side(m[1])) {
-      const reason = /conceded\./.test(s) ? "concede" : /took all of their Prize cards/.test(s) ? "prizes" : "other";
+      const reason = /conceded\./.test(s) ? "concede" : /took all of their Prize cards|^All Prize cards taken\./.test(s) ? "prizes" : "other";
       return { type: "result", side: null, winner: side(m[1]), reason, text: s };
     }
     if ((m = /^(.+) was added to (.+)'s hand\.$/.exec(s)))

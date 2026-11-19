@@ -29,3 +29,21 @@ export function matchups(games) {
   return [...by].map(([deck, gs]) => ({ deck, ...wl(gs) }))
     .sort((a, b) => b.wins + b.losses - a.wins - a.losses || (a.deck ?? "~").localeCompare(b.deck ?? "~"));
 }
+
+// Margin class of a game, by the Prize lead of the winner at the end (spec "Margin class"). A concession is never
+// Close: a lead of 2 or more is Dominant win / Heavy loss, else Solid win / Clear loss.
+export const MARGINS = ["Dominant win", "Solid win", "Close win", "Close loss", "Clear loss", "Heavy loss"];
+export function margin(game) {
+  const { me, opp } = game.prizes, win = game.result === "win", lead = win ? me - opp : opp - me;
+  const k = game.reason === "concede" ? (lead >= 2 ? 0 : 1) : lead >= 4 ? 0 : lead >= 2 ? 1 : 2;
+  return MARGINS[win ? k : 5 - k];
+}
+// Average Prize cards taken per game, the number of close games, and the count per margin class.
+export function prizeStats(games) {
+  const n = games.length || 1, classes = Object.fromEntries(MARGINS.map(m => [m, 0]));
+  for (const g of games) classes[margin(g.game)]++;
+  return {
+    me: games.reduce((s, g) => s + g.game.prizes.me, 0) / n, opp: games.reduce((s, g) => s + g.game.prizes.opp, 0) / n,
+    close: classes["Close win"] + classes["Close loss"], classes,
+  };
+}

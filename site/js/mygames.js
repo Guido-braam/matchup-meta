@@ -6,7 +6,7 @@ import { latest } from "./mylists.js";
 import { reconstruct } from "./opponent.js";
 import { mountReplay } from "./replay.js";
 import { cardTile, cardById, findCard } from "./cards.js";
-import { norm } from "./insights.js";
+import { norm, margin } from "./insights.js";
 
 export const GAME_SCHEMA = 1;
 
@@ -149,7 +149,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
     const opp = g.oppDeckSet ?? g.oppDeck;
     const listOpts = lists.filter(l => !l.archived || l.id === g.listId)
       .map(l => `<option value="${esc(l.id)}"${l.id === g.listId ? " selected" : ""}>${esc(listText(l, g))}</option>`).join("");
-    return `<div class="gm-head"><span class="pill ${G.result === "win" ? "good" : "bad"}">${G.result === "win" ? "Win" : "Loss"}</span>
+    return `<div class="gm-head"><span class="pill ${G.result === "win" ? "good" : "bad"}">${margin(G)}</span>
         <span>${esc(reason)}</span><span>· went ${G.wentFirst ? "first" : "second"}</span><span>· ${G.turns} turns</span><span>· Prize cards ${G.prizes.me}–${G.prizes.opp}</span></div>
       <p class="gm-msg gm-meta">Added ${fmt(g.added)}</p>
       <hr class="gm-sep">
@@ -220,7 +220,7 @@ export function initMyGames({ $, esc, store, storage, loadCardIndex, labs, isCur
         <span>Page ${page + 1} of ${pages}</span>
         <button class="btn" type="button" data-page="${page + 1}"${page < pages - 1 ? "" : " disabled"}>Older →</button></div>`;
     $("gm-list").innerHTML = games.length ? games.slice(page * PER_PAGE, (page + 1) * PER_PAGE).map(x => `<button type="button" class="gm-row${x.id === shown ? " current" : ""}" data-game="${esc(x.id)}">
-        <span class="pill ${x.game.result === "win" ? "good" : "bad"}">${x.game.result === "win" ? "W" : "L"}</span>
+        <span class="pill ${x.game.result === "win" ? "good" : "bad"}">${margin(x.game)}</span>
         <span class="gm-vs">vs ${esc(deckName(x.oppDeckSet ?? x.oppDeck))}</span>
         <span class="gm-meta">${x.game.wentFirst ? "1st" : "2nd"} · ${esc(label(x))} · ${fmt(x.added)}</span></button>`).join("") + pager
       : `<p class="note">No games yet. Paste your first battle log above.</p>`;

@@ -375,7 +375,7 @@ test("a battle log pasted on My games is saved with my list, once", async ({ pag
   // The game opens in a pop-up titled Game #1, with the opponent's cards as tiles and one tile for the unknown cards.
   await expect(dlg).toBeVisible();
   await expect(dlg.locator("h2")).toHaveText("Game #1");
-  await expect(dlg).toContainText("Win");
+  await expect(dlg.locator(".gm-head .pill")).toHaveText("Dominant win"); // won 2–0 on Prize cards, then the opponent conceded
   await expect(dlg).toContainText("opponent conceded");
   await expect(dlg).toContainText("went second");
   await expect(dlg.locator('select[data-gm="list"]')).toHaveValue("list-k");
@@ -462,10 +462,14 @@ const seedGames = async (page, specs, versions = 2) => {
 test("Analysis: the pickers set the games, a matchup click sets the opponent", async ({ page, consoleErrors }) => {
   await seedGames(page, [[2, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [2, 2, "n-zoroark"], [1, 2, ""]]);
   await page.goto("/#analysis");
-  const sum = page.locator(".an-sum");
+  const sum = page.locator(".an-sum").first();
   // Starts on the latest version: v2 has a win and a loss, both going second.
   await expect(page.locator("#an-version")).toHaveValue("list-k|2");
   await expect(sum).toHaveText("1–1 · going first 0–0 · going second 1–1");
+  // The win (2–0, opponent conceded) is Dominant, the loss (3–6 on Prize cards) Clear.
+  await expect(page.locator(".an-prz")).toHaveText("Prize cards per game: you 2.5 · opponent 3.0 · close games 0 of 2");
+  await expect(page.locator(".an-seg")).toHaveText(["1", "1"]);
+  await expect(page.locator(".an-seg").first()).toHaveAttribute("title", "Dominant win: 1");
   await page.locator("#an-version").selectOption("list-k|all");
   await expect(sum).toContainText(/^2–3 /);
   await expect(page.locator(".an-mu").first()).toHaveText(/Dragapult\s*1–2/);

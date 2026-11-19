@@ -2,9 +2,12 @@
 // summary, the matchups and the insights of those games. The numbers come from insights.js.
 import { latest } from "./mylists.js";
 import { LAST_LIST_KEY, currentGames } from "./mygames.js";
-import { select, summary, matchups, record } from "./insights.js";
+import { select, summary, matchups, record, prizeStats, MARGINS } from "./insights.js";
 
 // deps: {$, esc, store, storage, loadCardIndex, labs: () => labs.json or null}.
+// CSS class of a margin class: "Close win" -> "m-close-win".
+export const marginCls = m => "m-" + m.toLowerCase().replace(" ", "-");
+
 export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs }) {
   let pick = null; // "listId|v" or "listId|all"
   let opp;         // undefined = all opponents, null = Other, else a deck id
@@ -41,8 +44,12 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs }) {
 
     const sel = opp === undefined ? mine : select(mine, { listId, v, opp });
     if (!sel.length) { $("an-body").innerHTML = `<p class="note">No games with this version yet.</p>`; return; }
-    const s = summary(sel);
+    const s = summary(sel), p = prizeStats(sel), d1 = x => x.toFixed(1);
+    // One block per margin class, as wide as its number of games; the name in the tooltip.
+    const bar = MARGINS.filter(m => p.classes[m]).map(m => `<span class="an-seg ${marginCls(m)}" style="flex-grow:${p.classes[m]}" title="${m}: ${p.classes[m]}">${p.classes[m]}</span>`).join("");
     $("an-body").innerHTML = `<p class="an-sum"><b>${record(s)}</b> · going first ${record(s.first)} · going second ${record(s.second)}</p>
+      <p class="an-sum an-prz">Prize cards per game: you ${d1(p.me)} · opponent ${d1(p.opp)} · close games ${p.close} of ${sel.length}</p>
+      <div class="an-bar" aria-label="${MARGINS.filter(m => p.classes[m]).map(m => `${m}: ${p.classes[m]}`).join(", ")}">${bar}</div>
       <hr class="an-sep">
       <h3 class="an-h">Matchups</h3>
       <div class="an-mus">${mus.map(m => `<button type="button" class="an-mu${m.deck === opp ? " current" : ""}" data-opp="${esc(oppValue(m.deck))}">

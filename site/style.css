@@ -137,6 +137,15 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 .an-mus { display: flex; flex-direction: column; gap: 2px; }
 .an-mu { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .an-mu:hover, .an-mu.current { border-color: var(--line); background: var(--surface-2); }
+.an-prz { color: var(--muted); font-size: 0.9rem; }
+.an-bar { display: flex; gap: 2px; height: 22px; border-radius: 6px; overflow: hidden; }
+.an-seg { display: grid; place-items: center; min-width: 22px; font: 700 0.75rem var(--font-body); font-variant-numeric: tabular-nums; }
+.m-dominant-win { background: var(--good); color: var(--accent-fg); }
+.m-solid-win { background: color-mix(in oklab, var(--good) 55%, var(--surface)); color: var(--fg); }
+.m-close-win { background: color-mix(in oklab, var(--good) 22%, var(--surface)); color: var(--fg); }
+.m-close-loss { background: color-mix(in oklab, var(--bad) 22%, var(--surface)); color: var(--fg); }
+.m-clear-loss { background: color-mix(in oklab, var(--bad) 55%, var(--surface)); color: var(--fg); }
+.m-heavy-loss { background: var(--bad); color: var(--accent-fg); }
 .an-rec { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
 .lab-load { display: flex; flex-direction: column; gap: 8px; }
 .lab-save { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
