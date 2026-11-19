@@ -258,6 +258,7 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 .btn:hover{border-color:var(--accent)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .cardlist{display:flex;flex-direction:column;gap:2px}
+#src:empty,#io-state:empty{display:none}
 .cl-head{display:flex;justify-content:space-between;margin-top:10px;padding-bottom:4px;border-bottom:1px solid var(--line)}
 .cl-head:first-child{margin-top:0}
 .count-bar{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad);border-radius:8px;padding:8px 12px;font-weight:600;font-size:13px}
@@ -411,14 +412,15 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
 <div class="layout">
   <aside class="side">
     <div class="panel col">
+      <slot name="arch"></slot>
       <div class="count-bar full-only" id="total-badge" role="status" hidden></div>
       <div class="row io"><button class="btn primary" type="button" id="btn-import">Import deck</button><button class="btn" type="button" id="btn-export">Export deck</button><button class="btn full-only" type="button" id="btn-clear">Clear</button></div>
       <p class="hint" id="io-state" role="status"></p>
       <p class="hint or">or</p>
       <div class="empty-only"><slot name="load"></slot></div>
       <p class="hint" id="src"></p>
-      <div class="full-only"><slot name="save"></slot></div>
     </div>
+    <div class="panel full-only"><slot name="save"></slot></div>
     <div class="panel full-only">
       <div class="cardlist" id="cardlist"></div>
     </div>

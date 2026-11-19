@@ -403,7 +403,7 @@ function archLists(a) {
 function openArch(i, k = 0) {
   const a = D.archetypes[i], o = archLists(a)[k];
   if (!o) return false;
-  DeckLab.open($("lab-host"), exportText(o.cards), `${a.name} · ${o.label}`); // lab-source clears the heading first
+  DeckLab.open($("lab-host"), exportText(o.cards), ""); // no label: the heading names the list; lab-source clears the heading first
   labSel = i; labArch = { i, k }; renderLabArch(); guessDeck();
   return true;
 }

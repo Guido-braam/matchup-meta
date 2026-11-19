@@ -810,7 +810,8 @@ test("after Load a deck archetype a heading names the loaded list, and its dropd
   await expect(page.locator("#ml-deck")).toHaveValue("dragapult-ex");
   await expect(page.locator("#ml-deck option", { hasText: /automatic/i })).toHaveCount(0);
   await pick.selectOption({ label: "2nd of 7 · Baltimore" });
-  await expect(lab.locator("#src")).toHaveText("Dragapult · 2nd of 7 · Baltimore");
+  await expect(lab.locator("#src")).toHaveText(""); // the heading names the list, no second label under it
+  await expect(lab.locator("#lab-arch")).toBeVisible(); // inside Deck Lab, in the block with Import / Export
   await expect(pick.locator("option:checked")).toHaveText("2nd of 7 · Baltimore");
   // Another source (Clear) takes the heading away.
   await lab.locator("#btn-clear").click();
