@@ -30,6 +30,8 @@ Schrijft naar <out>:
                alleen als true (rarity "ACE SPEC Rare"), fancy alleen als true (rarity in FANCY),
                image altijd (true als het plaatje er is)
         energyArt  naam van een basis-Energy -> TCGdex-id van zijn gewone plaatje (ENERGY_ART, Crown Zenith)
+    search.json               het zoekbestand van Deck Lab (search_rows): per Standard-legale kaartversie
+                              {id, name, category, stage, trainerType, energyType, aceSpec, types, hp, text}
 """
 import argparse
 import json
@@ -155,7 +157,46 @@ def fetch_set(set_id, out, legal, pool):
     done = list(pool.map(one, info["cards"]))
     write_json(os.path.join(out, f"{set_id}.json"), strip({**info, "cards": [c for c, _ in done]}))
     print(f"{set_id}: {len(done)} kaarten, {new['cards']} nieuw, {new['images']} nieuwe plaatjes", flush=True)
-    return info, {c["id"]: index_entry(c, has_image) for c, has_image in done}
+    return info, {c["id"]: index_entry(c, has_image) for c, has_image in done}, [c for c, _ in done]
+
+
+def card_text(card):
+    """Abilities, aanvallen en effect op één regel, zoals cardText in site/js/cards.js (zonder naam en vaste velden)."""
+    cost = lambda a: f" [{''.join(t[0] for t in a['cost'])}]" if a.get("cost") else ""
+    return " · ".join(filter(None, [
+        *(f"{a.get('type') or 'Ability'} {a.get('name')}: {a.get('effect')}" for a in card.get("abilities") or []),
+        *(f"{a.get('name')}{cost(a)}{' ' + str(a['damage']) if a.get('damage') else ''}"
+          f"{': ' + a['effect'] if a.get('effect') else ''}" for a in card.get("attacks") or []),
+        card.get("effect"),
+    ]))
+
+
+def search_rows(cards, released):
+    """Het zoekbestand van Deck Lab: één rij per gameplay-versie, alleen als een print van die versie
+    Standard-legaal is (legaal op naam, ADR 0005). Een versie is bij Pokémon dezelfde naam en kaarttekst; bij
+    Trainer en Energy alleen de naam (reprints verschillen soms in woorden of missen hun tekst op TCGdex;
+    "Basic Grass Energy" is Grass Energy). De rij wijst naar de nieuwste gewone (niet-fancy) print, bij gelijke
+    datum het laagste id; de tekst is die van de nieuwste print die er een heeft. released: set id -> releaseDate."""
+    groups = {}
+    for c in sorted(cards, key=lambda c: c["id"]):
+        key = (c["name"], card_text(c)) if c.get("category") == "Pokemon" else (re.sub(r"^Basic ", "", c["name"]), "")
+        groups.setdefault(key, []).append(c)
+    date = lambda c: released.get(c["id"].rsplit("-", 1)[0]) or ""
+    rows = []
+    for prints in groups.values():
+        if not any((c.get("legal") or {}).get("standard") for c in prints):
+            continue
+        # max geeft bij gelijke sleutel de eerste: het laagste id
+        c = max(prints, key=lambda c: (c.get("rarity") not in FANCY, date(c)))
+        text = card_text(c) or max((card_text(p) for p in sorted(prints, key=date, reverse=True)), key=bool)
+        e = index_entry(c, False)
+        row = {"id": c["id"], **{k: v for k, v in e.items() if k not in ("image", "fancy")}}
+        for k in ("types", "hp"):
+            if c.get(k):
+                row[k] = c[k]
+        row["text"] = text
+        rows.append(row)
+    return sorted(rows, key=lambda r: (r["name"], r["id"]))
 
 
 def unknown_cards(labs, index):
@@ -185,11 +226,13 @@ def main(argv=None):
         set_ids = [s["id"] for serie in SERIES for s in api(f"series/{serie}")["sets"]]
         legal = {name: {c["id"] for c in api(f"cards?legal.{name}=true")} for name in ("standard", "expanded")}
         print(f"{len(set_ids)} sets in {', '.join(SERIES)}", flush=True)
-        sets, cards = {}, {}
+        sets, cards, full, released = {}, {}, [], {}
         with ThreadPoolExecutor(WORKERS) as pool:
             for set_id in set_ids:
-                info, entries = fetch_set(set_id, a.out, legal, pool)
+                info, entries, set_cards = fetch_set(set_id, a.out, legal, pool)
                 cards.update(entries)
+                full += set_cards
+                released[set_id] = info.get("releaseDate")
                 code = (info.get("abbreviation") or {}).get("official")
                 if code:
                     sets.setdefault(code, []).append({"id": set_id, "releaseDate": info.get("releaseDate")})
@@ -210,6 +253,9 @@ def main(argv=None):
                                                    "energyArt": {name: i for i, name in ENERGY_ART.items()}})
     print(f"index.json: {len(sets)} setcodes, {len(cards)} kaarten, "
           f"{sum(not c['image'] for c in cards.values())} zonder plaatje")
+    rows = search_rows(full, released)
+    write_json(os.path.join(a.out, "search.json"), rows)
+    print(f"search.json: {len(rows)} Standard-legale kaartversies")
 
 
 if __name__ == "__main__":

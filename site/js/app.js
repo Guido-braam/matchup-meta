@@ -2,8 +2,8 @@
 // verwachte winrate, tiers) staan in calc.js; Deck Lab in decklab.js.
 import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS } from "./calc.js";
 import { createGameStore, exportBackup, importBackup } from "./gamestore.js";
-import { deckOf, newList, saveVersion, latest } from "./mylists.js";
-import { initMyGames, LAST_EXPORT_KEY } from "./mygames.js";
+import { deckOf, newList, saveVersion, latest, cardDiff } from "./mylists.js";
+import { initMyGames, LAST_EXPORT_KEY, versionOf } from "./mygames.js";
 import { initAnalysis } from "./analysis.js";
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
@@ -95,7 +95,7 @@ function renderContinentNote() {
 $("continent").addEventListener("change", e => { continent = e.target.value; saveSettings(); renderAll(); });
 
 // "N decks you never meet are left out. Show them": per pagina, standaard verborgen, niet bewaard.
-const showNever = { tiers: false, deck: false };
+const showNever = { tiers: false, deck: false, pick: false };
 const neverLine = (key, n) => !n ? "" : `${n} deck${n === 1 ? "" : "s"} you never meet ${n === 1 ? "is" : "are"} ${showNever[key] ? "shown" : "left out"}. `
   + `<button type="button" class="link-btn" data-never="${key}">${showNever[key] ? "Hide" : "Show"} them</button>`;
 
@@ -356,43 +356,112 @@ function renderLabSelect() {
 // Lijsten die de bezoeker in Deck Lab bewaart om games aan te koppelen (gamestore.js, mylists.js).
 let myLists = [];          // alle lijsten uit de store
 let labList = null;        // id van de lijst uit My lists die nu in Deck Lab staat, anders null
+let labVer = null;         // de versie daarvan die geladen is (de nieuwste, of een oudere uit Open my list)
 const listById = id => myLists.find(l => l.id === id);
 const listLabel = l => `${l.name} · v${latest(l).v}`;
+const mlState = $("ml-state"), mlManage = $("ml-manage"), mlArchive = $("ml-archive"), mlDelete = $("ml-delete");
+// A gear next to the heading of an own list opens its menu: Archive, Delete.
+const mlGear = Object.assign(document.createElement("span"), { className: "ml-gear",
+  innerHTML: `<button type="button" class="gear-btn" aria-label="List options" aria-haspopup="true" aria-expanded="false">⚙</button>` });
+mlGear.append(mlManage);
+$("ml-dlg-deck").nextElementSibling.after(mlGear); // in the save block, right of the deck
+const menuOpen = async open => {
+  mlManage.hidden = !open; mlGear.firstChild.setAttribute("aria-expanded", String(open)); disarmDelete();
+  // Delete only a list without games; with games, Archive it.
+  const l = open && listById(labList), n = l ? await gamesOf(l) : 0;
+  mlDelete.disabled = n > 0;
+  mlDelete.title = n ? `${n} game${n === 1 ? "" : "s"} under this list: archive it instead` : "";
+};
+const gamesOf = async l => (await gameStore.games()).filter(g => g.listId === l.id).length;
+mlGear.firstChild.addEventListener("click", () => menuOpen(mlManage.hidden));
+document.addEventListener("click", e => { if (!mlManage.hidden && !mlGear.contains(e.target)) menuOpen(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !mlManage.hidden) { menuOpen(false); mlGear.firstChild.focus(); } });
+const deckChoices = () => [...(D?.archetypes || L?.archetypes || [])].sort((a, b) => a.name.localeCompare(b.name));
+const deckOpts = decks => decks.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
 async function refreshMyLists() {
   myLists = (await gameStore.lists()).sort((a, b) => a.name.localeCompare(b.name));
-  const sel = $("mylist-select"), opt = l => `<option value="${esc(l.id)}">${esc(listLabel(l))}</option>`;
-  const active = myLists.filter(l => !l.archived), archived = myLists.filter(l => l.archived);
-  sel.innerHTML = `<option value="">Open one of My lists…</option>` + active.map(opt).join("") +
-    (archived.length ? `<optgroup label="Archived">${archived.map(opt).join("")}</optgroup>` : "");
-  sel.hidden = !myLists.length;
-  renderSaveBar();
+  $("mylist-btn").hidden = !myLists.length;
+  renderSaveBar(); renderLabArch();
 }
+// Two lists may not have the same name (case and spaces around it do not count).
+const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const nameTaken = (name, except = null) => myLists.some(l => l.id !== except && sameName(l.name, name));
+// A new list without a name gets the name of its deck, with a number when that name is taken.
+const freeName = base => { let n = base, k = 1; while (nameTaken(n)) n = `${base} ${++k}`; return n; };
+const TAKEN = name => `There is already a list called ${name.trim()}. Pick another name.`;
+function checkNewName() {
+  const typed = $("ml-name").value, taken = !labList && !!typed.trim() && nameTaken(typed);
+  $("ml-save").disabled = taken;
+  mlState.classList.toggle("bad", taken);
+  if (taken) mlState.textContent = TAKEN(typed); else if (mlState.classList.contains("was-taken")) mlState.textContent = "";
+  mlState.classList.toggle("was-taken", taken);
+}
+$("ml-name").addEventListener("input", checkNewName);
 function renderSaveBar(msg = "") {
   const l = labList && listById(labList);
   $("ml-name").value = l ? l.name : "";
   // The deck of the list: its saved deck, else the loaded deck archetype, else the best fit on its Pokémon.
-  const decks = [...(D?.archetypes || L?.archetypes || [])].sort((a, b) => a.name.localeCompare(b.name));
-  $("ml-deck").innerHTML = `<option value="" hidden>Deck…</option>` + decks.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
+  const decks = deckChoices();
+  $("ml-deck").innerHTML = `<option value="" hidden>Deck…</option>` + deckOpts(decks);
   $("ml-deck").value = l?.deck && decks.some(a => a.id === l.deck) ? l.deck : "";
+  syncPickBtn($("ml-deck"));
   if (!l) guessDeck();
-  $("ml-state").textContent = msg || (l ? `In My lists as ${listLabel(l)}${l.archived ? " (archived)" : ""}.` : "");
-  $("ml-manage").hidden = !l;
-  $("ml-archive").textContent = l?.archived ? "Unarchive" : "Archive";
+  mlState.textContent = msg || (l ? `In My lists as ${l.name} · v${labVer ?? latest(l).v}${l.archived ? " (archived)" : ""}.` : "");
+  mlManage.hidden = true; mlGear.firstChild.setAttribute("aria-expanded", "false");
+  $("ml-save-box").hidden = !!l; // an own list saves through the changes block
+  if (l) { // its name and deck in the changes block
+    $("ml-dlg-name").value = l.name;
+    $("ml-dlg-deck").innerHTML = `<option value="" hidden>Other</option>` + deckOpts(decks);
+    $("ml-dlg-deck").value = $("ml-dlg-deck").dataset.v0 = decks.some(a => a.id === l.deck) ? l.deck : "";
+    syncPickBtn($("ml-dlg-deck"));
+  }
+  mlArchive.textContent = l?.archived ? "Unarchive" : "Archive";
   disarmDelete();
+  checkNewName();
+  updateChanges();
+}
+// The changes block of an own list: its name and deck, and Save once the cards, the name or the deck differ.
+const chName = l => $("ml-dlg-name").value.trim() || l.name;
+const renamedOf = l => chName(l) !== l.name || ($("ml-dlg-deck").value || "other") !== ($("ml-dlg-deck").dataset.v0 || "other"); // no deck is Other
+let changesRun = 0;
+async function updateChanges() {
+  const run = ++changesRun, l = labList && listById(labList);
+  if (!l) return void ($("ml-changes").hidden = true);
+  const typed = $("ml-dlg-name").value;
+  $("ml-name-ghost").textContent = typed;
+  const d = cardDiff(latest(l).cards, (await DeckLab.current()).cards), changed = d.out.length + d.in.length > 0;
+  if (run !== changesRun) return;
+  $("ml-changes").hidden = false;
+  const taken = chName(l) !== l.name && nameTaken(chName(l), l.id);
+  $("ml-ch-act").hidden = !changed && !renamedOf(l);
+  $("ml-changes-btn").disabled = taken;
+  $("ml-name-sfx").classList.toggle("bad", taken);
+  const old = labVer != null && labVer !== latest(l).v;
+  $("ml-changes").querySelector(".note").textContent = old ? `This is v${labVer}; the latest is v${latest(l).v}.` : "";
+  // After the name: the version this list gets when saved (a change in cards is always a new version), or New list.
+  const top = latest(l).v;
+  $("ml-name-sfx").textContent = !typed.trim() ? "" : taken ? " · Name already in My lists" : chName(l) !== l.name ? " · New list"
+    : ` · v${changed ? top + 1 : labVer ?? top}`;
 }
 let guessRun = 0;
 async function guessDeck() {
   const run = ++guessRun;
   let id = labSel != null ? D?.archetypes[labSel]?.id : null;
   if (!id) { const { cards } = await DeckLab.current(); id = deckOf(cards, L, await loadCardIndex().catch(() => null))?.id; }
-  if (run === guessRun && !labList && id) $("ml-deck").value = id;
+  if (run === guessRun && !labList && id) { $("ml-deck").value = id; syncPickBtn($("ml-deck")); }
 }
-$("lab-host").addEventListener("lab-source", () => { labList = null; labSel = null; renderSaveBar(); labArch = null; renderLabArch(); });
-// A list typed or pasted straight into the field: guess its deck once there is something to go on.
-$("lab-host").addEventListener("input", e => { if (e.composedPath()[0].id === "deck" && !labList && !$("ml-deck").value) guessDeck(); });
+$("lab-host").addEventListener("lab-source", () => { labList = null; labVer = null; labSel = null; renderSaveBar(); labArch = null; renderLabArch(); renderLabSelect(); });
+// A list edited in Deck Lab itself (− / +, adding cards): guess its deck once there is something to go on.
+$("lab-host").addEventListener("lab-check", ({ detail: c }) => {
+  for (const el of document.querySelectorAll(".deck-check")) {
+    el.textContent = c.empty ? "" : c.warnings.length ? c.warnings.join("\n") : `✓ Valid deck: ${c.total} cards`;
+    el.className = `deck-check ${c.warnings.length ? "bad" : "good"}`;
+  }
+});
+$("lab-host").addEventListener("lab-edit", () => { if (!labList && !$("ml-deck").value) guessDeck(); updateChanges(); });
 
 // Deck Lab heading after Load a deck archetype: the deck, and which of its lists is loaded with the others to pick.
-let labArch = null;        // {i: deck index, k: list index in archLists} or null
+let labArch = null;        // {i: deck index, v: "<index in archLists>" or "m:<id in My lists>"} or null
 function archLists(a) {
   const l = L && labsById.get(a.id);
   if (!l?.lists.length) return [];
@@ -403,77 +472,157 @@ function archLists(a) {
 function openArch(i, k = 0) {
   const a = D.archetypes[i], o = archLists(a)[k];
   if (!o) return false;
-  DeckLab.open($("lab-host"), exportText(o.cards), `${a.name} · ${o.label}`); // lab-source clears the heading first
-  labSel = i; labArch = { i, k }; renderLabArch(); guessDeck();
+  DeckLab.open($("lab-host"), exportText(o.cards), ""); // no label: the heading names the list; lab-source clears the heading first
+  labSel = i; labArch = { i, v: String(k) }; renderLabArch(); renderLabSelect(); guessDeck();
   return true;
 }
-function renderLabArch() {
-  const box = $("lab-arch");
-  box.hidden = !labArch || !D;
-  if (box.hidden) return;
-  const a = D.archetypes[labArch.i];
-  box.innerHTML = `<h2>${esc(a.name)}</h2><select id="lab-arch-list" aria-label="List of ${esc(a.name)}">${archLists(a).map((o, k) =>
-    `<option value="${k}">${esc(o.label)}</option>`).join("")}</select>`;
-  $("lab-arch-list").value = String(labArch.k);
+// A list from My lists in Deck Lab: under the heading of its deck (the dropdown selects it), else its name as heading.
+function showMine(l, v = latest(l).v) {
+  const i = D ? D.archetypes.findIndex(a => a.id === l.deck) : -1;
+  labList = l.id; labVer = v;
+  if (i < 0) { labArch = null; DeckLab.label(""); } else { labSel = i; labArch = { i, v: `m:${l.id}` }; DeckLab.label(""); }
+  renderLabArch(); renderLabSelect();
 }
-$("lab-arch").addEventListener("change", e => { if (labArch) openArch(labArch.i, Number(e.target.value)); });
-$("mylist-select").addEventListener("change", e => {
-  const l = listById(e.target.value);
-  e.target.value = "";
-  if (!l) return;
-  DeckLab.open($("lab-host"), latest(l).text, listLabel(l));
-  renderLabSelect();
-  labList = l.id; renderSaveBar();
+function openMine(l, v) {
+  const ver = versionOf(l, v);
+  DeckLab.open($("lab-host"), ver.text, ""); // lab-source clears the heading and labList first
+  showMine(l, ver.v); renderSaveBar();
+}
+function renderLabArch() {
+  const box = $("lab-arch"), l = labList && listById(labList), a = labArch && D?.archetypes[labArch.i];
+  box.hidden = !a && !l;
+  // Next to the list: its version, when it has more than v1.
+  const ver = l && l.versions.length > 1 ? `<select id="lab-arch-ver" aria-label="Version of ${esc(l.name)}">${
+    [...l.versions].reverse().map(x => `<option value="${x.v}">v${x.v}</option>`).join("")}</select>` : "";
+  if (!a) { if (l) box.innerHTML = `<h2>${esc(l.name)}</h2>${ver}`; }
+  else {
+  // My lists of this deck first (the one in Deck Lab also when archived), then the lists from the data.
+  const own = myLists.filter(l => l.deck === a.id && (!l.archived || l.id === labList));
+  const lists = archLists(a).map((o, k) => `<option value="${k}">${esc(o.label)}</option>`).join("");
+  box.innerHTML = `<h2>${esc(a.name)}</h2><select id="lab-arch-list" aria-label="List of ${esc(a.name)}">${own.length
+    ? `<optgroup label="My lists">${own.map(l => `<option value="m:${esc(l.id)}">${esc(l.name)}</option>`).join("")}</optgroup><optgroup label="Lists">${lists}</optgroup>`
+    : lists}</select>${ver}`;
+  $("lab-arch-list").value = labArch.v;
+  }
+  if (ver) $("lab-arch-ver").value = String(labVer ?? latest(l).v);
+}
+$("lab-arch").addEventListener("change", e => {
+  const v = e.target.value, l = v.startsWith("m:") && listById(v.slice(2));
+  if (e.target.id === "lab-arch-ver") openMine(listById(labList), Number(v));
+  else if (l) openMine(l); else if (labArch) openArch(labArch.i, Number(v));
 });
+// Open my list: the lists as rows with their games won and lost, the latest version on top; the arrow shows all versions.
+$("mylist-btn").addEventListener("click", async () => {
+  const games = await gameStore.games(), decks = D?.archetypes || L?.archetypes || [];
+  const date = s => s ? new Date(s).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+  const score = gs => {
+    const w = gs.filter(g => g.game?.result === "win").length, x = gs.filter(g => g.game?.result === "loss").length;
+    return gs.length ? `<span class="ml-wl"><b class="w">${w}</b> W · <b class="l">${x}</b> L</span>` : `<span class="ml-wl note">No games</span>`;
+  };
+  const item = l => {
+    const gs = games.filter(g => g.listId === l.id), a = decks.find(d => d.id === l.deck), cur = latest(l), id = esc(l.id);
+    const vers = [...l.versions].reverse().map(x => `<button type="button" class="ml-row ml-ver" data-open="${id}" data-v="${x.v}">
+      <span class="ml-name">v${x.v}${x.v === cur.v ? " (latest)" : ""}<small>${date(x.created)}</small></span>${score(gs.filter(g => g.listVersion === x.v))}</button>`).join("");
+    return `<div class="ml-item"><div class="ml-top">
+      <button type="button" class="ml-row" data-open="${id}" data-v="${cur.v}">${a?.sprites ? spritesHtml(a) : ""}
+        <span class="ml-name">${esc(l.name)}<small>${esc(a?.name ?? "No deck")} · v${cur.v} · ${date(cur.created)}</small></span>${score(gs)}</button>
+      <button type="button" class="ml-more" aria-expanded="false" aria-label="All versions of ${esc(l.name)}">▾</button>
+    </div><div class="ml-vers" hidden>${vers}</div></div>`;
+  };
+  const active = myLists.filter(l => !l.archived), archived = myLists.filter(l => l.archived);
+  $("ml-pick-body").innerHTML = `<div class="ml-items">${active.map(item).join("")}</div>` +
+    (archived.length ? `<h3 class="ml-group">Archived</h3><div class="ml-items">${archived.map(item).join("")}</div>` : "");
+  document.querySelectorAll("dialog[open]").forEach(d => d.close());
+  $("ml-pick").showModal();
+});
+$("ml-pick-body").addEventListener("click", e => {
+  const m = e.target.closest(".ml-more");
+  if (m) {
+    const box = m.closest(".ml-item").querySelector(".ml-vers");
+    box.hidden = !box.hidden; m.setAttribute("aria-expanded", String(!box.hidden)); m.textContent = box.hidden ? "▾" : "▴";
+    return;
+  }
+  const r = e.target.closest("[data-open]"), l = r && listById(r.dataset.open);
+  if (!l) return;
+  $("ml-pick").close();
+  openMine(l, Number(r.dataset.v));
+});
+// Store a list and show it in Deck Lab. -> false when the browser does not allow storage.
+async function storeList(list, msg) {
+  if (!(await gameStore.putList(list))) return false;
+  labList = list.id;
+  await refreshMyLists();
+  showMine(list); // the saved list goes under the heading of its deck, at the top of the dropdown
+  renderSaveBar(msg);
+  return true;
+}
+const NO_STORAGE = "Could not save: this browser does not allow storage for this site.";
+// A new list (the Save block shows only when no own list is in Deck Lab).
 $("ml-save").addEventListener("click", async () => {
   const { text, cards } = await DeckLab.current();
   if (!text.trim()) return;
-  const index = await loadCardIndex().catch(() => null);
-  const picked = (D?.archetypes || L?.archetypes)?.find(a => a.id === $("ml-deck").value);
-  const deck = picked ? { id: picked.id, name: picked.name } : deckOf(cards, L, index), name = $("ml-name").value.trim();
-  const old = labList && listById(labList);
-  let list, msg;
-  if (!old) {
-    list = newList({ name: name || deck?.name || "My list", deck: deck?.id ?? null, text, cards });
-    msg = `Saved to My lists as ${listLabel(list)}.`;
-  } else {
-    const v = latest(old).v, frozen = (await gameStore.games()).some(g => g.listId === old.id && g.listVersion === v);
-    const r = saveVersion(old, { text, cards }, frozen);
-    list = { ...r.list, name: name || old.name, deck: deck?.id ?? old.deck };
-    msg = r.saved === "new-version" ? `Saved as v${v + 1}. Games played with v${v} stay on v${v}.`
-      : r.saved === "updated" ? `Saved ${listLabel(list)}.` : list.name !== old.name ? "Renamed." : "";
-    if (list.deck !== old.deck) msg = `${msg} Deck set to ${deck?.name ?? "none"}.`.trim();
-    msg ||= "No changes to save.";
-  }
-  if (!(await gameStore.putList(list))) return renderSaveBar("Could not save: this browser does not allow storage for this site.");
-  labList = list.id;
-  DeckLab.label(listLabel(list));
-  await refreshMyLists();
-  renderSaveBar(msg);
+  const picked = deckChoices().find(a => a.id === $("ml-deck").value);
+  const deck = picked ? { id: picked.id, name: picked.name } : deckOf(cards, L, await loadCardIndex().catch(() => null));
+  if (nameTaken($("ml-name").value) && $("ml-name").value.trim()) return checkNewName();
+  const list = newList({ name: $("ml-name").value.trim() || freeName(deck?.name || "My list"), deck: deck?.id ?? null, text, cards });
+  if (!(await storeList(list, `Saved to My lists as ${listLabel(list)}.`))) renderSaveBar(NO_STORAGE);
 });
-$("ml-archive").addEventListener("click", async () => {
+// Save list: a pop-up with what it does (a new list for a new name, else a new version or the new deck),
+// the cards taken out and put in, and Cancel.
+let dlg = null;            // {l, text, cards, action: "new" | "version" | "deck"}
+$("ml-changes-btn").addEventListener("click", async () => {
   const l = listById(labList);
   if (!l) return;
+  const { text, cards } = await DeckLab.current(), d = cardDiff(latest(l).cards, cards);
+  const deck = $("ml-dlg-deck").selectedOptions[0]?.textContent ?? "Other", deckSet = $("ml-dlg-deck").value !== $("ml-dlg-deck").dataset.v0;
+  const action = chName(l) !== l.name ? "new" : d.out.length + d.in.length ? "version" : "deck";
+  dlg = { l, text, cards, action };
+  $("ml-dlg-sub").textContent = action === "new" ? `Create ${chName(l)}`
+    : action === "version" ? `Add v${latest(l).v + 1} to ${l.name}${deckSet ? `, deck ${deck}` : ""}`
+    : `Set the deck of ${l.name} to ${deck}`;
+  const li = xs => xs.map(([k, n]) => `<li><span class="num">${n}×</span> ${esc(k)}</li>`).join("") || `<li class="note">Nothing</li>`;
+  $("ml-out").innerHTML = li(d.out); $("ml-in").innerHTML = li(d.in);
+  $("ml-dlg-state").textContent = action === "new" ? `${l.name} stays as it is.` : "";
+  document.querySelectorAll("dialog[open]").forEach(x => x.close());
+  $("ml-dialog").showModal();
+});
+$("ml-dlg-name").addEventListener("input", () => updateChanges());
+$("ml-dlg-deck").addEventListener("change", () => updateChanges());
+$("ml-dlg-save").addEventListener("click", async () => {
+  if (!dlg) return;
+  const { l, text, cards, action } = dlg, v = latest(l).v, deck = $("ml-dlg-deck").value || null;
+  let list, msg;
+  if (action === "new" && nameTaken(chName(l), l.id)) return void ($("ml-dlg-state").textContent = TAKEN(chName(l)));
+  if (action === "new") { list = newList({ name: chName(l), deck, text, cards }); msg = `Saved to My lists as ${listLabel(list)}.`; }
+  else if (action === "version") { list = { ...saveVersion(l, { text, cards }, true).list, deck }; msg = `Saved as v${v + 1}. v${v} stays as it was.`; }
+  else { list = { ...l, deck }; msg = `Saved ${listLabel(list)}.`; }
+  if (await storeList(list, msg)) $("ml-dialog").close(); else $("ml-dlg-state").textContent = NO_STORAGE;
+});
+mlArchive.addEventListener("click", async () => {
+  const l = listById(labList);
+  if (!l) return;
+  menuOpen(false);
   await gameStore.putList({ ...l, archived: !l.archived });
   await refreshMyLists();
 });
-// Verwijderen in twee klikken, zoals Reset; de games van de lijst gaan mee.
+// Verwijderen in twee klikken, zoals Reset; alleen een lijst zonder games.
 let deleteArmed = null;
-function disarmDelete() { clearTimeout(deleteArmed); deleteArmed = null; $("ml-delete").textContent = "Delete"; $("ml-delete").classList.remove("danger-confirm"); }
-$("ml-delete").addEventListener("click", async e => {
+function disarmDelete() { clearTimeout(deleteArmed); deleteArmed = null; mlDelete.textContent = "Delete"; mlDelete.classList.remove("danger-confirm"); }
+mlDelete.addEventListener("click", async e => {
   const l = listById(labList);
   if (!l) return;
+  if (await gamesOf(l)) return;
   if (!deleteArmed) {
-    const n = (await gameStore.games()).filter(g => g.listId === l.id).length;
-    e.target.textContent = n ? `Delete with ${n} game${n === 1 ? "" : "s"}? Click again` : "Click again to delete";
+    e.target.textContent = "Click again to delete";
     e.target.classList.add("danger-confirm");
     deleteArmed = setTimeout(disarmDelete, 3000);
     return;
   }
-  disarmDelete();
+  disarmDelete(); menuOpen(false);
   if (!(await gameStore.deleteList(l.id))) return renderSaveBar("Could not delete: this browser does not allow storage for this site.");
   labList = null;
   DeckLab.label("");
+  if (labArch?.v.startsWith("m:")) labArch = null;
   await refreshMyLists();
   renderSaveBar(`Deleted ${l.name} from My lists.`);
 });
@@ -488,7 +637,7 @@ function syncPickBtn(sel) {
 }
 function openPicker(sel, needLists, title) {
   if (!D) return;
-  pick = { sel, needLists, opener: document.activeElement };
+  pick = { sel, needLists, opener: document.activeElement, byId: sel.id !== "lab-select" };
   $("pk-title").textContent = title;
   $("pk-search").value = "";
   renderPicker();
@@ -507,17 +656,28 @@ function closePicker() {
 }
 function renderPicker() {
   const q = $("pk-search").value.trim().toLowerCase();
-  const cur = pick.sel.value;
-  const groups = deckGroups().map(g => ({ ...g, xs: g.xs.filter(x => !q || x.a.name.toLowerCase().includes(q)) })).filter(g => g.xs.length);
-  $("pk-body").innerHTML = groups.length ? `<div class="pk-inner tiers">${groups.map(({ t, xs }) => `
+  const cur = pick.sel.value, key = (a, i) => pick.byId ? a.id : String(i);
+  // The deck of a list: Other on top (a list without a deck is Other too).
+  const other = pick.byId ? `<div class="pk-inner pk-none"><button type="button" class="btn${cur === "" || cur === "other" ? " current" : ""}" data-pick="other">Other</button></div>` : "";
+  // Decks you never meet are left out, as in the tier list; the current deck always stays, and a search shows them all.
+  let nNever = 0;
+  const shown = x => q || level(x.i) !== 0 || key(x.a, x.i) === cur || (nNever++, showNever.pick);
+  const groups = deckGroups().map(g => ({ ...g, xs: g.xs.filter(x => (!q || x.a.name.toLowerCase().includes(q)) && shown(x)) })).filter(g => g.xs.length);
+  $("pk-body").innerHTML = other + (groups.length ? `<div class="pk-inner tiers">${groups.map(({ t, xs }) => `
     <div class="tier ${t === "none" ? "tier-none" : `tier-${t}`}">
       <div class="tier-label">${t === "none" ? "–" : t}${t === "none" ? "<small>no tier</small>" : ""}</div>
       <div class="tiles">${xs.map(({ a, i }) => {
         const off = noList(a, pick.needLists);
-        return `<button type="button" class="tile${String(i) === cur ? " current" : ""}" data-pick="${i}"${off ? " disabled" : ""}${String(i) === cur ? ' aria-current="true"' : ""}>
+        const on = key(a, i) === cur;
+        return `<button type="button" class="tile${on ? " current" : ""}" data-pick="${esc(key(a, i))}"${off ? " disabled" : ""}${on ? ' aria-current="true"' : ""}>
           ${spritesHtml(a)}<span class="name">${esc(a.name)}</span>${off ? '<span class="pk-off">no list</span>' : ""}</button>`;
       }).join("")}</div>
-    </div>`).join("")}</div>` : `<div class="state">No decks found.</div>`;
+    </div>`).join("")}</div>` : `<div class="state">No decks found.</div>`);
+  // Next to Close: [Show uncommon decks] N decks you never meet are left out.
+  const nv = $("pk-never"), on = showNever.pick;
+  nv.hidden = !nNever;
+  nv.innerHTML = `<button type="button" class="btn" data-never="pick">${on ? "Hide" : "Show"} uncommon decks</button>`
+    + `<span class="note">${nNever} deck${nNever === 1 ? "" : "s"} you never meet ${nNever === 1 ? "is" : "are"} ${on ? "shown" : "left out"}.</span>`;
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("button[data-picker]");
@@ -893,7 +1053,7 @@ document.addEventListener("click", e => {
   if (!b) return;
   const key = b.dataset.never;
   showNever[key] = !showNever[key];
-  renderCurrent();
+  if (key === "pick") renderPicker(); else renderCurrent();
   document.querySelector(`button[data-never="${key}"]`)?.focus(); // de knop is opnieuw getekend
 });
 $("meta-search").addEventListener("input", renderMeta);

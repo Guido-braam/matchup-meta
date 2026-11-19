@@ -73,18 +73,24 @@
 
   <section id="page-lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
     <!-- Deck Lab draait in een shadow root; de deckkeuze komt erin via slots. -->
-    <div class="panel lab-arch" id="lab-arch" hidden></div>
     <div id="lab-host">
+      <div slot="arch" class="lab-arch" id="lab-arch" hidden></div>
       <div slot="load" class="lab-load">
-        <select id="mylist-select" aria-label="Open one of My lists" hidden></select>
+        <button class="btn picker-btn" type="button" id="mylist-btn" aria-haspopup="dialog" hidden>Open my list…</button>
         <p class="hint lab-or">or</p>
         <select id="lab-select" aria-label="Load a deck archetype into Deck Lab" hidden></select>
         <button class="btn picker-btn" type="button" data-picker="lab-select" data-title="Load a deck archetype into Deck Lab" data-placeholder="Load a deck archetype…" aria-haspopup="dialog">Load a deck archetype…</button>
       </div>
-      <div slot="save" class="lab-save">
-        <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Name (optional)" maxlength="60"><select id="ml-deck" aria-label="Deck of this list"></select><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>
+      <div slot="save" class="panel lab-save" id="ml-save-box">
+        <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Deck Name (optional)" maxlength="60"><select id="ml-deck" aria-label="Deck of this list" hidden></select><button class="btn picker-btn" type="button" data-picker="ml-deck" data-title="Deck of this list" data-placeholder="Deck…" aria-haspopup="dialog">Deck…</button><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>
+        <p class="deck-check" role="status"></p>
         <p class="note" id="ml-state" role="status"></p>
         <div class="lab-save-row" id="ml-manage" hidden><button class="link-btn" type="button" id="ml-archive">Archive</button><button class="link-btn" type="button" id="ml-delete">Delete</button></div>
+      </div>
+      <!-- A list from My lists under its deck heading: only after a change, instead of the save block above. -->
+      <div slot="save" class="panel lab-save lab-changes" id="ml-changes" hidden>
+        <div class="lab-save-row"><span class="name-wrap"><input id="ml-dlg-name" type="text" aria-label="Name of this list" placeholder="Deck Name" maxlength="60"><span class="name-sfx" aria-hidden="true"><span id="ml-name-ghost"></span><span id="ml-name-sfx"></span></span></span><select id="ml-dlg-deck" aria-label="Deck of this list" hidden></select><button class="btn picker-btn" type="button" data-picker="ml-dlg-deck" data-title="Deck of this list" data-placeholder="Other" aria-haspopup="dialog">Other</button></div>
+        <div class="lab-save-row" id="ml-ch-act" hidden><p class="deck-check" role="status"></p><p class="note"></p><button class="btn primary" type="button" id="ml-changes-btn">Save list</button></div>
       </div>
     </div>
   </section>
@@ -138,6 +144,25 @@
     <p id="foot-updated">Loading data…</p>
   </footer>
 </div>
+
+<dialog class="dlg ml-pick" id="ml-pick" aria-labelledby="ml-pick-title">
+  <div class="dlg-head"><h2 id="ml-pick-title">My lists</h2><button class="dlg-x" type="button" data-close aria-label="Close">×</button></div>
+  <div class="dlg-body" id="ml-pick-body"></div>
+</dialog>
+<dialog class="dlg ml-dlg" id="ml-dialog" aria-labelledby="ml-dlg-title">
+  <div class="dlg-head">
+    <div><h2 id="ml-dlg-title">Save list</h2><p class="note ml-dlg-sub" id="ml-dlg-sub"></p></div>
+    <button class="btn" type="button" data-close>Cancel</button>
+  </div>
+  <div class="dlg-body">
+    <div class="ml-diff">
+      <div><h3>Taken out</h3><ul id="ml-out"></ul></div>
+      <div><h3>Put in</h3><ul id="ml-in"></ul></div>
+    </div>
+    <p class="note" id="ml-dlg-state" role="status"></p>
+  </div>
+  <div class="dlg-foot ml-dlg-foot"><button class="btn primary" type="button" id="ml-dlg-save">Save list</button></div>
+</dialog>
 
 <dialog class="dlg gm-dlg" id="gm-dialog" aria-labelledby="gm-dialog-title">
   <div class="dlg-head">
@@ -201,6 +226,7 @@
   <div class="pk-head">
     <h2 id="pk-title">Choose a deck</h2>
     <input type="search" id="pk-search" placeholder="Search for a deck" aria-label="Search for a deck">
+    <span class="pk-never" id="pk-never" hidden></span>
     <button class="btn" type="button" id="pk-close">Close</button>
   </div>
   <div class="pk-body" id="pk-body"></div>

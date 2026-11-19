@@ -20,6 +20,15 @@ export function saveVersion(list, { text, cards }, frozen, now = new Date().toIS
   return { list: { ...list, versions }, saved: frozen ? "new-version" : "updated" };
 }
 
+// What changed between two card lists, by name: {out: [[name, n]], in: [[name, n]]}, each A–Z.
+export function cardDiff(before, after) {
+  const d = new Map();
+  for (const c of before) d.set(c.name, (d.get(c.name) || 0) - c.count);
+  for (const c of after) d.set(c.name, (d.get(c.name) || 0) + c.count);
+  const all = [...d].sort(([a], [b]) => a.localeCompare(b));
+  return { out: all.filter(([, n]) => n < 0).map(([k, n]) => [k, -n]), in: all.filter(([, n]) => n > 0) };
+}
+
 // The deck of a list: the deck in labs.json whose Pokémon look most like the list's Pokémon (cosine on copies,
 // the deck's side weighted by how many players run each card). Trainers and Energy say little about the deck.
 // -> {id, name} or null when nothing comes close.

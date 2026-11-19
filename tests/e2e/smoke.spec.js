@@ -77,6 +77,17 @@ Energy: 8
 
 Total Cards: 60`;
 
+// The clipboard text, with Windows line endings (CRLF) read back as \n.
+const clipboard = async page => (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
+// Deck Lab has no text field: a list comes in through Import deck.
+const importList = async (page, text) => {
+  const lab = page.locator("#lab-host");
+  await lab.locator("#btn-import").click();
+  await lab.locator("#imp-text").fill(text);
+  await lab.locator("#imp-go").click();
+  await expect(lab.locator("#imp")).toBeHidden();
+};
+
 test("tier list renders without console errors", async ({ page, consoleErrors }) => {
   await page.goto("/");
 
@@ -569,30 +580,46 @@ test("the replay of a game steps through the board and jumps to the last turn", 
   expect(consoleErrors).toEqual([]);
 });
 
-test("a list saved to My lists comes back after a reload, can be edited and deleted", async ({ page, consoleErrors }) => {
+test("a list saved to My lists comes back after a reload as it was saved, and can be deleted", async ({ page, context, consoleErrors }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
   await page.locator("#tab-lab").click();
   const lab = page.locator("#lab-host");
   await expect(page.locator("#mylist-select")).toBeHidden(); // no lists yet
-  await lab.locator("#deck").fill(PASTED_LIST);
+  await importList(page, PASTED_LIST);
   await page.locator("#ml-name").fill("My Dragapult");
   await page.locator("#ml-save").click();
   await expect(page.locator("#ml-state")).toHaveText("Saved to My lists as My Dragapult · v1.");
   await expect(page.locator("#ml-manage")).toBeVisible();
+  // Saved, it moves under the heading of its deck: selected, at the top of the dropdown.
+  await expect(page.locator("#lab-arch-list option:checked")).toHaveText("My Dragapult · v1");
+  await expect(lab.locator("#src")).toHaveText("");
 
   await page.reload();
   await page.locator("#tab-lab").click();
-  await expect(lab.locator("#deck")).toHaveValue(""); // Deck Lab still starts empty
+  await expect(lab).toHaveClass(/\bempty\b/); // Deck Lab still starts empty
   const pick = page.locator("#mylist-select");
   await expect(pick.locator("option", { hasText: "My Dragapult · v1" })).toHaveCount(1);
   await pick.selectOption({ label: "My Dragapult · v1" });
-  await expect(lab.locator("#deck")).toHaveValue(PASTED_LIST);
+  // It opens under the heading of its deck, at the top of the dropdown, without a second label.
+  const head = page.locator("#lab-arch");
+  await expect(head.locator("h2")).toHaveText("Dragapult");
+  await expect(head.locator("#lab-arch-list option").first()).toHaveText("My Dragapult · v1");
+  await expect(head.locator("#lab-arch-list option:checked")).toHaveText("My Dragapult · v1");
+  await expect(lab.locator("#src")).toHaveText("");
   await expect(page.locator("#ml-state")).toHaveText("In My lists as My Dragapult · v1.");
+  // The saved list comes back line for line: Export gives the imported text.
+  await lab.locator("#btn-export").click();
+  expect(await clipboard(page)).toBe(PASTED_LIST);
 
-  // No games yet, so an edit changes v1 itself.
-  await lab.locator("#deck").fill(PASTED_LIST.replace(/^4 Dreepy/m, "3 Dreepy"));
+  // No games yet, so an edit (− on Dreepy) changes v1 itself.
+  await lab.getByRole("button", { name: "Remove one Dreepy", exact: true }).click();
+  await expect(lab.locator("#src")).toHaveText("Edited");
   await page.locator("#ml-save").click();
   await expect(page.locator("#ml-state")).toHaveText("Saved My Dragapult · v1.");
+  await expect(lab.locator("#src")).toHaveText(""); // saved: no "Edited" any more
+  await lab.locator("#btn-export").click();
+  expect(await clipboard(page)).toBe(PASTED_LIST.replace("Pokémon: 20\n4 Drakloak ASC 159\n4 Dreepy", "Pokémon: 19\n4 Drakloak ASC 159\n3 Dreepy").replace("Total Cards: 60", "Total Cards: 59"));
 
   await page.locator("#ml-delete").click();
   await expect(page.locator("#ml-delete")).toHaveText("Click again to delete");
@@ -607,27 +634,175 @@ test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   await page.locator("#tab-lab").click();
   const lab = page.locator("#lab-host"); // Deck Lab lives in an open shadow root; locators pierce it.
 
-  await lab.locator("#deck").fill(PASTED_LIST);
+  await importList(page, PASTED_LIST);
 
+  await expect(lab.locator("#src")).toHaveText("Imported list");
   await expect(lab.locator("#total-badge")).toBeHidden(); // 60 cards: no count bar
   await expect(lab.locator("#cardlist")).toContainText("Dragapult ex");
   await expect(lab.locator("#cardlist")).not.toContainText("Jellicent ex"); // Deck Lab's own sample is gone
   await expect(lab.locator("#view")).not.toBeEmpty();
   // Categories come from the Card index: no type label to click, Dudunsparce (not in the index) is not recognized.
-  await expect(lab.locator("[data-cycle], #cardlist button")).toHaveCount(0);
+  await expect(lab.locator("[data-cycle]")).toHaveCount(0);
   await expect(lab.locator(".cl-row", { hasText: "Drakloak" })).toContainText("Stage 1");
   await expect(lab.locator(".cl-row", { hasText: "Unfair Stamp" })).toContainText("ACE SPEC");
   await expect(lab.locator(".cl-row", { hasText: "Dudunsparce" })).toContainText("card not recognized");
   await expect(lab.locator(".compbar")).toHaveText(/Pokémon 19.*Trainer 32.*Energy 8/);
   // One card short: the count bar shows up.
-  await lab.locator("#deck").fill(PASTED_LIST.replace(/^4 /m, "3 "));
+  // One card short (a new import replaces the list): the count bar shows up.
+  await importList(page, PASTED_LIST.replace(/^4 /m, "3 "));
   await expect(lab.locator("#total-badge")).toHaveText("59 / 60 cards. A deck needs exactly 60.");
-  // Reset empties the list: the bar goes away and the start screen with Load a deck archetype is back.
-  await lab.locator("#btn-reset").click();
-  await expect(lab.locator("#deck")).toHaveValue("");
+  // Clear empties the list: the bar goes away and the start screen with Load a deck archetype is back.
+  await lab.locator("#btn-clear").click();
+  await expect(lab).toHaveClass(/\bempty\b/);
+  await expect(lab.locator("#src")).toHaveText("");
   await expect(lab.locator("#total-badge")).toBeHidden();
-  await expect(lab.locator("#btn-paste")).toBeVisible();
+  await expect(lab.locator("#btn-clear")).toBeHidden();
+  await expect(lab.locator("#btn-import")).toBeVisible();
   await expect(page.locator("button[data-picker=lab-select]")).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("− and + under each card change the list, with at most 4 per name and warnings for 60 and ACE SPEC", async ({ page, consoleErrors }) => {
+  await page.goto("/#lab");
+  const lab = page.locator("#lab-host");
+  await importList(page, PASTED_LIST);
+  const btn = name => lab.getByRole("button", { name, exact: true });
+  const cnt = name => lab.locator(".cl-row", { has: page.getByRole("button", { name: `Remove one ${name}`, exact: true }) }).locator(".cnt");
+  // 4 Dreepy: + is off; − takes one off, everywhere at once.
+  await expect(btn("Add one Dreepy")).toBeDisabled();
+  await btn("Remove one Dreepy").click();
+  await expect(cnt("Dreepy")).toHaveText("3");
+  await expect(btn("Remove one Dreepy")).toBeFocused(); // the focus stays on the button
+  await expect(lab.locator("#src")).toHaveText("Imported list (edited)");
+  await expect(lab.locator("#total-badge")).toHaveText("59 / 60 cards. A deck needs exactly 60.");
+  await expect(lab.locator(".compbar")).toHaveText(/Pokémon 18/);
+  await btn("Add one Dreepy").click();
+  await expect(cnt("Dreepy")).toHaveText("4");
+  await expect(btn("Add one Dreepy")).toBeDisabled();
+  await expect(lab.locator("#total-badge")).toBeHidden();
+  // A card at 0 is gone.
+  await btn("Remove one Budew").click();
+  await btn("Remove one Budew").click();
+  await expect(btn("Remove one Budew")).toHaveCount(0);
+  await expect(lab.locator("#cardlist")).not.toContainText("Budew");
+  // Basic Energy has no limit.
+  await btn("Add one Fire Energy").click();
+  await btn("Add one Fire Energy").click();
+  await expect(cnt("Fire Energy")).toHaveText("5");
+  await expect(btn("Add one Fire Energy")).toBeEnabled();
+  // A line Deck Lab does not know has only −.
+  await expect(btn("Remove one Dudunsparce")).toBeVisible();
+  await expect(btn("Add one Dudunsparce")).toHaveCount(0);
+  // A second ACE SPEC is allowed, with a warning.
+  await btn("Add one Unfair Stamp").click();
+  await expect(lab.locator("#total-badge")).toHaveText("61 / 60 cards. A deck needs exactly 60. 2 ACE SPEC cards. A deck may have only 1.");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("[+] Trainer opens Add a card: a word from the card text finds it, + adds it and the pop-up stays open", async ({ page, context, consoleErrors }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/#lab");
+  const lab = page.locator("#lab-host"), add = lab.locator("#add");
+  await importList(page, PASTED_LIST);
+  await lab.getByRole("button", { name: "Add a Trainer card" }).click();
+  await expect(add).toBeVisible();
+  await expect(add.getByRole("heading")).toHaveText("Add a Trainer card");
+  await expect(lab.locator("#add-q")).toBeFocused();
+  await expect(lab.locator("#add-state")).toHaveText("Showing 50 of 63, refine your search.");
+  await expect(add.locator(".add-it b").first()).toHaveText("Acerola's Mischief"); // A–Z, Trainers only
+  // A card in the list shows its count; at 3 Boss's Orders + is still on.
+  await lab.locator("#add-q").fill("boss");
+  await expect(add.locator(".add-it")).toHaveCount(1);
+  await expect(add.locator(".add-it .pm .num")).toHaveText("3");
+  // Search on the card text: Hero's Cape "gets +100 HP".
+  await lab.locator("#add-q").fill("+100 hp");
+  await expect(add.locator(".add-it b")).toHaveText(["Hero's Cape"]);
+  await expect(add.locator(".add-it .hint").first()).toContainText("Tool · TEF 152");
+  await add.getByRole("button", { name: "Add one Hero's Cape" }).click();
+  await expect(add.locator(".add-it .pm .num")).toHaveText("1");
+  await expect(add).toBeVisible();
+  // Hero's Cape is an ACE SPEC, next to Unfair Stamp.
+  await expect(lab.locator("#total-badge")).toHaveText("61 / 60 cards. A deck needs exactly 60. 2 ACE SPEC cards. A deck may have only 1.");
+  await expect(lab.locator("#src")).toHaveText("Imported list (edited)");
+  // Enter in the search box does not close the pop-up; × does.
+  await lab.locator("#add-q").press("Enter");
+  await expect(add).toBeVisible();
+  await add.getByRole("button", { name: "Close" }).click();
+  await expect(add).toBeHidden();
+  await expect(lab.locator("#cardlist")).toContainText("Hero's Cape");
+  await lab.locator("#btn-export").click();
+  expect(await clipboard(page)).toContain("Trainer: 33\n");
+  expect(await clipboard(page)).toContain("\n1 Hero's Cape TEF 152\n");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("Add a card works with the keyboard only: Tab to [+], Enter, type, Tab to +, Enter, Esc", async ({ page, consoleErrors }) => {
+  await page.goto("/#lab");
+  const lab = page.locator("#lab-host"), add = lab.locator("#add"), tile = lab.getByRole("button", { name: "Add an Energy card" });
+  await importList(page, "1 Dreepy ASC 158"); // the blocks show once there is a list
+  for (let i = 0; i < 40 && !(await tile.evaluate(el => el.getRootNode().activeElement === el)); i++) await page.keyboard.press("Tab");
+  await expect(tile).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(add).toBeVisible();
+  await expect(lab.locator("#add-q")).toBeFocused();
+  await page.keyboard.type("fire");
+  await expect(add.locator(".add-it b").first()).toHaveText("Fire Energy");
+  await page.keyboard.press("Tab"); // − is off at 0, so Tab lands on +
+  await expect(add.getByRole("button", { name: "Add one Fire Energy" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await expect(add.locator(".add-it .pm .num").first()).toHaveText("2");
+  await expect(add.getByRole("button", { name: "Add one Fire Energy" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(add).toBeHidden();
+  await expect(lab.getByRole("button", { name: "Add an Energy card" })).toBeFocused();
+  await expect(lab.locator(".cl-head")).toHaveText(["Pokémon1", "Trainer0", "Energy2"]);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("an empty Deck Lab shows Import deck and the deck choice, no card blocks; Export and Clear wait for a list", async ({ page, consoleErrors }) => {
+  await page.goto("/#lab");
+  const lab = page.locator("#lab-host");
+  await expect(lab).toHaveClass(/\bempty\b/);
+  await expect(lab.locator("#deck, textarea:visible")).toHaveCount(0); // no text field
+  await expect(lab.locator("#btn-import")).toBeVisible();
+  await expect(lab.locator("#btn-export")).toBeDisabled();
+  await expect(lab.locator("#btn-clear")).toBeHidden();
+  await expect(page.locator("button[data-picker=lab-select]")).toBeVisible();
+  await expect(lab.locator("#cardlist")).toBeHidden();
+  await expect(lab.locator("#view")).toBeHidden();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("Import deck takes a list from the clipboard or the text box, Esc closes it, and Export deck copies the list", async ({ page, context, consoleErrors }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/#lab");
+  const lab = page.locator("#lab-host"), imp = lab.locator("#imp");
+  // Esc closes the pop-up without a change.
+  await lab.locator("#btn-import").click();
+  await expect(imp).toBeVisible();
+  await expect(lab.locator("#imp-text")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(imp).toBeHidden();
+  await expect(lab).toHaveClass(/\bempty\b/);
+  // Text without card lines stays in the pop-up, with a hint.
+  await lab.locator("#btn-import").click();
+  await lab.locator("#imp-text").fill("hello");
+  await lab.locator("#imp-go").click();
+  await expect(lab.locator("#imp-state")).toHaveText("No card lines found. A line looks like 4 Dreepy TWM 128.");
+  await expect(imp).toBeVisible();
+  // Paste from clipboard imports straight away.
+  await page.evaluate(t => navigator.clipboard.writeText(t), PASTED_LIST);
+  await lab.locator("#btn-paste").click();
+  await expect(imp).toBeHidden();
+  await expect(lab.locator("#src")).toHaveText("Imported list");
+  await expect(lab.locator(".compbar")).toHaveText(/Pokémon 19.*Trainer 32.*Energy 8/);
+  // Export gives the PTCG Live text back, with the line Deck Lab does not know (Dudunsparce) as it came in.
+  await page.evaluate(() => navigator.clipboard.writeText(""));
+  await lab.locator("#btn-export").click();
+  await expect(lab.locator("#btn-export")).toHaveText("Copied");
+  expect(await clipboard(page)).toBe(PASTED_LIST);
+  await expect(lab.locator("#btn-export")).toHaveText("Export deck");
   expect(consoleErrors).toEqual([]);
 });
 
@@ -644,10 +819,11 @@ test("after Load a deck archetype a heading names the loaded list, and its dropd
   await expect(page.locator("#ml-deck")).toHaveValue("dragapult-ex");
   await expect(page.locator("#ml-deck option", { hasText: /automatic/i })).toHaveCount(0);
   await pick.selectOption({ label: "2nd of 7 · Baltimore" });
-  await expect(lab.locator("#src")).toHaveText("Dragapult · 2nd of 7 · Baltimore");
+  await expect(lab.locator("#src")).toHaveText(""); // the heading names the list, no second label under it
+  await expect(lab.locator("#lab-arch")).toBeVisible(); // inside Deck Lab, in the block with Import / Export
   await expect(pick.locator("option:checked")).toHaveText("2nd of 7 · Baltimore");
-  // Another source (Reset) takes the heading away.
-  await lab.locator("#btn-reset").click();
+  // Another source (Clear) takes the heading away.
+  await lab.locator("#btn-clear").click();
   await expect(head).toBeHidden();
   expect(consoleErrors).toEqual([]);
 });
@@ -665,7 +841,7 @@ test("Deck Lab classifies lines without set code by name and draws a test hand w
   const lab = page.locator("#lab-host");
   expect(BY_NAME_LIST).toContain("\n1 kofu\n");
   expect(BY_NAME_LIST).toContain("\n4 Crushing Hammer\n");
-  await lab.locator("#deck").fill(BY_NAME_LIST);
+  await importList(page, BY_NAME_LIST);
 
   await expect(lab.locator("#total-badge")).toBeHidden(); // 60 cards: no count bar
   await expect(lab.locator(".cl-row", { hasText: "Kofu" })).toContainText("Supporter");
@@ -763,7 +939,7 @@ test.describe("at phone width", () => {
   test("in Deck Lab the next 4 draws are folded away until you open them, and closed again on New hand", async ({ page, consoleErrors }) => {
     await page.goto("/#lab");
     const lab = page.locator("#lab-host");
-    await lab.locator("#deck").fill(PASTED_LIST);
+    await importList(page, PASTED_LIST);
     const draws = lab.locator("#th-draws");
     await expect(draws).not.toHaveAttribute("open");
     await expect(draws.locator("summary")).toHaveText("Next 4 draws");
@@ -799,8 +975,8 @@ test.describe("on a touch screen", () => {
 test("a click on a card image in Deck Lab shows it full screen, Esc closes it", async ({ page, consoleErrors }) => {
   await page.goto("/#lab");
   const lab = page.locator("#lab-host");
-  await lab.locator("#deck").fill(PASTED_LIST);
-  const img = lab.locator("#cardlist .ctile img").first();
+  await importList(page, PASTED_LIST);
+  const img = lab.locator("#th-body .ctile img").first(); // in the card list a click is − / + (mouse)
   await expect(img).toBeVisible();
   await img.click();
   await expect(page.locator(".card-zoom img")).toHaveAttribute("src", await img.getAttribute("src"));

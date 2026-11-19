@@ -2,7 +2,7 @@
 // findCard is puur (index erin, kaart eruit); loadCardIndex is de dunne lader eromheen.
 
 // Naam vergelijkbaar maken: kleine letters, zonder accenten en apostrofs, enkele spaties.
-const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+export const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
   .replace(/['’`]/g, "").replace(/\s+/g, " ").trim();
 
 // Levenshtein-afstand: het minste aantal letters invoegen, weglaten of vervangen.
@@ -118,6 +118,7 @@ if (typeof document !== "undefined") document.addEventListener("keydown", e => {
 if (typeof document !== "undefined") document.addEventListener("click", e => {
   const img = e.composedPath()[0];
   if (!(img instanceof HTMLImageElement) || !img.parentNode?.classList?.contains("ctile")) return;
+  if (img.closest("[data-own-zoom]")) return; // that list opens its own pop-up (Deck Lab: the card with − and +)
   e.preventDefault(); e.stopPropagation();
   const o = document.createElement("div");
   o.className = "card-zoom";
