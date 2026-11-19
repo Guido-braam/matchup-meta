@@ -52,6 +52,33 @@ export function serialize(rows){
   return out.join("\n");
 }
 
+// De Card van een row met de naam en categorie waaronder Deck Lab hem telt. key is dezelfde voor dezelfde kaartnaam
+// uit verschillende sets (Boss's Orders ASC 256 + PR-SW 251): dat is één entry. Onbekend: cat null.
+function cardOfRow(index, r){
+  const typed = typedName(r.name), card = findCard(index, r.set, r.num, typed);
+  const name = card ? card.name : typed, cat = card ? CAT_OF[card.category] : null;
+  return {card, name, cat, key: cat + "|" + name.toLowerCase()};
+}
+
+// ---------- Deckregels ----------
+// + mag tot 4 per naam (over alle prints), basis-Energy zonder maximum; een niet-herkende regel krijgt geen +.
+export const canAdd = e => !!e.cat && (e.sub === "basic" || e.count < 4);
+// Waarschuwingen voor de balk boven de lijst; blokkeren doet Deck Lab niet (een import met 5 kopieën laadt gewoon).
+export function deckWarnings(E){
+  const total = E.reduce((s, e) => s + e.count, 0), ace = E.filter(e => e.ace).reduce((s, e) => s + e.count, 0);
+  const out = [];
+  if (total !== 60) out.push(`${total} / 60 cards. A deck needs exactly 60.`);
+  if (ace > 1) out.push(`${ace} ACE SPEC cards. A deck may have only 1.`);
+  return out;
+}
+// − of + op een entry (key): de eerste row van die kaart krijgt er één bij of af; op 0 gaat die row weg.
+export function bump(rows, index, key, d){
+  const i = rows.findIndex(r => cardOfRow(index, r).key === key);
+  if (i < 0) return rows;
+  const out = rows.slice(); out[i] = {...out[i], count: out[i].count + d};
+  return out[i].count > 0 ? out : out.filter((_, j) => j !== i);
+}
+
 export const DeckLab = (() => {
   // Items (en Artazon) waarmee je zonder Supporter Pokémon op je bank krijgt.
   // Dit is strategie, geen kaartdata: de Card index zegt niet welke Items Pokémon zoeken, dus deze lijst blijft.
@@ -71,13 +98,9 @@ export const DeckLab = (() => {
     const map = new Map();
     for (const raw of text.split(/\r?\n/)) {
       const r = parseLine(raw); if (!r) continue;
-      const {set, num, count: n} = r, typed = typedName(r.name);
-      const card = findCard(index, set, num, typed), name = card ? card.name : typed;
-      const cat = card ? CAT_OF[card.category] : null;
-      // Dezelfde kaartnaam uit verschillende sets is één regel (Boss's Orders ASC 256 + PR-SW 251).
-      const key = cat + "|" + name.toLowerCase();
+      const {set, num, count: n} = r, {card, name, cat, key} = cardOfRow(index, r);
       if (map.has(key)) { const e = map.get(key); e.count += n; if (set) e.prints.push(set + " " + num); continue; }
-      map.set(key, {name, set, num, count:n, cat, card, prints: set ? [set + " " + num] : [],
+      map.set(key, {key, name, set, num, count:n, cat, card, prints: set ? [set + " " + num] : [],
         // Alleen "Basic" is een Basic; andere evoluties (BREAK, VMAX) tellen als Stage 1. Trainer zonder type: Item.
         stage: cat !== "pokemon" || card.stage === "Basic" ? 0 : card.stage === "Stage2" ? 2 : 1,
         sub: cat === "trainer" ? (card.trainerType || "Item").toLowerCase() :cat === "energy" ? (card.energyType === "Special" ? "special" : "basic") : null,
@@ -208,12 +231,19 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 .cl-head:first-child{margin-top:0}
 .count-bar{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad);border-radius:8px;padding:8px 12px;font-weight:600;font-size:13px}
 .count-bar[hidden]{display:none}
+.count-bar{white-space:pre-line}
 .cl-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;margin-top:6px}
 .cl-row .nm{font-size:8.5px}
 .cl-row .art{font-size:14px}
 .cl-row .ft{display:none}
 .cl-row .cnt{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);min-width:15px;height:15px;padding:0 4px;border-radius:99px;background:var(--accent);color:var(--accent-ink);font:700 10px/15px var(--f-body);text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 /* Telefoon: 5 per rij. */
+/* − en + onder de kaart: minstens 36px hoog, ook op een telefoon met 5 per rij. */
+.cl-row{display:flex;flex-direction:column;gap:3px}
+.pm{display:flex;gap:2px}
+.pm button{flex:1;min-width:0;min-height:36px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--sunk);font-weight:700;font-size:16px;line-height:1}
+.pm button:hover:not(:disabled){border-color:var(--accent)}
+.pm button:disabled{opacity:.35;cursor:default}
 @media (max-width:560px){.cl-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.cl-row .cnt{min-width:18px;height:18px;font-size:11px;line-height:18px}}
 /* Groot scherm: 4 per rij in de linkerkolom (ongeveer 62px; Test hand is 84px). */
 @media (min-width:901px){.cl-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.cl-row .nm{font-size:9px}.cl-row .art{font-size:18px}.cl-row .cnt{min-width:18px;height:18px;bottom:3px;font-size:11px;line-height:18px}}
@@ -345,9 +375,9 @@ details[open]>summary.zone-t::before{content:"▾"}
   const $ = s => root.querySelector(s);
 
   function renderList(){
-    const total = totalOf(entries);
-    // Alleen een balk als de lijst niet op 60 uitkomt.
-    const tb = $("#total-badge"); tb.hidden = total === 60 || !rows.length; tb.textContent = `${total} / 60 cards. A deck needs exactly 60.`;
+    // Alleen een balk als de lijst niet op 60 uitkomt of meer dan één ACE SPEC heeft.
+    const warn = rows.length ? deckWarnings(entries) : [];
+    const tb = $("#total-badge"); tb.hidden = !warn.length; tb.textContent = warn.join("\n");
     let html = "";
     // De drie blokken staan er altijd, ook leeg; "Not recognized" alleen als er zulke regels zijn.
     for (const cat of ["pokemon","trainer","energy",null]){
@@ -356,7 +386,11 @@ details[open]>summary.zone-t::before{content:"▾"}
       // Kleine kaarttegels met het aantal; stage/type en ACE SPEC staan in de (verborgen) note.
       html += `<div class="cl-grid">${list.map(e => {
         const note = cat ? (e.ace ? "ACE SPEC · " : "") + tagOf(e) : "card not recognized";
-        return `<div class="cl-row">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}</div>`;
+        // − en + eronder; een niet-herkende regel heeft alleen −.
+        const k = esc(e.key), n = esc(e.name);
+        const pm = `<div class="pm"><button type="button" data-pm="-1" data-key="${k}" aria-label="Remove one ${n}">−</button>`
+          + (cat ? `<button type="button" data-pm="1" data-key="${k}" aria-label="Add one ${n}"${canAdd(e) ? "" : " disabled"}>+</button>` : "") + "</div>";
+        return `<div class="cl-row">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}${pm}</div>`;
       }).join("")}</div>`;
     }
     $("#cardlist").innerHTML = html;
@@ -519,6 +553,15 @@ details[open]>summary.zone-t::before{content:"▾"}
       imp.close(); return setList(text, "Imported list");
     };
     $("#imp-go").onclick = () => doImport(impText.value);
+    // − / + in the card list. The list is drawn again, so the focus goes back to the same button (or its partner).
+    $("#cardlist").addEventListener("click", async e => {
+      const b = e.target.closest("button[data-pm]"); if (!b || b.disabled) return;
+      const {key, pm} = b.dataset;
+      rows = bump(rows, await loadCardIndex(), key, +pm);
+      await edited();
+      const sel = d => root.querySelector(`button[data-key="${globalThis.CSS.escape(key)}"][data-pm="${d}"]:not(:disabled)`); // CSS here is the stylesheet
+      (sel(pm) || sel(-pm))?.focus();
+    });
     // Reading the clipboard can be refused; then into the text box, so Ctrl+V works.
     $("#btn-paste").onclick = async () => {
       try { const t = await navigator.clipboard.readText(); if (t.trim()) { impText.value = t; return doImport(t); } } catch {}

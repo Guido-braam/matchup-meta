@@ -604,6 +604,14 @@ test("a list saved to My lists comes back after a reload as it was saved, and ca
   await lab.locator("#btn-export").click();
   expect(await clipboard(page)).toBe(PASTED_LIST);
 
+  // No games yet, so an edit (− on Dreepy) changes v1 itself.
+  await lab.getByRole("button", { name: "Remove one Dreepy", exact: true }).click();
+  await expect(lab.locator("#src")).toHaveText("My Dragapult · v1 (edited)");
+  await page.locator("#ml-save").click();
+  await expect(page.locator("#ml-state")).toHaveText("Saved My Dragapult · v1.");
+  await lab.locator("#btn-export").click();
+  expect(await clipboard(page)).toBe(PASTED_LIST.replace("Pokémon: 20\n4 Drakloak ASC 159\n4 Dreepy", "Pokémon: 19\n4 Drakloak ASC 159\n3 Dreepy").replace("Total Cards: 60", "Total Cards: 59"));
+
   await page.locator("#ml-delete").click();
   await expect(page.locator("#ml-delete")).toHaveText("Click again to delete");
   await page.locator("#ml-delete").click();
@@ -625,7 +633,7 @@ test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   await expect(lab.locator("#cardlist")).not.toContainText("Jellicent ex"); // Deck Lab's own sample is gone
   await expect(lab.locator("#view")).not.toBeEmpty();
   // Categories come from the Card index: no type label to click, Dudunsparce (not in the index) is not recognized.
-  await expect(lab.locator("[data-cycle], #cardlist button")).toHaveCount(0);
+  await expect(lab.locator("[data-cycle]")).toHaveCount(0);
   await expect(lab.locator(".cl-row", { hasText: "Drakloak" })).toContainText("Stage 1");
   await expect(lab.locator(".cl-row", { hasText: "Unfair Stamp" })).toContainText("ACE SPEC");
   await expect(lab.locator(".cl-row", { hasText: "Dudunsparce" })).toContainText("card not recognized");
@@ -642,6 +650,43 @@ test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   await expect(lab.locator("#btn-clear")).toBeHidden();
   await expect(lab.locator("#btn-import")).toBeVisible();
   await expect(page.locator("button[data-picker=lab-select]")).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("− and + under each card change the list, with at most 4 per name and warnings for 60 and ACE SPEC", async ({ page, consoleErrors }) => {
+  await page.goto("/#lab");
+  const lab = page.locator("#lab-host");
+  await importList(page, PASTED_LIST);
+  const btn = name => lab.getByRole("button", { name, exact: true });
+  const cnt = name => lab.locator(".cl-row", { has: page.getByRole("button", { name: `Remove one ${name}`, exact: true }) }).locator(".cnt");
+  // 4 Dreepy: + is off; − takes one off, everywhere at once.
+  await expect(btn("Add one Dreepy")).toBeDisabled();
+  await btn("Remove one Dreepy").click();
+  await expect(cnt("Dreepy")).toHaveText("3");
+  await expect(btn("Remove one Dreepy")).toBeFocused(); // the focus stays on the button
+  await expect(lab.locator("#src")).toHaveText("Imported list (edited)");
+  await expect(lab.locator("#total-badge")).toHaveText("59 / 60 cards. A deck needs exactly 60.");
+  await expect(lab.locator(".compbar")).toHaveText(/Pokémon 18/);
+  await btn("Add one Dreepy").click();
+  await expect(cnt("Dreepy")).toHaveText("4");
+  await expect(btn("Add one Dreepy")).toBeDisabled();
+  await expect(lab.locator("#total-badge")).toBeHidden();
+  // A card at 0 is gone.
+  await btn("Remove one Budew").click();
+  await btn("Remove one Budew").click();
+  await expect(btn("Remove one Budew")).toHaveCount(0);
+  await expect(lab.locator("#cardlist")).not.toContainText("Budew");
+  // Basic Energy has no limit.
+  await btn("Add one Fire Energy").click();
+  await btn("Add one Fire Energy").click();
+  await expect(cnt("Fire Energy")).toHaveText("5");
+  await expect(btn("Add one Fire Energy")).toBeEnabled();
+  // A line Deck Lab does not know has only −.
+  await expect(btn("Remove one Dudunsparce")).toBeVisible();
+  await expect(btn("Add one Dudunsparce")).toHaveCount(0);
+  // A second ACE SPEC is allowed, with a warning.
+  await btn("Add one Unfair Stamp").click();
+  await expect(lab.locator("#total-badge")).toHaveText("61 / 60 cards. A deck needs exactly 60. 2 ACE SPEC cards. A deck may have only 1.");
   expect(consoleErrors).toEqual([]);
 });
 
