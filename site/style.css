@@ -350,6 +350,9 @@ details.how .note { margin: 6px 0 0; }
 .picker .tile[disabled] { opacity: 0.4; cursor: not-allowed; transform: none; border-color: transparent; }
 .pk-off { font-size: 0.62rem; font-weight: 600; color: var(--muted); }
 .pk-none { margin-bottom: 12px; }
+.pk-never { display: flex; align-items: center; gap: 10px; }
+.pk-never[hidden] { display: none; }
+.pk-never .note { margin: 0; font-size: 0.85rem; }
 .pk-none .current { border-color: var(--accent); }
 @media (max-width: 640px) { .picker-btn { min-width: 0; width: 100%; } .lab-save-row .picker-btn { flex: 1; width: auto; } }
 

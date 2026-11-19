@@ -96,8 +96,8 @@ $("continent").addEventListener("change", e => { continent = e.target.value; sav
 
 // "N decks you never meet are left out. Show them": per pagina, standaard verborgen, niet bewaard.
 const showNever = { tiers: false, deck: false, pick: false };
-const neverLine = (key, n, what = "them") => !n ? "" : `${n} deck${n === 1 ? "" : "s"} you never meet ${n === 1 ? "is" : "are"} ${showNever[key] ? "shown" : "left out"}. `
-  + `<button type="button" class="link-btn" data-never="${key}">${showNever[key] ? "Hide" : "Show"} ${what}</button>`;
+const neverLine = (key, n) => !n ? "" : `${n} deck${n === 1 ? "" : "s"} you never meet ${n === 1 ? "is" : "are"} ${showNever[key] ? "shown" : "left out"}. `
+  + `<button type="button" class="link-btn" data-never="${key}">${showNever[key] ? "Hide" : "Show"} them</button>`;
 
 // ---------- Tier list ----------
 function renderTiers() {
@@ -652,8 +652,12 @@ function renderPicker() {
         return `<button type="button" class="tile${on ? " current" : ""}" data-pick="${esc(key(a, i))}"${off ? " disabled" : ""}${on ? ' aria-current="true"' : ""}>
           ${spritesHtml(a)}<span class="name">${esc(a.name)}</span>${off ? '<span class="pk-off">no list</span>' : ""}</button>`;
       }).join("")}</div>
-    </div>`).join("")}</div>` : `<div class="state">No decks found.</div>`)
-    + (nNever ? `<p class="note never-line pk-inner">${neverLine("pick", nNever, "uncommon decks")}</p>` : "");
+    </div>`).join("")}</div>` : `<div class="state">No decks found.</div>`);
+  // Next to Close: [Show uncommon decks] N decks you never meet are left out.
+  const nv = $("pk-never"), on = showNever.pick;
+  nv.hidden = !nNever;
+  nv.innerHTML = `<button type="button" class="btn" data-never="pick">${on ? "Hide" : "Show"} uncommon decks</button>`
+    + `<span class="note">${nNever} deck${nNever === 1 ? "" : "s"} you never meet ${nNever === 1 ? "is" : "are"} ${on ? "shown" : "left out"}.</span>`;
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("button[data-picker]");
