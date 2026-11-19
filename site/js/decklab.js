@@ -407,7 +407,7 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
       <p class="hint" id="src"></p>
       <div class="full-only"><slot name="save"></slot></div>
     </div>
-    <div class="panel">
+    <div class="panel full-only">
       <div class="cardlist" id="cardlist"></div>
     </div>
   </aside>

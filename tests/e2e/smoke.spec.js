@@ -730,6 +730,7 @@ test("[+] Trainer opens Add a card: a word from the card text finds it, + adds i
 test("Add a card works with the keyboard only: Tab to [+], Enter, type, Tab to +, Enter, Esc", async ({ page, consoleErrors }) => {
   await page.goto("/#lab");
   const lab = page.locator("#lab-host"), add = lab.locator("#add"), tile = lab.getByRole("button", { name: "Add an Energy card" });
+  await importList(page, "1 Dreepy ASC 158"); // the blocks show once there is a list
   for (let i = 0; i < 40 && !(await tile.evaluate(el => el.getRootNode().activeElement === el)); i++) await page.keyboard.press("Tab");
   await expect(tile).toBeFocused();
   await page.keyboard.press("Enter");
@@ -746,11 +747,11 @@ test("Add a card works with the keyboard only: Tab to [+], Enter, type, Tab to +
   await page.keyboard.press("Escape");
   await expect(add).toBeHidden();
   await expect(lab.getByRole("button", { name: "Add an Energy card" })).toBeFocused();
-  await expect(lab.locator(".cl-head")).toHaveText(["Pokémon0", "Trainer0", "Energy2"]);
+  await expect(lab.locator(".cl-head")).toHaveText(["Pokémon1", "Trainer0", "Energy2"]);
   expect(consoleErrors).toEqual([]);
 });
 
-test("an empty Deck Lab shows Import deck, the deck choice and the three empty blocks; Export and Clear wait for a list", async ({ page, consoleErrors }) => {
+test("an empty Deck Lab shows Import deck and the deck choice, no card blocks; Export and Clear wait for a list", async ({ page, consoleErrors }) => {
   await page.goto("/#lab");
   const lab = page.locator("#lab-host");
   await expect(lab).toHaveClass(/\bempty\b/);
@@ -759,7 +760,7 @@ test("an empty Deck Lab shows Import deck, the deck choice and the three empty b
   await expect(lab.locator("#btn-export")).toBeDisabled();
   await expect(lab.locator("#btn-clear")).toBeHidden();
   await expect(page.locator("button[data-picker=lab-select]")).toBeVisible();
-  await expect(lab.locator(".cl-head")).toHaveText(["Pokémon0", "Trainer0", "Energy0"]);
+  await expect(lab.locator("#cardlist")).toBeHidden();
   await expect(lab.locator("#view")).toBeHidden();
   expect(consoleErrors).toEqual([]);
 });
