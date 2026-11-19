@@ -278,6 +278,19 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 @media (max-width:560px){.cl-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.cl-row .cnt{min-width:18px;height:18px;font-size:11px;line-height:18px}}
 /* Groot scherm: 4 per rij in de linkerkolom (ongeveer 62px; Test hand is 84px). */
 @media (min-width:901px){.cl-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.cl-row .nm{font-size:9px}.cl-row .art{font-size:18px}.cl-row .cnt{min-width:18px;height:18px;bottom:3px;font-size:11px;line-height:18px}}
+/* With a mouse: − and + sit on the card itself, left half −, right half +, and show on the hover zoom
+   (the whole row zooms, since the buttons cover the tile). Touch keeps the row under the card. */
+@media (hover:hover){
+.cl-row:has(.pm){position:relative;transition:transform .15s}
+.cl-row:has(.pm):is(:hover,:focus-within){transform:scale(2.5);z-index:5}
+.cl-row:has(.pm):is(:hover,:focus-within) .ctile{box-shadow:0 8px 24px rgb(0 0 0/.5)}
+.cl-row .pm{position:absolute;inset:0;gap:0;opacity:0;transition:opacity .15s}
+.cl-row:is(:hover,:focus-within) .pm{opacity:1}
+.cl-row .pm button{flex:0 0 50%;min-height:0;border:0;border-radius:0;background:transparent;color:#fff;font-size:22px;font-weight:800;text-shadow:0 0 2px #000,0 0 5px #000;cursor:pointer}
+.cl-row .pm [data-pm="-1"]{border-radius:6px 0 0 6px}.cl-row .pm [data-pm="1"]{border-radius:0 6px 6px 0}
+.cl-row .pm button:hover:not(:disabled),.cl-row .pm button:focus-visible{background:rgb(0 0 0/.35);outline:none}
+.cl-row .pm button:disabled{opacity:.3;cursor:not-allowed}
+}
 .btn:disabled{opacity:.5;cursor:default;border-color:var(--line)}
 .io{gap:6px}
 .io .btn{flex:1 1 auto;white-space:nowrap;padding:7px 10px}

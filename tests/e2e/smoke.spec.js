@@ -966,7 +966,7 @@ test("a click on a card image in Deck Lab shows it full screen, Esc closes it", 
   await page.goto("/#lab");
   const lab = page.locator("#lab-host");
   await importList(page, PASTED_LIST);
-  const img = lab.locator("#cardlist .ctile img").first();
+  const img = lab.locator("#th-body .ctile img").first(); // in the card list a click is − / + (mouse)
   await expect(img).toBeVisible();
   await img.click();
   await expect(page.locator(".card-zoom img")).toHaveAttribute("src", await img.getAttribute("src"));
