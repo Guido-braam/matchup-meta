@@ -529,7 +529,7 @@ $("ml-changes-btn").addEventListener("click", async () => {
   const deck = $("ml-dlg-deck").selectedOptions[0]?.textContent ?? "No deck", deckSet = $("ml-dlg-deck").value !== $("ml-dlg-deck").dataset.v0;
   const action = chName(l) !== l.name ? "new" : d.out.length + d.in.length ? "version" : "deck";
   dlg = { l, text, cards, action };
-  $("ml-dlg-sub").textContent = action === "new" ? `Create new list ${chName(l)}`
+  $("ml-dlg-sub").textContent = action === "new" ? `Create ${chName(l)}`
     : action === "version" ? `Add v${latest(l).v + 1} to ${l.name}${deckSet ? `, deck ${deck}` : ""}`
     : `Set the deck of ${l.name} to ${deck}`;
   const li = xs => xs.map(([k, n]) => `<li><span class="num">${n}×</span> ${esc(k)}</li>`).join("") || `<li class="note">Nothing</li>`;
