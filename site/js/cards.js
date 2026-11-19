@@ -142,3 +142,36 @@ export function loadCardIndex(fetchFn = globalThis.fetch) {
   indexReq ??= fetchFn("cards/index.json").then(r => r.ok ? r.json() : null).catch(() => null);
   return indexReq;
 }
+
+// ---------- Card text (for Claude) ----------
+// A set file with every Card's full data (cards/<set id>.json), fetched once per page load; null when it fails.
+const setReq = new Map();
+export function loadSet(setId, fetchFn = globalThis.fetch) {
+  if (!setReq.has(setId)) setReq.set(setId, fetchFn(`cards/${setId}.json`).then(r => (r.ok ? r.json() : null)).catch(() => null));
+  return setReq.get(setId);
+}
+// One Card's rules in one line: "Talonflame ex · Basic Pokémon · HP 230 · Colorless · Ability Excited Dive: … · Talon Hunt [CC] 150: … · Weakness Lightning ×2 · Retreat 0".
+export function cardText(c) {
+  const cost = a => (a.cost?.length ? ` [${a.cost.map(t => t[0]).join("")}]` : "");
+  return [
+    c.name,
+    c.category === "Pokemon" ? `${c.stage ?? ""} Pokémon${c.evolveFrom ? ` (from ${c.evolveFrom})` : ""}`.trim() : [c.trainerType, c.category].filter(Boolean).join(" "),
+    c.hp && `HP ${c.hp}`, c.types?.join("/"),
+    ...(c.abilities || []).map(a => `${a.type ?? "Ability"} ${a.name}: ${a.effect}`),
+    ...(c.attacks || []).map(a => `${a.name}${cost(a)}${a.damage ? ` ${a.damage}` : ""}${a.effect ? `: ${a.effect}` : ""}`),
+    c.effect, c.weaknesses?.length && `Weakness ${c.weaknesses.map(w => `${w.type} ${w.value}`).join(", ")}`,
+    c.category === "Pokemon" && c.retreat != null && `Retreat ${c.retreat}`,
+  ].filter(Boolean).join(" · ");
+}
+// Card texts for Cards by name (or {id, name}), one per name; Cards not found are left out.
+export async function cardTexts(index, cards) {
+  const out = new Map();
+  for (const c of cards) {
+    const k = (c.id && cardById(index, c.id)) || findCard(index, null, null, c.name);
+    if (!k || out.has(k.name)) continue;
+    const set = await loadSet(splitId(k.id).setId);
+    const full = set?.cards?.find(x => x.id === k.id);
+    if (full) out.set(k.name, cardText(full));
+  }
+  return [...out.values()];
+}

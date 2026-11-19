@@ -8,8 +8,9 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;"
 const SPEEDS = [["Slow", 2000], ["Normal", 1000], ["Fast", 400]];
 const short = n => n.replace(/^Basic /, "").replace(/ Energy$/, "");
 
-// el: an empty element; game: a parsed game; index: the Card index or null (then name tiles, no images).
-export function mountReplay(el, game, index) {
+// el: an empty element; game: a parsed game; index: the Card index or null (then name tiles, no images);
+// start: the event to show first.
+export function mountReplay(el, game, index, start = 0) {
   const states = replay(game), ev = game.events, last = ev.length - 1;
   const who = s => (s === "me" ? "You" : game.players.opp);
   const turnLabel = t => (t ? `Turn ${t} · ${who(ev.find(e => e.turn === t).turnSide)}` : "Setup");
@@ -90,5 +91,5 @@ export function mountReplay(el, game, index) {
     if (a === "turn") { stop(); show(firstOf(+e.target.value)); }
     if (a === "speed") { speed = +e.target.value; if (timer) { stop(); play(); } }
   });
-  show(0);
+  show(start);
 }

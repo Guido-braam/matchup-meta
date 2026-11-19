@@ -19,12 +19,10 @@
       <button role="tab" id="tab-tierlist" data-tab="tierlist" aria-selected="true">Tier list</button>
       <button role="tab" id="tab-lab" data-tab="lab" aria-selected="false">Deck Lab</button>
       <button role="tab" id="tab-games" data-tab="games" aria-selected="false">My games</button>
+      <button role="tab" id="tab-analysis" data-tab="analysis" aria-selected="false">Analysis</button>
+      <button type="button" id="open-meta" data-goto="meta" aria-haspopup="dialog">My meta</button>
       <button role="tab" id="tab-deck" aria-selected="false" hidden>Deck</button>
     </nav>
-    <div class="head-actions">
-      <button class="btn" type="button" id="open-meta" data-goto="meta" aria-haspopup="dialog">My meta</button>
-      <button class="btn" type="button" id="open-ask" data-goto="advice" aria-haspopup="dialog">Ask Claude</button>
-    </div>
   </header>
 
   <section id="page-tierlist" role="tabpanel" aria-labelledby="tab-tierlist">
@@ -34,6 +32,7 @@
     <div class="tier-foot">
       <div class="legend tier-legend" id="tier-legend"></div>
     </div>
+    <p class="tier-ask"><button class="btn" type="button" data-goto="advice" aria-haspopup="dialog">Which deck should I play at locals?</button></p>
     <details class="how"><summary>How is this calculated?</summary>
     <p class="note">The tier follows from the expected winrate: the average of all matchups, weighted by how often you meet each deck (set this in <a href="#meta" data-goto="meta">My meta</a>). The cut-offs scale with your meta: the decks you meet are ranked (equal winrates share a place), the top 10% is S, the next 15% A, then 25% B, 25% C, 15% D and the bottom 10% E. Within a tier the highest winrate comes first. Matchups with few games are pulled towards 50%. Click a deck to see its matchups.</p>
     </details>
@@ -61,16 +60,29 @@
     </div>
   </section>
 
+  <section id="page-analysis" role="tabpanel" aria-labelledby="tab-analysis" hidden>
+    <div class="panel an-panel">
+      <div class="an-pick" id="an-pick">
+        <label class="gm-field">Deck<select id="an-deck"></select></label>
+        <label class="gm-field">Version<select id="an-version"></select></label>
+        <label class="gm-field">Opponent<select id="an-opp"></select></label>
+      </div>
+      <div id="an-body"></div>
+    </div>
+  </section>
+
   <section id="page-lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
     <!-- Deck Lab draait in een shadow root; de deckkeuze komt erin via slots. -->
+    <div class="panel lab-arch" id="lab-arch" hidden></div>
     <div id="lab-host">
       <div slot="load" class="lab-load">
         <select id="mylist-select" aria-label="Open one of My lists" hidden></select>
-        <select id="lab-select" aria-label="Load a deck into Deck Lab" hidden></select>
-        <button class="btn picker-btn" type="button" data-picker="lab-select" data-title="Load a deck into Deck Lab" data-placeholder="Load a deck…" aria-haspopup="dialog">Load a deck…</button>
+        <p class="hint lab-or">or</p>
+        <select id="lab-select" aria-label="Load a deck archetype into Deck Lab" hidden></select>
+        <button class="btn picker-btn" type="button" data-picker="lab-select" data-title="Load a deck archetype into Deck Lab" data-placeholder="Load a deck archetype…" aria-haspopup="dialog">Load a deck archetype…</button>
       </div>
       <div slot="save" class="lab-save">
-        <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Name (optional)" maxlength="60"><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>
+        <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Name (optional)" maxlength="60"><select id="ml-deck" aria-label="Deck of this list"></select><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>
         <p class="note" id="ml-state" role="status"></p>
         <div class="lab-save-row" id="ml-manage" hidden><button class="link-btn" type="button" id="ml-archive">Archive</button><button class="link-btn" type="button" id="ml-delete">Delete</button></div>
       </div>
@@ -82,22 +94,6 @@
       <h2 id="advice-title">Ask Claude</h2>
       <button class="dlg-x" aria-label="Close">×</button>
     </form>
-    <div class="panel data-panel key-panel" id="ai-key">
-      <div id="key-off">
-        <h2>Advice and Deck chat are off</h2>
-        <p class="note">They use Claude with your own Anthropic API key, so you pay Anthropic for your own use. Create a key in the <a href="https://platform.claude.com/settings/keys" rel="noopener">Claude Console</a> and paste it here. The key is stored only in this browser and only sent to Anthropic. Everything else on the site works without a key.</p>
-        <form class="upload-row" id="key-form">
-          <label for="key-input" class="visually-hidden">Anthropic API key</label>
-          <input type="password" id="key-input" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-          <button class="btn primary" type="submit">Save key</button>
-        </form>
-      </div>
-      <div class="upload-row" id="key-on" hidden>
-        <p class="note" id="key-on-text"></p>
-        <button class="btn" type="button" id="key-remove">Remove key</button>
-      </div>
-      <span class="hint" id="key-state"></span>
-    </div>
     <div class="panel data-panel">
       <h2>Which deck should I play at locals?</h2>
       <p class="note">Claude looks at My meta (the frequency levels you set), all matchups, the Regionals results and the Recommended lists, and advises which deck and which list to play. This uses your own Anthropic API key and credit. An analysis usually takes half a minute to two minutes.</p>
@@ -110,6 +106,29 @@
       </div>
     </div>
     <div id="advice-result"></div>
+  </dialog>
+
+  <dialog class="modal" id="dialog-key" aria-labelledby="key-title">
+    <form method="dialog" class="modal-head">
+      <h2 id="key-title">Add Anthropic API key</h2>
+      <button class="dlg-x" aria-label="Close">×</button>
+    </form>
+    <div class="panel data-panel key-panel" id="ai-key">
+      <div id="key-off">
+        <p class="note">With a key, Claude helps you in three places: it advises which deck to play at your locals, answers questions about a deck in Deck chat, and turns your Analysis into tips on how to play. Everything else on the site works without a key.</p>
+        <p class="note">The site calls Claude straight from your browser with your own key, so Anthropic bills your account for what you use. Create a key in the <a href="https://platform.claude.com/settings/keys" rel="noopener">Claude Console</a> and paste it below. The key is stored only in this browser, only sent to Anthropic, and never part of an export.</p>
+        <form class="upload-row" id="key-form">
+          <label for="key-input" class="visually-hidden">Anthropic API key</label>
+          <input type="password" id="key-input" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+          <button class="btn primary" type="submit">Save key</button>
+        </form>
+      </div>
+      <div class="upload-row" id="key-on" hidden>
+        <p class="note" id="key-on-text"></p>
+        <button class="btn" type="button" id="key-remove">Remove key</button>
+      </div>
+      <span class="hint" id="key-state"></span>
+    </div>
   </dialog>
 
   <footer class="site-foot" id="site-foot">
@@ -126,6 +145,15 @@
     <button class="dlg-x" type="button" data-close aria-label="Close">×</button>
   </div>
   <div class="dlg-body" id="gm-game"></div>
+</dialog>
+
+<dialog class="dlg gm-dlg" id="an-advice-dialog" aria-labelledby="an-advice-title">
+  <div class="dlg-head">
+    <h2 id="an-advice-title">Advice</h2>
+    <button class="dlg-x" type="button" data-close aria-label="Close">×</button>
+  </div>
+  <div class="dlg-body an-advice-body" id="an-advice-body" aria-live="polite"></div>
+  <p class="an-advice-foot"><button type="button" class="link-btn" id="an-advice-stop" hidden>Stop</button></p>
 </dialog>
 
 <dialog class="dlg gm-dlg" id="gm-list-dialog" aria-labelledby="gm-list-title">

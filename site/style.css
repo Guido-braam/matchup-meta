@@ -68,24 +68,32 @@ h2 { font-size: 1.25rem; font-weight: 800; }
 .sub { color: var(--muted); font-size: 0.9rem; }
 /* Header: titel, de twee tabs en rechts My meta en Ask Claude; loopt door op een smal scherm. */
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; }
-.head-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
 .tier-basis { margin: 0 0 10px; }
 
 nav.tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 nav.tabs::-webkit-scrollbar { display: none; }
-/* Telefoon: titel en knoppen op de eerste regel, de tabs over de volle breedte eronder */
-@media (max-width: 640px) {
-  nav.tabs { order: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; gap: 3px; overflow: visible; }
-  nav.tabs button { padding: 9px 4px; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; }
-}
 nav.tabs button {
   font: 600 0.95rem var(--font-body); color: var(--muted); background: transparent;
   border: 0; border-radius: 9px; padding: 8px 16px; cursor: pointer; white-space: nowrap;
+}
+/* Telefoon: titel en knoppen op de eerste regel, de tabs over de volle breedte eronder (na de knopregel, anders wint die) */
+@media (max-width: 640px) {
+  /* Five buttons on a phone: each column as wide as its label, so none is cut off. */
+  nav.tabs { order: 1; display: grid; grid-auto-flow: column; grid-auto-columns: auto; width: 100%; gap: 2px; overflow: visible; }
+  nav.tabs button { padding: 9px 3px; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; }
 }
 nav.tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
 /* Deck-tab: alleen op een deckpagina, iets donkerder dan de andere twee. */
 nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%); color: var(--fg); cursor: default; }
 .lab-load .picker-btn { width: 100%; }
+/* After Load a deck archetype: the deck and which of its lists is loaded. */
+.lab-arch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 16px; margin-bottom: 16px; }
+.lab-arch h2 { font-size: 1.15rem; margin: 0; }
+.lab-arch select { min-width: 0; max-width: 100%; margin-left: auto; }
+@media (max-width: 600px) { .lab-arch { flex-direction: column; align-items: stretch; } .lab-arch select { margin-left: 0; } }
+/* "or" between My lists and the deck archetypes, as above the load block; gone without My lists. */
+.lab-or { text-align: center; font-size: 14px; margin: 0; }
+#mylist-select[hidden] + .lab-or { display: none; }
 /* My games */
 .games-paste { display: flex; flex-direction: column; gap: 10px; }
 #page-games > .panel { padding: 16px; margin-bottom: 16px; }
@@ -126,10 +134,38 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 .pill.bad { color: var(--bad); background: color-mix(in oklab, var(--bad) 14%, transparent); }
 .gm-vs { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gm-meta { font-size: 0.82rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Analysis tab */
+.an-panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+#an-body { display: flex; flex-direction: column; gap: 10px; }
+.an-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; } /* Deck and Version left, Opponent right */
+@media (max-width: 600px) { .an-pick { grid-template-columns: 1fr 1fr; } .an-pick > :last-child { grid-column: 1 / -1; } }
+.an-pick .gm-field { max-width: none; min-width: 0; }
+.an-sep { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
+.an-h { margin: 0; font-size: 0.95rem; }
+.an-mus { display: flex; flex-direction: column; gap: 2px; }
+.an-mu { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.an-mu:hover, .an-mu.current { border-color: var(--line); background: var(--surface-2); }
+.an-bar { display: flex; gap: 2px; height: 22px; border-radius: 6px; overflow: hidden; }
+.an-seg { display: grid; place-items: center; min-width: 22px; font: 700 0.75rem var(--font-body); font-variant-numeric: tabular-nums; }
+.m-dominant-win { background: var(--good); color: var(--accent-fg); }
+.m-solid-win { background: color-mix(in oklab, var(--good) 55%, var(--surface)); color: var(--fg); }
+.m-close-win { background: color-mix(in oklab, var(--good) 22%, var(--surface)); color: var(--fg); }
+.m-close-loss { background: color-mix(in oklab, var(--bad) 22%, var(--surface)); color: var(--fg); }
+.m-clear-loss { background: color-mix(in oklab, var(--bad) 55%, var(--surface)); color: var(--fg); }
+.m-heavy-loss { background: var(--bad); color: var(--accent-fg); }
+.an-ins { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.an-ins li { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.an-ins li:first-child { border-top: 0; }
+.an-card { width: 40px; border-radius: 3px; flex-shrink: 0; }
+.an-early { font-size: 0.75rem; font-weight: 600; color: var(--warn); white-space: nowrap; }
+.an-warn { margin: 0; padding: 10px 12px; border-radius: 8px; border: 1px solid color-mix(in oklab, var(--warn) 45%, transparent); background: color-mix(in oklab, var(--warn) 14%, var(--surface)); color: var(--fg); }
+.an-rec { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
 .lab-load { display: flex; flex-direction: column; gap: 8px; }
 .lab-save { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .lab-save-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lab-save-row input { flex: 1; min-width: 0; }
+/* Phone: the name on its own line, the deck and Save under it. */
+@media (max-width: 600px) { .lab-save-row input { flex-basis: 100%; } .lab-save-row select { flex: 1; min-width: 0; } }
 .lab-save .note { margin: 0; }
 .lab-save .note:empty { display: none; }
 button:focus-visible, select:focus-visible, input:focus-visible, .tile:focus-visible, label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -359,6 +395,8 @@ code.path { font: 0.8rem ui-monospace, "Cascadia Mono", Consolas, monospace; bac
 .key-panel { margin-bottom: 12px; }
 .key-panel h2 { margin-bottom: 4px; }
 .key-panel .note { margin: 0; }
+.key-panel .note + .note { margin-top: 8px; }
+#ai-key { background: none; padding: 0; margin: 0; } /* the key pop-up holds only this block: no panel inside the pop-up */
 .key-panel form { margin-top: 10px; }
 #key-input { font: 500 0.92rem var(--font-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; flex: 1 1 220px; min-width: 0; max-width: 420px; }
 .field-label { font-weight: 600; font-size: 0.9rem; }
@@ -565,3 +603,8 @@ dialog.modal::backdrop { background: rgb(0 0 0 / 0.5); }
 
 /* My games notes (mygames.js). */
 .gm-note[hidden], .gm-found[hidden] { display: none; }
+.tier-ask { margin: 16px 0 0; }
+.an-advice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; }
+.an-advice-body :is(h3, h4, h5) { font-size: 1rem; margin: 14px 0 4px; }
+.an-advice-body ul { margin: 0 0 6px; padding-left: 20px; }
+.an-advice-foot { margin: 0; padding: 0 16px 12px; }

@@ -2,13 +2,14 @@
 import { readFileSync } from "node:fs";
 import { test as base, expect } from "@playwright/test";
 import { FIXTURES } from "./fixture-server.js";
+import { parseLog } from "../../site/js/battlelog.js";
 
 const fixture = name => JSON.parse(readFileSync(`${FIXTURES}/${name}`, "utf8"));
 // "2026-10-16T15:04" -> "16 Oct 2026", written out here instead of reusing the page's formatter.
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const day = s => { const [y, m, d] = s.slice(0, 10).split("-").map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; };
-// The two tabs and the Ask Claude button in the header; My meta is a popup, not a view.
-const VIEWS = { tierlist: "#tab-tierlist", lab: "#tab-lab", advice: "#open-ask" };
+// The tabs in the header; My meta (in the tab bar) and Ask Claude are popups, not views.
+const VIEWS = { tierlist: "#tab-tierlist", lab: "#tab-lab", analysis: "#tab-analysis" };
 const metaDialog = page => page.locator("#dialog-meta");
 // A deck page is reached only by clicking a deck; it has no tab.
 const openDeck = async (page, name) => {
@@ -188,17 +189,14 @@ test("an image that fails to load falls back to the placeholder", async ({ page,
   expect(consoleErrors.filter(e => !e.includes("Failed to load resource"))).toEqual([]);
 });
 
-test("the header has two tabs and two equal buttons for My meta and Ask Claude", async ({ page, consoleErrors }) => {
+test("the header has the tabs with My meta at the end, and no Ask Claude button", async ({ page, consoleErrors }) => {
   await page.goto("/");
-  await expect(page.getByRole("tab")).toHaveText(["Tier list", "Deck Lab", "My games"]);
-  for (const name of ["My meta", "Ask Claude"]) {
-    const b = page.locator("header").getByRole("button", { name, exact: true });
-    await expect(b).toHaveClass("btn"); // same style, neither highlighted
-    await b.click();
-    await expect(b).toHaveClass("btn");
-    if (name === "My meta") await page.keyboard.press("Escape");
-  }
-  await expect(page.locator("#dialog-advice")).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveText(["Tier list", "Deck Lab", "My games", "Analysis"]);
+  await expect(page.locator("nav.tabs > button:visible")).toHaveText(["Tier list", "Deck Lab", "My games", "Analysis", "My meta"]);
+  await expect(page.locator("header").getByRole("button", { name: "Ask Claude" })).toHaveCount(0);
+  await page.locator("#open-meta").click();
+  await expect(metaDialog(page)).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(page.locator("#deck-select, button[data-picker=deck-select]")).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });
@@ -315,21 +313,20 @@ test("#meta and #advice open their popup over the tier list", async ({ page, con
   expect(consoleErrors).toEqual([]);
 });
 
-test("Ask Claude is a modal dialog: × and Esc close it and focus returns to the button", async ({ page, consoleErrors }) => {
+test("Ask Claude is a modal dialog, opened by #advice: × and Esc close it", async ({ page, consoleErrors }) => {
   await page.goto("/");
-  const ask = page.locator("#open-ask"), dialog = page.getByRole("dialog", { name: "Ask Claude" });
+  const dialog = page.getByRole("dialog", { name: "Ask Claude" });
   await expect(page.locator("#page-advice")).toHaveCount(0); // no Advice page left
-  await ask.click();
+  await page.goto("/#advice");
   await expect(dialog).toBeVisible();
   expect(await dialog.evaluate(d => d.matches(":modal"))).toBe(true);
   await expect(dialog.getByRole("heading", { name: "Which deck should I play at locals?" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(ask).toBeFocused();
-  await ask.click();
+  await page.goto("/"); // the same hash again would not reopen it
+  await page.goto("/#advice");
   await dialog.getByRole("button", { name: "Close" }).click();
   await expect(dialog).toBeHidden();
-  await expect(ask).toBeFocused();
   await expect(page.locator("#tab-tierlist")).toHaveAttribute("aria-selected", "true");
   expect(consoleErrors).toEqual([]);
 });
@@ -375,7 +372,7 @@ test("a battle log pasted on My games is saved with my list, once", async ({ pag
   // The game opens in a pop-up titled Game #1, with the opponent's cards as tiles and one tile for the unknown cards.
   await expect(dlg).toBeVisible();
   await expect(dlg.locator("h2")).toHaveText("Game #1");
-  await expect(dlg).toContainText("Win");
+  await expect(dlg.locator(".gm-head .pill")).toHaveText("Dominant win"); // won 2–0 on Prize cards, then the opponent conceded
   await expect(dlg).toContainText("opponent conceded");
   await expect(dlg).toContainText("went second");
   await expect(dlg.locator('select[data-gm="list"]')).toHaveValue("list-k");
@@ -425,6 +422,119 @@ test("a battle log pasted on My games is saved with my list, once", async ({ pag
   expect(consoleErrors).toEqual([]);
 });
 
+test("a game played with v1 stays on v1 after the list gets a v2, without a false warning", async ({ page, consoleErrors }) => {
+  const raw = readFileSync(new URL("../fixtures/battle-logs/02-win-concede-codes.txt", import.meta.url), "utf8");
+  const mine = ["Mega Kangaskhan ex", "Talonflame ex", "Ignition Energy", "Boss's Orders", "Latias ex", "Hilda", "Dusknoir",
+    "Neo Upper Energy", "Buddy-Buddy Poffin", "Black Belt's Training", "Rare Candy", "Switch", "Duskull", "Fezandipiti ex",
+    "Meowth ex", "Special Red Card", "Dawn", "Flutter Mane", "Ciphermaniac's Codebreaking"];
+  const list = { id: "list-k", name: "Kangaskhan", deck: null, archived: false, versions: [
+    { v: 1, text: "", cards: mine.map(name => ({ name, count: 1 })), created: "2026-11-18" },
+    { v: 2, text: "", cards: [{ name: "Switch", count: 4 }], created: "2026-11-19" }] };
+  // A game saved by an older parser is read again from its raw log when the tab opens.
+  const game = { id: "g1", schema: 1, parser: 0, added: "2026-11-18T10:00:00Z", raw, listId: "list-k", listVersion: 1, oppDeck: null, oppDeckSet: null };
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games: [game] }));
+  await expect(page.locator("#import-state")).toContainText("1 game");
+  await page.goto("/#games");
+  await expect(page.locator("#gm-list .gm-row")).toContainText("Kangaskhan · v1");
+  await page.locator("#gm-list .gm-row").click();
+  const dlg = page.locator("#gm-dialog");
+  await expect(dlg.locator('select[data-gm="list"] option:checked')).toHaveText("Kangaskhan · v1");
+  await expect(dlg.locator(".gm-msg.warn")).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+});
+
+// Saved games for the Analysis tab, imported as a backup: [log, version, opponent deck] each, log 1 a loss, 2 a win.
+const LOGS = { 1: "01-loss-prizes-no-codes.txt", 2: "02-win-concede-codes.txt" };
+const seedGames = async (page, specs, versions = 2) => {
+  const list = { id: "list-k", name: "Kangaskhan", deck: null, archived: false,
+    versions: Array.from({ length: versions }, (_, i) => ({ v: i + 1, text: "", cards: [], created: "2026-11-18" })) };
+  const games = specs.map(([log, v, opp], i) => ({ id: `g${i}`, schema: 1, parser: 0, added: `2026-11-18T10:${String(i).padStart(2, "0")}:00Z`,
+    raw: readFileSync(new URL(`../fixtures/battle-logs/${LOGS[log]}`, import.meta.url), "utf8"), listId: "list-k", listVersion: v, oppDeck: null, oppDeckSet: opp }));
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games }));
+  await expect(page.locator("#import-state")).toContainText("game");
+};
+
+test("Analysis: the pickers set the games, a matchup click sets the opponent", async ({ page, consoleErrors }) => {
+  await seedGames(page, [[2, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [1, 1, "dragapult-ex"], [2, 2, "n-zoroark"], [1, 2, ""]]);
+  await page.goto("/#analysis");
+  const [fs, prz] = [page.locator(".an-ins li").nth(0), page.locator(".an-ins li").nth(1)];
+  // Starts on all versions of the deck; the versions list goes All, then newest first.
+  await expect(page.locator("#an-deck")).toHaveValue("list-k");
+  await expect(page.locator("#an-version")).toHaveValue("all");
+  await expect(page.locator("#an-version option")).toHaveText(["All versions (5)", "v2 (2)", "v1 (3)"]);
+  await expect(fs).toHaveText("Going first 0–0 · going second 2–3");
+  // v2 has a win and a loss, both going second.
+  await page.locator("#an-version").selectOption("2");
+  await expect(fs).toHaveText("Going first 0–0 · going second 1–1");
+  // The win (2–0, opponent conceded) is Dominant, the loss (3–6 on Prize cards) Clear.
+  await expect(prz).toHaveText("Prize cards per game: you 4.5 · opponent 3.0");
+  await expect(page.locator(".an-seg")).toHaveText(["1", "1"]);
+  await expect(page.locator(".an-seg").first()).toHaveAttribute("title", "Dominant win: 1");
+  // Too few games for more insights: a warning below the two lines.
+  await expect(page.locator(".an-warn")).toHaveText("Insights show up from 5 games in each group, for example 5 wins and 5 losses. This selection has 2 games (1–1).");
+  await page.locator("#an-version").selectOption("all");
+  await expect(fs).toHaveText("Going first 0–0 · going second 2–3");
+  await expect(page.locator(".an-mu").first()).toHaveText(/Dragapult\s*1–2/);
+  await page.locator(".an-mu").first().click();
+  await expect(page.locator("#an-opp")).toHaveValue("dragapult-ex");
+  await expect(fs).toHaveText("Going first 0–0 · going second 1–2");
+  await page.locator("#an-opp").selectOption("~other");
+  await expect(fs).toHaveText("Going first 0–0 · going second 0–1");
+  await page.locator("#an-opp").selectOption("");
+  await expect(fs).toHaveText("Going first 0–0 · going second 2–3");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("Analysis: with 10 wins and 10 losses, insights show up without the warning", async ({ page, consoleErrors }) => {
+  await seedGames(page, [...Array(10).fill([2, 1, "dragapult-ex"]), ...Array(10).fill([1, 1, "dragapult-ex"])], 1);
+  await page.goto("/#analysis");
+  await expect(page.locator(".an-ins li").first()).toBeVisible();
+  await expect(page.locator(".an-warn")).toHaveCount(0);
+  await expect(page.locator(".an-ins")).not.toContainText("early sign");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a deck page shows My list for that deck, and Show in Analysis opens its analysis", async ({ page, consoleErrors }) => {
+  const mk = (id, name, deck) => ({ id, name, deck, archived: false, versions: [{ v: 1, text: "", cards: [{ name: "Dreepy", count: 4 }], created: "2026-11-18" }] });
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [mk("list-o", "Other", null), mk("list-d", "My Dragapult", "dragapult-ex")], games: [] }));
+  await expect(page.locator("#import-state")).toContainText("list");
+  await page.goto("/#deck/dragapult-ex");
+  const box = page.locator("#my-list");
+  await expect(box.locator("h3")).toHaveText("My list");
+  await expect(box.locator("summary")).toHaveText("My Dragapult · v1");
+  await box.locator("summary").click();
+  await expect(box.locator(".ctile .cnt")).toHaveText(["4"]);
+  await box.getByRole("button", { name: "Show in Analysis" }).click();
+  await expect(page).toHaveURL(/#analysis$/);
+  await expect(page.locator("#an-deck")).toHaveValue("list-d");
+  // A deck without a saved list has no My list.
+  await page.goto("/#deck/n-zoroark");
+  await expect(page.locator("#deck-detail h2")).toBeVisible();
+  await expect(box).toBeHidden();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("the deck of a saved list can be set by hand in Deck Lab", async ({ page, consoleErrors }) => {
+  const list = { id: "list-d", name: "Mine", deck: "dragapult-ex", archived: false, versions: [{ v: 1, text: "4 Dreepy TWM 128", cards: [{ name: "Dreepy", count: 4 }], created: "2026-11-18" }] };
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games: [] }));
+  await expect(page.locator("#import-state")).toContainText("list");
+  await page.goto("/#lab");
+  await page.locator("#mylist-select").selectOption("list-d");
+  await expect(page.locator("#ml-deck")).toHaveValue("dragapult-ex");
+  // All decks of the tier list, also those without Regionals lists.
+  await expect(page.locator("#ml-deck option[value=gengar-ex]")).toHaveCount(1);
+  await page.locator("#ml-deck").selectOption("n-zoroark");
+  await page.getByRole("button", { name: "Save to My lists" }).click();
+  await expect(page.locator("#ml-state")).toContainText("Deck set to N's Zoroark.");
+  await page.goto("/#deck/n-zoroark");
+  await expect(page.locator("#my-list summary")).toHaveText("Mine · v1");
+  expect(consoleErrors).toEqual([]);
+});
+
 test("the replay of a game steps through the board and jumps to the last turn", async ({ page, consoleErrors }) => {
   const raw = readFileSync(new URL("../fixtures/battle-logs/01-loss-prizes-no-codes.txt", import.meta.url), "utf8");
   await page.goto("/#games");
@@ -451,6 +561,11 @@ test("the replay of a game steps through the board and jumps to the last turn", 
   // Tapping a line in the log moves the board there.
   await rp.locator('.rp-log li[data-k="0"]').click();
   await expect(rp.locator(".rp-side.opp .rp-stats")).toContainText("Prizes 6");
+  // The turning point of this loss: the opponent took 4 Prize cards on turn 9; the link moves the replay there.
+  await expect(result.locator(".gm-turning")).toContainText("Turning point: turn 9 (opponent's turn 5) · Mega Kangaskhan ex was Knocked Out, 4 Prize cards");
+  await result.locator('[data-gm="turning"]').click();
+  await expect(rp.locator(".rp-log li.now")).toHaveAttribute("data-k", "168");
+  await expect(rp.locator('[data-rp="turn"]')).toHaveValue("9");
   expect(consoleErrors).toEqual([]);
 });
 
@@ -507,12 +622,33 @@ test("Deck Lab checks a pasted list",async ({ page, consoleErrors }) => {
   // One card short: the count bar shows up.
   await lab.locator("#deck").fill(PASTED_LIST.replace(/^4 /m, "3 "));
   await expect(lab.locator("#total-badge")).toHaveText("59 / 60 cards. A deck needs exactly 60.");
-  // Reset empties the list: the bar goes away and the start screen with Load a deck is back.
+  // Reset empties the list: the bar goes away and the start screen with Load a deck archetype is back.
   await lab.locator("#btn-reset").click();
   await expect(lab.locator("#deck")).toHaveValue("");
   await expect(lab.locator("#total-badge")).toBeHidden();
   await expect(lab.locator("#btn-paste")).toBeVisible();
   await expect(page.locator("button[data-picker=lab-select]")).toBeVisible();
+  expect(consoleErrors).toEqual([]);
+});
+
+test("after Load a deck archetype a heading names the loaded list, and its dropdown loads another one", async ({ page, consoleErrors }) => {
+  await page.goto("/#lab");
+  await page.locator("button[data-picker=lab-select]").click();
+  await page.locator("#picker button.tile", { hasText: /^\s*Dragapult\s*$/ }).click();
+  const head = page.locator("#lab-arch"), lab = page.locator("#lab-host");
+  await expect(head.locator("h2")).toHaveText("Dragapult");
+  const pick = head.getByRole("combobox", { name: "List of Dragapult" });
+  await expect(pick.locator("option:checked")).toHaveText("Consensus list");
+  await expect(pick.locator("option").nth(1)).toHaveText("1st of 7 · Brisbane");
+  // Saving it to My lists suggests the loaded deck archetype; there is no "automatic" choice.
+  await expect(page.locator("#ml-deck")).toHaveValue("dragapult-ex");
+  await expect(page.locator("#ml-deck option", { hasText: /automatic/i })).toHaveCount(0);
+  await pick.selectOption({ label: "2nd of 7 · Baltimore" });
+  await expect(lab.locator("#src")).toHaveText("Dragapult · 2nd of 7 · Baltimore");
+  await expect(pick.locator("option:checked")).toHaveText("2nd of 7 · Baltimore");
+  // Another source (Reset) takes the heading away.
+  await lab.locator("#btn-reset").click();
+  await expect(head).toBeHidden();
   expect(consoleErrors).toEqual([]);
 });
 
@@ -575,7 +711,6 @@ test("every view shows the footer with sources, update dates and season", async 
   for (const [view, button] of Object.entries(VIEWS)) {
     await page.locator(button).click();
     await expect(foot).toBeVisible();
-    if (view === "advice") await page.keyboard.press("Escape"); // a dialog over the page
   }
   await openDeck(page, "Dragapult");
   await expect(foot).toBeVisible();
@@ -602,7 +737,6 @@ test.describe("at phone width", () => {
       await page.locator(button).click();
       if (view === "lab") await expect(page.locator("#lab-host").locator("#view")).not.toBeEmpty();
       expect(await overflow(), `sideways scroll on ${view}`).toBeLessThanOrEqual(0);
-      if (view === "advice") await page.keyboard.press("Escape");
     }
     await openDeck(page, "Dragapult");
     expect(await overflow(), "sideways scroll on a deck page").toBeLessThanOrEqual(0);
@@ -1055,11 +1189,16 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await page.goto("/");
   await expect(page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" })).toBeVisible(); // the tier list still works
 
-  await page.locator("#open-ask").click();
-  await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
-  await expect(page.getByLabel("Anthropic API key")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Remove key" })).toBeHidden();
+  // The button under the tier list opens the locals advice; its key link opens the API key pop-up.
+  await page.getByRole("button", { name: "Which deck should I play at locals?" }).click();
+  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeVisible();
   await expect(page.locator("#advice-run")).toBeDisabled();
+  await page.getByRole("link", { name: "Add your Anthropic API key" }).click();
+  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Add Anthropic API key" })).toBeVisible();
+  await expect(page.locator("#key-title")).toHaveText("Add Anthropic API key");
+  await expect(page.getByLabel("Anthropic API key", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove key" })).toBeHidden();
   await page.keyboard.press("Escape");
 
   await openDeck(page, "Dragapult");
@@ -1068,8 +1207,8 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await expect(chat.getByRole("link", { name: "Add your API key" })).toBeVisible();
   await expect(chat.locator("#chat-input")).toHaveCount(0);
   await chat.getByRole("link", { name: "Add your API key" }).click();
-  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeVisible();
-  await expect(page.getByLabel("Anthropic API key")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Add Anthropic API key" })).toBeVisible();
+  await expect(page.getByLabel("Anthropic API key", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#page-deck")).toBeVisible(); // the dialog opened over the deck page
   await page.locator("#tab-tierlist").click();
@@ -1080,13 +1219,15 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
 
 test("with an API key Advice runs, stays after a reload, and Remove key turns it off again", async ({ page, consoleErrors }) => {
   const requests = await stubMessagesApi(page, 200, message(ADVICE_ANSWER));
-  await page.goto("/#advice");
+  await page.goto("/#key");
 
-  await page.getByLabel("Anthropic API key").fill(API_KEY);
+  await page.getByLabel("Anthropic API key", { exact: true }).fill(API_KEY);
   await page.getByRole("button", { name: "Save key" }).click();
   await expect(page.locator("#ai-key")).toContainText("stored only in this browser");
   expect(JSON.parse(await stored(page, "matchup-meta-api-key"))).toBe(API_KEY);
+  await page.goto("/#advice");
   await expect(page.locator("#advice-run")).toBeEnabled();
+  await expect(page.locator("#advice-state").getByRole("link")).toHaveText("Manage Anthropic API key");
 
   await page.locator("#advice-run").click();
   const result = page.locator("#advice-result");
@@ -1116,15 +1257,16 @@ test("with an API key Advice runs, stays after a reload, and Remove key turns it
   // Advice history stays in the browser, outside Settings (the only thing an export carries).
   // Reload without #advice: that hash would open the popup by itself.
   await page.goto("/");
-  await page.locator("#open-ask").click();
+  await page.goto("/#advice");
   await expect(page.locator("#advice-result")).toContainText("Play Dragapult: it beats most of what you meet.");
   expect(JSON.parse(await stored(page, "matchup-meta-advice"))[0].result).toEqual(ADVICE_ANSWER);
   const settings = await stored(page, "matchup-meta-settings");
   for (const text of [API_KEY, "Play Dragapult"]) expect(settings ?? "").not.toContain(text);
 
+  await page.goto("/#key");
   await page.getByRole("button", { name: "Remove key" }).click();
   expect(await stored(page, "matchup-meta-api-key")).toBeNull();
-  await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
+  await expect(page.locator("#key-title")).toHaveText("Add Anthropic API key");
   await expect(page.locator("#advice-run")).toBeDisabled();
   await page.keyboard.press("Escape");
   await openDeck(page, "Dragapult");
@@ -1141,6 +1283,7 @@ test("a rejected API key shows a readable error and leaves the page working", as
   await expect(page.locator("#advice-state")).toHaveText("Anthropic rejected your API key. Check that you pasted all of it, or remove it and enter a new one.");
   await expect(page.locator("#advice-state")).toHaveClass(/err/);
   await expect(page.locator("#advice-run")).toBeEnabled();
+  await page.goto("/#key");
   await expect(page.getByRole("button", { name: "Remove key" })).toBeVisible();
 });
 
@@ -1154,7 +1297,7 @@ test("in the Ask Claude dialog Stop cancels a running analysis and Earlier Advic
     ]));
   }, [API_KEY, ADVICE_ANSWER]);
   await page.goto("/");
-  await page.locator("#open-ask").click();
+  await page.goto("/#advice");
   const dialog = page.getByRole("dialog", { name: "Ask Claude" });
   await expect(dialog.locator("#advice-result")).toContainText("Newest advice.");
   await dialog.getByLabel("Earlier Advice").selectOption("1");
@@ -1316,5 +1459,39 @@ test("the games list shows 10 games a page", async ({ page, consoleErrors }) => 
   await list.getByRole("button", { name: "Older →" }).click();
   await expect(list.locator(".gm-row")).toHaveCount(1);
   await expect(list).toContainText("Page 2 of 2");
+  expect(consoleErrors).toEqual([]);
+});
+
+test("Analysis: Turn into advice is off without a key, and with one sends no player names and shows the answer", async ({ page, consoleErrors }) => {
+  await seedGames(page, [[2, 1, "dragapult-ex"], [1, 1, "dragapult-ex"]], 1);
+  await page.goto("/#analysis");
+  await expect(page.locator("#an-advice")).toBeDisabled();
+  await expect(page.locator(".an-advice")).toContainText("Needs your Anthropic API key");
+
+  // The fixtures have no full set files: each set answers with its Cards from the fixture index, with a made-up HP.
+  const index = JSON.parse(readFileSync(new URL("../fixtures/cards/index.json", import.meta.url), "utf8")).cards;
+  await page.route(/\/cards\/[^/]+\.json$/, route => {
+    const set = route.request().url().match(/cards\/([^/]+)\.json$/)[1];
+    if (set === "index") return route.fallback();
+    const cards = Object.entries(index).filter(([id]) => id.startsWith(set + "-")).map(([id, c]) => ({ ...c, id, hp: 120 }));
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ id: set, cards }) });
+  });
+  const requests = await stubDeckChat(page, [streamedReply({ text: "## Setup\n\n- Bench two Duskull on turn 1." }, "end_turn")]);
+  await page.evaluate(key => localStorage.setItem("matchup-meta-api-key", JSON.stringify(key)), API_KEY);
+  await page.reload();
+  await page.locator("#an-advice").click();
+  const dlg = page.locator("#an-advice-dialog");
+  await expect(dlg.getByRole("heading", { name: "Setup" })).toBeVisible();
+  await expect(dlg).toContainText("Bench two Duskull on turn 1.");
+  await expect(dlg.locator("#an-advice-stop")).toBeHidden();
+  expect(requests).toHaveLength(1);
+  const sent = JSON.stringify(requests[0]);
+  for (const raw of Object.values(LOGS).map(f => readFileSync(new URL(`../fixtures/battle-logs/${f}`, import.meta.url), "utf8"))) {
+    const g = parseLog(raw).game;
+    for (const name of Object.values(g.players)) expect(sent).not.toContain(name);
+  }
+  expect(sent).toContain("### Game 2");
+  expect(sent).toMatch(/## Opponents' cards seen\\n- \S[^\\]* · HP 120/);
+  expect(sent).toContain("How can I play this deck better?");
   expect(consoleErrors).toEqual([]);
 });

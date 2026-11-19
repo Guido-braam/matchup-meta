@@ -1,208 +1,205 @@
-// Insights (spec .scratch/battle-logs, "Insight catalogue"): from saved games to numbers. Pure.
-// Ticket 08 (this part): record, winrate, win reasons, game length, first vs second, per opponent deck.
-// Every rate comes with its sample size and a 95% Wilson interval.
-
-// k successes out of n -> {k, n, p, lo, hi}; p null when n is 0.
-export function wilson(k, n, z = 1.96) {
-  if (!n) return { k, n, p: null, lo: null, hi: null };
-  const p = k / n, z2 = z * z, d = 1 + z2 / n;
-  const mid = (p + z2 / (2 * n)) / d, half = (z * Math.sqrt(p * (1 - p) / n + z2 / (4 * n * n))) / d;
-  return { k, n, p, lo: Math.max(0, mid - half), hi: Math.min(1, mid + half) };
-}
-
-// The opponent's deck of a saved game: the visitor's correction wins; "" or null is "Other".
-export const oppDeckOf = g => (g.oppDeckSet ?? g.oppDeck) || null;
-
-// Tournament winrate of deck a against deck b from data.json (Trainerhill: [i, j, wins, losses, ties]), or null.
-// Ties count as 1/3 win, as on the rest of the site.
-export function fieldRate(data, a, b) {
-  if (!data || !a || !b) return null;
-  const i = data.archetypes.findIndex(x => x.id === a), j = data.archetypes.findIndex(x => x.id === b);
-  const m = i >= 0 && j >= 0 && data.matchups.find(x => x[0] === i && x[1] === j);
-  if (!m) return null;
-  const n = m[2] + m[3] + m[4];
-  return n ? { p: (m[2] + m[4] / 3) / n, n } : null;
-}
-
-const rate = gs => wilson(gs.filter(g => g.game.result === "win").length, gs.length);
-
-// games: saved Game records; myDeck: the deck id of the list (for the tournament winrate), or null.
-export function overview(games, { data = null, myDeck = null } = {}) {
-  const reasons = result => {
-    const r = { prizes: 0, concede: 0, other: 0 };
-    for (const g of games) if (g.game.result === result) r[g.game.reason in r ? g.game.reason : "other"]++;
-    return r;
-  };
-  const byDeck = new Map();
-  for (const g of games) { const d = oppDeckOf(g); byDeck.set(d, [...(byDeck.get(d) || []), g]); }
-  const first = games.filter(g => g.game.wentFirst), second = games.filter(g => !g.game.wentFirst);
-  return {
-    games: games.length,
-    record: rate(games),
-    reasons: { win: reasons("win"), loss: reasons("loss") },
-    avgTurns: games.length ? games.reduce((s, g) => s + g.game.turns, 0) / games.length : null,
-    first: rate(first), second: rate(second),
-    matchups: [...byDeck].map(([deck, gs]) => ({
-      deck, record: rate(gs), first: rate(gs.filter(g => g.game.wentFirst)), field: fieldRate(data, myDeck, deck),
-    })).sort((a, b) => b.record.n - a.record.n || (a.deck ?? "~").localeCompare(b.deck ?? "~")),
-  };
-}
-
-// ---------- Insight catalogue (items 4-8; ticket 09) ----------
-// A comparison splits the games in two groups and compares their winrates. It is only shown when both groups
-// have at least MIN games, and the catalogue sorts by the gap, largest first (narrower ranges first on a tie).
-// The UI says "goes with", never "causes": these are correlations in the visitor's own games.
-export const MIN = 10;
+// Analysis (spec .scratch/analysis-rework): from saved games to the numbers on the Analysis tab. Pure.
 
 // Card names compared loosely: case, accents, apostrophes and "Basic " before an Energy do not matter.
 export const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
   .replace(/['’`]/g, "").replace(/^basic (?=.*energy$)/, "").replace(/\s+/g, " ").trim();
 
-// -> {subject, yes, no, gap, ...extra} or null. subject: what splits the games ("Ultra Ball played by your turn 2").
-export function compare(games, subject, inYes, extra = {}) {
-  const yes = games.filter(inYes), no = games.filter(g => !inYes(g));
-  if (yes.length < MIN || no.length < MIN) return null;
-  const a = rate(yes), b = rate(no);
-  return { subject, yes: a, no: b, gap: a.p - b.p, ...extra };
-}
-const width = r => r.yes.hi - r.yes.lo + r.no.hi - r.no.lo;
-const byGap = (a, b) => Math.abs(b.gap) - Math.abs(a.gap) || width(a) - width(b);
+// The opponent's deck of a saved game: the visitor's correction wins; "" or null is "Other" (null).
+export const oppDeckOf = g => (g.oppDeckSet ?? g.oppDeck) || null;
 
-// The turn (my own count: 0 = setup, 1 = my first turn) each card was first played from my hand: Map norm -> {name, turn}.
-// Played = put into play, attached from the hand (not from the deck by another card), evolved, or an Item,
-// Supporter or Stadium played. Played in the opponent's turn (rare) counts as my last turn.
-export function firstPlayed(game) {
-  const out = new Map();
-  for (const e of game.events) {
-    if (e.side !== "me" || !e.card || !["play", "attach", "evolve"].includes(e.type) || (e.type === "attach" && e.sub)) continue;
-    const k = norm(e.card.name);
-    if (!out.has(k)) out.set(k, { name: e.card.name, turn: e.turnSide === "me" ? e.sideTurn : 0 });
-  }
-  return out;
-}
-// Cards of mine the log names (opening hand, drawn, searched, played, discarded): Set of norm names.
-export function knownMine(game) {
-  const s = new Set(game.openingHand.map(c => norm(c.name)));
-  for (const e of game.events) {
-    if (e.side !== "me" || e.type === "counters") continue;
-    (e.cards || []).forEach(c => s.add(norm(c.name)));
-    if (e.card) s.add(norm(e.card.name));
-  }
-  return s;
+// The games of one list: one version (v a number) or all versions (v "all"); opp: undefined = all opponents,
+// null = Other, else a deck id.
+export function select(games, { listId, v = "all", opp } = {}) {
+  return games.filter(g => g.listId === listId && (v === "all" || g.listVersion === v) && (opp === undefined || oppDeckOf(g) === opp));
 }
 
-// Item 4. Per card of the list: share of games it showed up (my known cards), share played, average turn first
-// played. rare: showed up in at least half the games but played in at most a fifth of those. never: not played
-// in the last LAST games (games newest first). Needs MIN games.
-export const LAST = 20;
-export function cardUsage(games, cards) {
-  if (games.length < MIN) return [];
-  const known = games.map(g => knownMine(g.game)), played = games.map(g => firstPlayed(g.game)), recent = Math.min(LAST, games.length);
-  return cards.map(c => {
-    const k = norm(c.name), shown = known.filter(s => s.has(k)).length;
-    const turns = played.map(p => p.get(k)?.turn).filter(t => t != null);
-    return {
-      name: c.name, count: c.count ?? null, games: games.length,
-      shown: shown / games.length, played: turns.length / games.length,
-      avgTurn: turns.length ? turns.reduce((a, b) => a + b, 0) / turns.length : null,
-      rare: shown / games.length >= 0.5 && turns.length <= shown / 5,
-      never: !played.slice(0, recent).some(p => p.has(k)), recent,
-    };
+const won = g => g.game.result === "win";
+const wl = gs => ({ wins: gs.filter(won).length, losses: gs.filter(g => !won(g)).length });
+export const record = r => `${r.wins}–${r.losses}`;
+
+// Record, going first, going second.
+export function summary(games) {
+  return { ...wl(games), first: wl(games.filter(g => g.game.wentFirst)), second: wl(games.filter(g => !g.game.wentFirst)) };
+}
+
+// Per opponent deck, most games first: [{deck, wins, losses}].
+export function matchups(games) {
+  const by = new Map();
+  for (const g of games) by.set(oppDeckOf(g), [...(by.get(oppDeckOf(g)) || []), g]);
+  return [...by].map(([deck, gs]) => ({ deck, ...wl(gs) }))
+    .sort((a, b) => b.wins + b.losses - a.wins - a.losses || (a.deck ?? "~").localeCompare(b.deck ?? "~"));
+}
+
+// Margin class of a game, by the Prize lead of the winner at the end (spec "Margin class"). A concession is never
+// Close: a lead of 2 or more is Dominant win / Heavy loss, else Solid win / Clear loss.
+export const MARGINS = ["Dominant win", "Solid win", "Close win", "Close loss", "Clear loss", "Heavy loss"];
+export function margin(game) {
+  const { me, opp } = game.prizes, win = game.result === "win", lead = win ? me - opp : opp - me;
+  const k = game.reason === "concede" ? (lead >= 2 ? 0 : 1) : lead >= 4 ? 0 : lead >= 2 ? 1 : 2;
+  return MARGINS[win ? k : 5 - k];
+}
+// Average Prize cards taken per game, the number of close games, and the count per margin class. After a
+// concession the winner counts as having taken all 6 (the Prize cards the other player gave up).
+const taken = (G, side) => (G.reason === "concede" && (G.result === "win") === (side === "me") ? 6 : G.prizes[side]);
+export function prizeStats(games) {
+  const n = games.length || 1, classes = Object.fromEntries(MARGINS.map(m => [m, 0]));
+  for (const g of games) classes[margin(g.game)]++;
+  return {
+    me: games.reduce((s, g) => s + taken(g.game, "me"), 0) / n, opp: games.reduce((s, g) => s + taken(g.game, "opp"), 0) / n,
+    close: classes["Close win"] + classes["Close loss"], classes,
+  };
+}
+
+// ---------- Insights about play (spec "Insights") ----------
+// Each insight compares groups of games; it shows only when every group has MIN games, and is an "early sign"
+// below EARLY. -> {text, gap, early, card?} or null. gap: how much the groups differ (0-1), for the order.
+export const MIN = 5, EARLY = 10, MAX_INSIGHTS = 5, MIN_GAP = 0.1; // below MIN_GAP the groups hardly differ: not shown
+const share = gs => (gs.length ? gs.filter(won).length / gs.length : 0);
+const enough = (...groups) => groups.every(g => g.length >= MIN);
+const early = (...groups) => Math.min(...groups.map(g => g.length)) < EARLY;
+
+// The index of the last event of my turn n, or the last event when the game ended before it.
+function endOfMyTurn(game, n) {
+  let k = -1;
+  game.events.forEach((e, i) => { if (e.turnSide === "me" && e.sideTurn === n) k = i; });
+  return k < 0 ? game.events.length - 1 : k;
+}
+// The index of the first event of my turn n, or the number of events when the game ended before it.
+function startOfMyTurn(game, n) {
+  const k = game.events.findIndex(e => e.turnSide === "me" && e.sideTurn >= n);
+  return k < 0 ? game.events.length : k;
+}
+// Prize cards I took minus those the opponent took, up to and including event k.
+const leadAt = (game, k) => game.events.slice(0, k + 1).reduce((s, e) => s + (e.type === "prize" ? (e.side === "me" ? e.count : -e.count) : 0), 0);
+
+// My Pokémon that attacked most often in these games (Knock Outs in the log do not name the attacker).
+export function mainPokemon(games) {
+  const n = new Map();
+  for (const g of games) for (const e of g.game.events) if (e.type === "attack" && e.side === "me") n.set(e.pokemon.name, (n.get(e.pokemon.name) || 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+// Is a Pokémon of mine with this name in play (Active or Bench) at the end of my turn n? states: replay(game).
+export const inPlayBy = (game, states, name, n) => {
+  const s = states[endOfMyTurn(game, n)]?.me;
+  return !!s && [s.active, ...s.bench].some(m => m && norm(m.name) === norm(name));
+};
+export function setupOnTime(games, replay, n = 2) {
+  const name = mainPokemon(games);
+  if (!name) return null;
+  const yes = games.filter(g => inPlayBy(g.game, replay(g.game), name, n)), no = games.filter(g => !yes.includes(g));
+  if (!enough(yes, no)) return null;
+  return { text: `${name} in play by your turn ${n}: ${yes.length} of ${games.length} games · ${record(wl(yes))} when it was, ${record(wl(no))} when it wasn't`,
+    gap: Math.abs(share(yes) - share(no)), early: early(yes, no), card: name };
+}
+
+// Prize lead after my turn 2, 3 or 4 in wins against losses; the turn where they differ most.
+const leadText = x => (Math.abs(x) < 0.05 ? "level on Prize cards" : `${Math.abs(x).toFixed(1)} Prize cards ${x < 0 ? "behind" : "ahead"}`);
+export function prizeLeadByTurn(games) {
+  const w = games.filter(won), l = games.filter(g => !won(g));
+  if (!enough(w, l)) return null;
+  const avg = (gs, n) => gs.reduce((s, g) => s + leadAt(g.game, endOfMyTurn(g.game, n)), 0) / gs.length;
+  const best = [2, 3, 4].map(n => ({ n, w: avg(w, n), l: avg(l, n) })).sort((a, b) => (b.w - b.l) - (a.w - a.l))[0];
+  // ponytail: a Prize difference is put on the 0-1 scale as diff / 6, so it sorts next to winrate gaps.
+  return { text: `After your turn ${best.n}: in losses you were ${leadText(best.l)} on average, in wins ${leadText(best.w)}`,
+    gap: Math.min(1, Math.abs(best.w - best.l) / 6), early: early(w, l) };
+}
+
+// Who took the first Knock Out, before my turn 3: the opponent, in losses against wins.
+const theyKOdFirstEarly = game => {
+  const k = game.events.findIndex(e => e.type === "ko");
+  return k >= 0 && game.events[k].side === "me" && k < startOfMyTurn(game, 3);
+};
+export function firstKnockOut(games) {
+  const w = games.filter(won), l = games.filter(g => !won(g));
+  if (!enough(w, l)) return null;
+  const kl = l.filter(g => theyKOdFirstEarly(g.game)).length, kw = w.filter(g => theyKOdFirstEarly(g.game)).length;
+  return { text: `The opponent took the first Knock Out before your turn 3 in ${kl} of ${l.length} losses, and in ${kw} of ${w.length} wins`,
+    gap: Math.abs(kl / l.length - kw / w.length), early: early(w, l) };
+}
+
+// Close losses per opponent deck with MIN losses or more: near misses, where a better plan pays off most.
+export function closeLosses(games, deckName) {
+  return matchups(games).filter(m => m.losses >= MIN).map(m => {
+    const l = games.filter(g => oppDeckOf(g) === m.deck && !won(g)), c = l.filter(g => margin(g.game) === "Close loss").length;
+    return { text: `Close losses vs ${deckName(m.deck)}: ${c} of ${l.length}`, gap: c / l.length, early: l.length < EARLY };
   });
 }
 
-// Item 5. Card played by my turn N (1, 2 or 3) or not; per card only the N with the largest gap.
-export function playedByTurn(games, names) {
-  const played = new Map(games.map(g => [g, firstPlayed(g.game)]));
-  return names.map(name => {
-    const k = norm(name);
-    return [1, 2, 3].map(n => compare(games, `${name} played by your turn ${n}`, g => (played.get(g).get(k)?.turn ?? 99) <= n, { card: name }))
-      .filter(Boolean).sort(byGap)[0];
-  }).filter(Boolean);
+// The insights of a selection, largest gap first, at most MAX_INSIGHTS. replay: gamestate.js replay().
+export function playInsights(games, { replay, deckName }) {
+  return [setupOnTime(games, replay), prizeLeadByTurn(games), firstKnockOut(games), ...closeLosses(games, deckName)]
+    .filter(r => r && r.gap >= MIN_GAP).sort((a, b) => b.gap - a.gap).slice(0, MAX_INSIGHTS);
 }
 
-// Item 6. Opening hand: Pokémon in play after setup, mulligans, each card in the opening hand.
-const setupPokemon = game => game.events.filter(e => e.turn === 0 && e.side === "me" && (e.type === "play" || e.type === "search-play"))
-  .reduce((n, e) => n + (e.type === "play" ? 1 : e.count), 0);
-export function openingHand(games) {
-  const names = new Map();
-  for (const g of games) for (const c of g.game.openingHand) names.set(norm(c.name), c.name);
-  return [
-    compare(games, "Two or more Pokémon in play after setup", g => setupPokemon(g.game) >= 2),
-    compare(games, "You took a mulligan", g => g.game.mulligans.me > 0),
-    compare(games, "Your opponent took a mulligan", g => g.game.mulligans.opp > 0),
-    ...[...names].map(([k, name]) => compare(games, `${name} in your opening hand`, g => g.game.openingHand.some(c => norm(c.name) === k), { card: name })),
-  ].filter(Boolean);
+// The turning point of a lost game: the Prize card after which I was behind until the end (the last time the
+// Prize count went from level or ahead to behind). -> {k: event index, turn, mine, sideTurn, ko, count} or null.
+export function turningPoint(game) {
+  if (game.result !== "loss") return null;
+  let lead = 0, at = -1;
+  game.events.forEach((e, i) => {
+    if (e.type !== "prize") return;
+    const before = lead;
+    lead += e.side === "me" ? e.count : -e.count;
+    if (before >= 0 && lead < 0) at = i;
+  });
+  if (lead >= 0 || at < 0) return null;
+  const e = game.events[at];
+  const ko = game.events.slice(0, at).reverse().find(x => x.type === "ko" && x.side === "me" && x.turn === e.turn);
+  return { k: at, turn: e.turn, mine: e.turnSide === "me", sideTurn: e.sideTurn, ko: ko?.pokemon.name ?? null, count: e.count };
 }
 
-// Item 7. Prize race: who took the first Prize card; overall and per opponent deck.
-const firstPrize = game => game.events.find(e => e.type === "prize")?.side ?? null;
-export function prizeRace(games) {
-  const decks = [...new Set(games.map(oppDeckOf))];
-  return [
-    compare(games, "You took the first Prize card", g => firstPrize(g.game) === "me"),
-    ...(decks.length < 2 ? [] : decks).map(d => compare(games.filter(g => oppDeckOf(g) === d), "You took the first Prize card", g => firstPrize(g.game) === "me", { deck: d })),
-  ].filter(Boolean);
+// ---------- Turn into advice (spec "Turn into advice") ----------
+// A game turn by turn in short lines, from my side ("you" / "opp"). No player names and no log text.
+const act = e => {
+  const n = c => c?.name ?? "?";
+  switch (e.type) {
+    case "play": return `played ${n(e.card)}`;
+    case "search-play": return `put ${(e.cards || []).map(n).join(", ")} into play`;
+    case "attach": return `attached ${n(e.card)} to ${n(e.pokemon)}`;
+    case "evolve": return `evolved ${n(e.from)} into ${n(e.card)}`;
+    case "attack": return `${n(e.pokemon)} used ${e.attack}${e.target ? ` on ${n(e.target.pokemon)}` : ""}${e.damage ? ` for ${e.damage}` : ""}`;
+    case "ko": return `${e.side === "me" ? "your" : "opp's"} ${n(e.pokemon)} Knocked Out`;
+    case "prize": return `${e.side === "me" ? "you" : "opp"} took ${e.count} Prize card${e.count === 1 ? "" : "s"}`;
+    case "retreat": return `retreated ${n(e.pokemon)}`;
+    case "active": return `${n(e.pokemon)} to Active`;
+    default: return null;
+  }
+};
+export function gameSummary(g, deckName) {
+  const G = g.game, lines = [`${margin(G)} vs ${deckName(oppDeckOf(g))} · went ${G.wentFirst ? "first" : "second"} · Prize cards ${G.prizes.me}–${G.prizes.opp} · ${G.turns} turns` +
+    `${G.reason === "concede" ? ` · ${G.result === "win" ? "opp" : "you"} conceded` : ""}${G.mulligans?.me ? ` · you took ${G.mulligans.me} mulligan(s)` : ""}`];
+  if (G.openingHand?.length) lines.push(`Opening hand: ${G.openingHand.map(c => c.name).join(", ")}`);
+  const turns = new Map();
+  for (const e of G.events) {
+    const a = act(e);
+    if (!a) continue;
+    const k = e.turn ? `T${e.turn} ${e.turnSide === "me" ? "you" : "opp"}` : "Setup";
+    turns.set(k, [...(turns.get(k) || []), e.turn && e.side && e.side !== e.turnSide && e.type !== "ko" && e.type !== "prize" ? `(${e.side === "me" ? "you" : "opp"}) ${a}` : a]);
+  }
+  for (const [k, as] of turns) lines.push(`${k}: ${as.join("; ")}`);
+  return lines.join("\n");
 }
 
-// Item 8a. Per opponent deck with MIN games or more: which of my Pokémon is Knocked Out first, most often first.
-export function firstDown(games) {
-  const by = new Map();
-  for (const g of games) by.set(oppDeckOf(g), [...(by.get(oppDeckOf(g)) || []), g]);
-  return [...by].filter(([, gs]) => gs.length >= MIN).map(([deck, gs]) => {
-    const n = new Map();
-    for (const g of gs) { const ko = g.game.events.find(e => e.type === "ko" && e.side === "me"); if (ko) n.set(ko.pokemon.name, (n.get(ko.pokemon.name) || 0) + 1); }
-    return { deck, games: gs.length, top: [...n].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 3) };
-  }).filter(r => r.top.length);
+export const ADVICE_GAMES = 20;
+export const ADVICE_SYSTEM = `You are an experienced Pokémon TCG coach (Standard format). A player sends their own results with one deck from Pokémon TCG Live: the numbers of a selection of games, short turn-by-turn summaries of the newest games, and the rules text of the cards in their list and of the cards their opponents showed.
+Give advice on how to play this deck better: sequencing, what to set up first, which Pokémon to put forward or keep back, how to take Prize cards in each matchup, when to use which attack or ability. Do not advise changing the list (cards to add or cut): the player asked only about play.
+Base every point on the data and the card texts: name the turns, games or numbers it comes from. Do not make up cards, games or numbers. With few games, say a point is a first sign.
+Write in English, in Markdown: a heading per theme (for example "Setup", "Prize trade", one heading per opponent deck that stands out), and under it as many short, concrete points as are useful. No introduction and no summary at the end.`;
+
+// The message for Claude. sel: the games of the selection; insights: playInsights(); label: "Cursed Dive v2 vs All opponents";
+// cards: {mine: [card text], theirs: [card text]}.
+export function adviceMessages(sel, { label, insights, deckName, cards }) {
+  const s = summary(sel), p = prizeStats(sel);
+  const games = [...sel].sort((a, b) => b.added.localeCompare(a.added)).slice(0, ADVICE_GAMES);
+  const text = [
+    `# ${label}`,
+    `Record ${record(s)} · going first ${record(s.first)} · going second ${record(s.second)}`,
+    `Prize cards per game: you ${p.me.toFixed(1)}, opponent ${p.opp.toFixed(1)}. Margin classes: ${MARGINS.filter(m => p.classes[m]).map(m => `${m} ${p.classes[m]}`).join(", ")}`,
+    `Matchups: ${matchups(sel).map(m => `${deckName(m.deck)} ${record(m)}`).join(", ")}`,
+    insights.length ? `## Insights\n${insights.map(r => `- ${r.text}${r.early ? " (early sign)" : ""}`).join("\n")}` : "",
+    `## My cards\n${cards.mine.map(t => `- ${t}`).join("\n")}`,
+    `## Opponents' cards seen\n${cards.theirs.map(t => `- ${t}`).join("\n")}`,
+    `## The ${games.length} newest games, turn by turn\n${games.map((g, i) => `### Game ${i + 1}\n${gameSummary(g, deckName)}`).join("\n\n")}`,
+  ].filter(Boolean).join("\n\n");
+  return [{ role: "user", content: `${text}\n\nHow can I play this deck better?` }];
 }
-
-// Item 8b. An opponent's Pokémon I Knock Out by my turn 2, against the games where they had it and I did not.
-const earlyKOs = game => game.events.filter(e => e.type === "ko" && e.side === "opp" && e.turnSide === "me" && e.sideTurn <= 2);
-const theirPokemon = game => new Set(game.events.filter(e => e.side === "opp")
-  .flatMap(e => (["play", "evolve"].includes(e.type) && e.card ? [e.card] : e.type === "search-play" ? e.cards || [] : [])).map(c => norm(c.name)));
-export function earlyKnockOuts(games) {
-  const early = new Map(games.map(g => [g, new Set(earlyKOs(g.game).map(e => norm(e.pokemon.name)))]));
-  const names = new Map(games.flatMap(g => earlyKOs(g.game)).map(e => [norm(e.pokemon.name), e.pokemon.name]));
-  return [...names].map(([k, name]) => {
-    const pool = games.filter(g => early.get(g).has(k) || theirPokemon(g.game).has(k));
-    return compare(pool, `You Knocked Out their ${name} by your turn 2`, g => early.get(g).has(k), { card: name });
-  }).filter(Boolean);
-}
-
-// All of it. cards: the picked list version's cards (items 4 and 5), or null when no list is picked.
-export function catalogue(games, { cards = null } = {}) {
-  return {
-    usage: cards ? cardUsage(games, cards) : [],
-    insights: [...(cards ? playedByTurn(games, cards.map(c => c.name)) : []), ...openingHand(games), ...prizeRace(games), ...earlyKnockOuts(games)].sort(byGap),
-    firstDown: firstDown(games),
-  };
-}
-
-// ---------- Explain with Claude (ticket 10) ----------
-// The analysis as compact JSON for Claude: only numbers, deck and card names. Never raw logs or player names.
-// o = overview(), c = catalogue(); deckName: id -> name; list: the picked list's name or null.
-const r2 = x => (x == null ? null : Math.round(x * 100) / 100);
-const rateOf = r => ({ wins: r.k, games: r.n, winrate: r2(r.p), range95: r.n ? [r2(r.lo), r2(r.hi)] : null });
-export function explainContext(o, c, { deckName, list = null, myDeck = null }) {
-  const deck = id => (id ? deckName(id) : "Other");
-  return {
-    list, deck: myDeck ? deckName(myDeck) : null, games: o.games,
-    record: rateOf(o.record), goingFirst: rateOf(o.first), goingSecond: rateOf(o.second),
-    averageTurns: r2(o.avgTurns), winsBy: o.reasons.win, lossesBy: o.reasons.loss,
-    perOpponentDeck: o.matchups.map(m => ({ opponent: deck(m.deck), ...rateOf(m.record), goingFirst: rateOf(m.first),
-      tournamentWinrate: m.field ? { winrate: r2(m.field.p), games: m.field.n } : null })),
-    insights: c.insights.map(r => ({ when: r.subject, ...(r.deck !== undefined ? { opponent: deck(r.deck) } : {}), yes: rateOf(r.yes), otherwise: rateOf(r.no) })),
-    firstKnockedOut: c.firstDown.map(d => ({ opponent: deck(d.deck), games: d.games, pokemon: d.top })),
-    cardUse: c.usage.map(u => ({ card: u.name, copies: u.count, seen: r2(u.shown), played: r2(u.played), averageTurnPlayed: r2(u.avgTurn),
-      ...(u.rare ? { rarelyPlayed: true } : {}), ...(u.never ? { notPlayedInLast: u.recent } : {}) })),
-  };
-}
-
-export const EXPLAIN_SYSTEM = `You explain a Pokémon TCG player's own results with one list, from Pokémon TCG Live battle logs.
-Use only the numbers in the JSON the player sends. Do not make up numbers, cards or games, and do not use outside knowledge about matchups as fact.
-Winrates are shares (0.62 = 62%), each with the number of games and a 95% range. With few games the range is wide: say so, and do not draw firm conclusions from it.
-"insights" compare games where something happened ("when") with the other games. They show what went together in these games, not what caused it: write "goes with", never "causes" or "because".
-"tournamentWinrate" is how this deck does against that deck at tournaments (Trainerhill); compare the player's own winrate with it.
-Write in English, in short paragraphs and lists, at most about 300 words: first the overall picture, then the matchups that stand out, then the three most useful insights, then what to look at next (for example which cards to test, or where more games are needed). Use the deck and card names as written.`;
-
-export const explainMessages = ctx => [{ role: "user", content: `My results:\n\`\`\`json\n${JSON.stringify(ctx)}\n\`\`\`\nExplain what these numbers say.` }];

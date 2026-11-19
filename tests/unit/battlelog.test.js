@@ -97,3 +97,9 @@ test("a log without blank lines parses the same as one with them", () => {
   const a = parseLog(LOG1, INDEX).game, b = parseLog(tight, INDEX).game;
   assert.deepEqual(b.events.map(e => e.type), a.events.map(e => e.type));
 });
+
+test('"All Prize cards taken. X wins." is a win on Prize cards too', () => {
+  const r = parseLog(LOG1.replace("Opponent took all of their Prize cards. Grat5 wins.", "All Prize cards taken. Grat5 wins."));
+  assert.equal(r.ok, true);
+  assert.equal(r.game.reason, "prizes");
+});

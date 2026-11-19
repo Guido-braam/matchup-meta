@@ -4,10 +4,11 @@ import { computeMeta, CONTINENTS, LEVELS as CALC_LEVELS } from "./calc.js";
 import { createGameStore, exportBackup, importBackup } from "./gamestore.js";
 import { deckOf, newList, saveVersion, latest } from "./mylists.js";
 import { initMyGames, LAST_EXPORT_KEY } from "./mygames.js";
+import { initAnalysis } from "./analysis.js";
 import { DeckLab } from "./decklab.js";
 import { createStorage } from "./storage.js";
 import { createAI } from "./ai.js";
-import { loadCardIndex, findCard, cardTile } from "./cards.js";
+import { loadCardIndex, findCard, cardTile, cardById } from "./cards.js";
 
 // lv = opgeslagen niveau, w = gewicht in de berekening (uit calc.js).
 const LEVEL_LABELS = { 5: "Very often", 4: "Often", 3: "Regularly", 2: "Sometimes", 1: "Rarely", 0: "Never" };
@@ -63,6 +64,8 @@ const gameStore = createGameStore(); // My lists en games (IndexedDB); opent pas
 // De My games-tab (mygames.js). Pijlfuncties, want $, esc en L staan verderop in dit bestand.
 const myGames = initMyGames({ $: id => $(id), esc: s => esc(s), store: gameStore, storage, loadCardIndex: () => loadCardIndex(), labs: () => L, isCurrent: () => current === "games",
   listView: (cards, index, label) => cardGrid(cards, index) + exportBtn(cards, false, label) }); // a Regional list, as on the Deck tab
+const analysis = initAnalysis({ $: id => $(id), esc: s => esc(s), store: gameStore, storage, loadCardIndex: () => loadCardIndex(), labs: () => L,
+  ai: () => (apiKey ? createAI(apiKey) : null), md: t => mdToHtml(t, null), aiError: e => ADVICE_ERRORS[e?.code] || "Could not get advice. Try again later." });
 // Eigen Anthropic API key van de bezoeker; zonder key staan Advice en Deck chat uit (ADR 0002).
 let apiKey = null;
 const chatOn = () => !!apiKey;
@@ -283,6 +286,28 @@ function renderDeck() {
     ${renderRecommendation(l, R)}
     ${lists.main}`;
   renderChat();
+  renderMyList(a);
+}
+
+// My list: the visitor's own saved lists for this deck (latest version), with a way to its Analysis.
+async function renderMyList(a) {
+  const mine = (await gameStore.lists().catch(() => [])).filter(l => l.deck === a.id && !l.archived);
+  const box = $("my-list");
+  if (!box || !mine.length || D.archetypes[selected]?.id !== a.id) return;
+  const index = await loadCardIndex().catch(() => null);
+  const SEC = { Pokemon: 0, Trainer: 1, Energy: 2 };
+  const grid = cards => {
+    const rows = cards.map(c => ({ c, card: (c.id && cardById(index, c.id)) || findCard(index, "", "", c.name) }));
+    return SECTION_TITLES.map((title, s) => {
+      const r = rows.filter(x => (SEC[x.card?.category] ?? 1) === s);
+      return r.length ? `<div class="sec-title">${title} (${r.reduce((t, x) => t + x.c.count, 0)})</div><div class="cgrid">${r.map(({ c, card }) =>
+        cardTile(card, { name: c.name, cat: CATS[s], count: c.count, note: card || !index ? "" : "card not recognized" })).join("")}</div>` : "";
+    }).join("");
+  };
+  box.innerHTML = `<div class="dl-head"><h3>My list${mine.length > 1 ? "s" : ""}</h3><span class="note">Saved in Deck Lab</span></div>
+    ${mine.map(l => `<details class="list"><summary>${esc(l.name)} · v${latest(l).v}</summary><div class="mini">${grid(latest(l).cards)}</div></details>
+      <p><button class="btn" type="button" data-analysis="${esc(l.id)}">Show in Analysis</button></p>`).join("")}`;
+  box.hidden = false;
 }
 
 // ---------- Regionals: resultaten en decklists ----------
@@ -322,7 +347,7 @@ function deckOptions(needLists) {
 function renderLabSelect() {
   if (!D) return;
   const sel = $("lab-select");
-  sel.innerHTML = `<option value="">Load a deck…</option>` + deckOptions(true);
+  sel.innerHTML = `<option value="">Load a deck archetype…</option>` + deckOptions(true);
   sel.value = labSel == null ? "" : String(labSel);
   syncPickBtn(sel);
 }
@@ -345,25 +370,67 @@ async function refreshMyLists() {
 function renderSaveBar(msg = "") {
   const l = labList && listById(labList);
   $("ml-name").value = l ? l.name : "";
+  // The deck of the list: its saved deck, else the loaded deck archetype, else the best fit on its Pokémon.
+  const decks = [...(D?.archetypes || L?.archetypes || [])].sort((a, b) => a.name.localeCompare(b.name));
+  $("ml-deck").innerHTML = `<option value="" hidden>Deck…</option>` + decks.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
+  $("ml-deck").value = l?.deck && decks.some(a => a.id === l.deck) ? l.deck : "";
+  if (!l) guessDeck();
   $("ml-state").textContent = msg || (l ? `In My lists as ${listLabel(l)}${l.archived ? " (archived)" : ""}.` : "");
   $("ml-manage").hidden = !l;
   $("ml-archive").textContent = l?.archived ? "Unarchive" : "Archive";
   disarmDelete();
 }
-$("lab-host").addEventListener("lab-source", () => { labList = null; renderSaveBar(); });
+let guessRun = 0;
+async function guessDeck() {
+  const run = ++guessRun;
+  let id = labSel != null ? D?.archetypes[labSel]?.id : null;
+  if (!id) { const { cards } = await DeckLab.current(); id = deckOf(cards, L, await loadCardIndex().catch(() => null))?.id; }
+  if (run === guessRun && !labList && id) $("ml-deck").value = id;
+}
+$("lab-host").addEventListener("lab-source", () => { labList = null; labSel = null; renderSaveBar(); labArch = null; renderLabArch(); });
+// A list typed or pasted straight into the field: guess its deck once there is something to go on.
+$("lab-host").addEventListener("input", e => { if (e.composedPath()[0].id === "deck" && !labList && !$("ml-deck").value) guessDeck(); });
+
+// Deck Lab heading after Load a deck archetype: the deck, and which of its lists is loaded with the others to pick.
+let labArch = null;        // {i: deck index, k: list index in archLists} or null
+function archLists(a) {
+  const l = L && labsById.get(a.id);
+  if (!l?.lists.length) return [];
+  const R = l.ml?.signal ? recommend(l) : null;
+  return [...(R ? [{ label: "Recommended list", cards: R.best.x.cards }] : []), { label: "Consensus list", cards: l.consensus },
+    ...l.lists.map(x => ({ label: `${x.place ? `${ord(x.place)} of ${nl(x.of)}` : "No finish"} · ${cityOf(x.e)}`, cards: x.cards }))];
+}
+function openArch(i, k = 0) {
+  const a = D.archetypes[i], o = archLists(a)[k];
+  if (!o) return false;
+  DeckLab.open($("lab-host"), exportText(o.cards), `${a.name} · ${o.label}`); // lab-source clears the heading first
+  labSel = i; labArch = { i, k }; renderLabArch(); guessDeck();
+  return true;
+}
+function renderLabArch() {
+  const box = $("lab-arch");
+  box.hidden = !labArch || !D;
+  if (box.hidden) return;
+  const a = D.archetypes[labArch.i];
+  box.innerHTML = `<h2>${esc(a.name)}</h2><select id="lab-arch-list" aria-label="List of ${esc(a.name)}">${archLists(a).map((o, k) =>
+    `<option value="${k}">${esc(o.label)}</option>`).join("")}</select>`;
+  $("lab-arch-list").value = String(labArch.k);
+}
+$("lab-arch").addEventListener("change", e => { if (labArch) openArch(labArch.i, Number(e.target.value)); });
 $("mylist-select").addEventListener("change", e => {
   const l = listById(e.target.value);
   e.target.value = "";
   if (!l) return;
-  labSel = null; renderLabSelect();
   DeckLab.open($("lab-host"), latest(l).text, listLabel(l));
+  renderLabSelect();
   labList = l.id; renderSaveBar();
 });
 $("ml-save").addEventListener("click", async () => {
   const { text, cards } = await DeckLab.current();
   if (!text.trim()) return;
   const index = await loadCardIndex().catch(() => null);
-  const deck = deckOf(cards, L, index), name = $("ml-name").value.trim();
+  const picked = (D?.archetypes || L?.archetypes)?.find(a => a.id === $("ml-deck").value);
+  const deck = picked ? { id: picked.id, name: picked.name } : deckOf(cards, L, index), name = $("ml-name").value.trim();
   const old = labList && listById(labList);
   let list, msg;
   if (!old) {
@@ -374,7 +441,9 @@ $("ml-save").addEventListener("click", async () => {
     const r = saveVersion(old, { text, cards }, frozen);
     list = { ...r.list, name: name || old.name, deck: deck?.id ?? old.deck };
     msg = r.saved === "new-version" ? `Saved as v${v + 1}. Games played with v${v} stay on v${v}.`
-      : r.saved === "updated" ? `Saved ${listLabel(list)}.` : list.name !== old.name ? "Renamed." : "No changes to save.";
+      : r.saved === "updated" ? `Saved ${listLabel(list)}.` : list.name !== old.name ? "Renamed." : "";
+    if (list.deck !== old.deck) msg = `${msg} Deck set to ${deck?.name ?? "none"}.`.trim();
+    msg ||= "No changes to save.";
   }
   if (!(await gameStore.putList(list))) return renderSaveBar("Could not save: this browser does not allow storage for this site.");
   labList = list.id;
@@ -689,6 +758,7 @@ function renderDecklist(a, R) {
     <div>${exportBtn(l.consensus, true, `${a.name} · consensus list from Matchup Meta`)}</div>
     <p class="note">The Consensus list is the average of all lists, with recent Regionals counting more, and may never have been played exactly like this. Open the list to see the other choices too.</p>
   </section>
+  <section class="panel dl" id="my-list" hidden></section>
   <section class="panel dl" data-reveal-for="cons-details" hidden>
     <div class="dl-head"><h3>Other choices</h3><span class="note">Cards not in the Consensus list but in 3% or more of lists, with the most-played count and the share of lists that play them</span></div>
     ${others.length ? `<div class="mini" data-picks="${esc(JSON.stringify(others.map(u => [u[0], u[2], u[1]])))}"></div>` : `<div class="note">No other cards in 3% or more of lists.</div>`}
@@ -716,9 +786,9 @@ function copyExport(btn) {
 }
 
 // ---------- Navigatie ----------
-// Drie vaste tabs; het deck is een pagina via de hash, met een tijdelijke Deck-tab.
-// My meta en Ask Claude zijn popups (<dialog id="dialog-<naam>">) over de pagina.
-const TABS = ["tierlist", "lab", "games"];
+// Vier vaste tabs; het deck is een pagina via de hash, met een tijdelijke Deck-tab.
+// My meta, Ask Claude en API key zijn popups (<dialog id="dialog-<naam>">) over de pagina.
+const TABS = ["tierlist", "lab", "games", "analysis"];
 const PAGES = [...TABS, "deck"];
 let current = "tierlist";
 function show(page) {
@@ -733,6 +803,7 @@ function show(page) {
 // Popup <dialog id="dialog-<naam>"> over de huidige pagina; sluit met ×, Done of Esc en geeft de focus terug.
 function openDialog(name) {
   const d = $("dialog-" + name);
+  document.querySelectorAll("dialog[open]").forEach(o => { if (o !== d) o.close(); }); // one popup at a time
   if (!d.open) d.showModal();
   renderDialogs();
 }
@@ -745,7 +816,7 @@ document.querySelectorAll("dialog").forEach(d => {
   d.addEventListener("close", () => { if (location.hash === "#" + d.id.replace("dialog-", "")) history.replaceState(null, "", "#tierlist"); });
 });
 // De hash bepaalt de pagina: #deck/<deck id>, #lab; zonder hash de onthouden tab.
-// #meta en #advice (ook oude bladwijzers) openen hun popup over de tier list.
+// #meta, #advice en #key (ook oude bladwijzers) openen hun popup over de tier list.
 // Een onbekend deck of een onbekende hash geeft de tier list.
 function route() {
   let h;
@@ -770,6 +841,7 @@ function go(h) {
 addEventListener("hashchange", route);
 function renderCurrent() {
   if (current === "games") { myGames.render(); return; }
+  if (current === "analysis") { analysis.render(); return; }
   if (current === "lab") { DeckLab.mount($("lab-host")); refreshMyLists(); if (D) { recompute(); renderLabSelect(); } return; }
   if (!D) return;
   recompute();
@@ -788,6 +860,8 @@ document.querySelector("nav.tabs").addEventListener("click", e => {
 document.addEventListener("click", e => {
   const g = e.target.closest("[data-goto]");
   if (g) { e.preventDefault(); $("dialog-" + g.dataset.goto) ? openDialog(g.dataset.goto) : go(g.dataset.goto); return; }
+  const an = e.target.closest("button[data-analysis]");
+  if (an) { analysis.show(an.dataset.analysis); go("analysis"); window.scrollTo({ top: 0 }); return; }
   const jb = e.target.closest("button[data-jump]");
   if (jb) { document.querySelector(jb.dataset.jump)?.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
   const x = e.target.closest("button[data-export]");
@@ -795,8 +869,10 @@ document.addEventListener("click", e => {
   const lb = e.target.closest("button[data-lab]");
   if (lb) {
     const k = Number(lb.dataset.lab);
-    labSel = current === "deck" ? selected : null;
-    DeckLab.open($("lab-host"), exportText(exportLists[k] || []), labLabels.get(k) || "List from Matchup Meta");
+    const i = current === "deck" ? selected : null;
+    // A list of this deck: open it with the heading; any other list as before.
+    const ak = i == null ? -1 : archLists(D.archetypes[i]).findIndex(o => o.cards === exportLists[k]);
+    if (ak < 0 || !openArch(i, ak)) { DeckLab.open($("lab-host"), exportText(exportLists[k] || []), labLabels.get(k) || "List from Matchup Meta"); labSel = i; guessDeck(); }
     go("lab"); window.scrollTo({ top: 0 });
     return;
   }
@@ -810,11 +886,7 @@ document.addEventListener("click", e => {
 });
 $("lab-select").addEventListener("change", e => {
   if (e.target.value === "") return;
-  const i = Number(e.target.value), a = D.archetypes[i], l = labsById.get(a.id);
-  const p = labListFor(a, l, l?.ml?.signal ? recommend(l) : null);
-  if (!p) return;
-  labSel = i;
-  DeckLab.open($("lab-host"), p.text, p.label);
+  openArch(Number(e.target.value));
 });
 document.addEventListener("click", e => {
   const b = e.target.closest("button[data-never]");
@@ -1086,7 +1158,8 @@ $("advice-result").addEventListener("change", e => {
 function renderKey() {
   $("key-off").hidden = !!apiKey;
   $("key-on").hidden = !apiKey;
-  $("key-on-text").textContent = apiKey ? `Advice and Deck chat use your Anthropic API key ending in …${apiKey.slice(-4)}. It is stored only in this browser.` : "";
+  $("key-title").textContent = apiKey ? "Anthropic API key" : "Add Anthropic API key";
+  $("key-on-text").textContent = apiKey ? `Advice, Deck chat and Turn into advice use your Anthropic API key ending in …${apiKey.slice(-4)}. It is stored only in this browser.` : "";
 }
 $("key-form").addEventListener("submit", e => {
   e.preventDefault();
@@ -1142,10 +1215,15 @@ function adviceList(a, p) {
 const adviceWhen = x => new Date(x.createdAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 function renderAdvice() {
   const run = $("advice-run"), state = $("advice-state");
+  // Under the button: a link to the API key pop-up, unless a message (running, error, stopped) is showing.
+  const keyLink = !state.textContent || state.querySelector('a[data-goto="key"]');
   if (!apiKey) {
     run.disabled = true;
-    state.textContent = "Add your Anthropic API key above to turn on Advice."; state.className = "hint";
-  } else if (!adviceCtl) run.disabled = false;
+    state.innerHTML = `<a href="#key" data-goto="key">Add your Anthropic API key</a> to turn on Advice.`; state.className = "hint";
+  } else {
+    if (!adviceCtl) run.disabled = false;
+    if (keyLink) { state.innerHTML = `<a href="#key" data-goto="key">Manage Anthropic API key</a>`; state.className = "hint"; }
+  }
   const out = $("advice-result");
   if (!advice || !D) { out.innerHTML = ""; return; }
   const R = advice.result || {};
@@ -1487,7 +1565,7 @@ function renderChat() {
   chatSig = sig;
   box.hidden = false;
   if (!chatOn()) {
-    box.innerHTML = `<div class="chat-head"><h2>Deck chat: ${esc(a.name)}</h2></div><p class="note">Deck chat is off: it uses Claude with your own Anthropic API key. <a href="#advice" data-goto="advice">Add your API key</a> in Ask Claude to turn it on.</p>`;
+    box.innerHTML = `<div class="chat-head"><h2>Deck chat: ${esc(a.name)}</h2></div><p class="note">Deck chat is off: it uses Claude with your own Anthropic API key. <a href="#key" data-goto="key">Add your API key</a> to turn it on.</p>`;
     return;
   }
   const c = chatOf(a.id), busy = chatRun?.id === a.id;
