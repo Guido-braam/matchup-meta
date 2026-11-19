@@ -261,9 +261,6 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 #src:empty,#io-state:empty{display:none}
 .cl-head{display:flex;justify-content:space-between;margin-top:10px;padding-bottom:4px;border-bottom:1px solid var(--line)}
 .cl-head:first-child{margin-top:0}
-.count-bar{background:color-mix(in oklab,var(--bad) 16%,transparent);color:var(--bad);border-radius:8px;padding:8px 12px;font-weight:600;font-size:13px}
-.count-bar[hidden]{display:none}
-.count-bar{white-space:pre-line}
 .cl-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;margin-top:6px}
 .cl-row .nm{font-size:8.5px}
 .cl-row .art{font-size:14px}
@@ -434,7 +431,6 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
       <p class="hint" id="src"></p>
     </div>
     <slot name="save" class="full-only"></slot>
-    <div class="count-bar full-only" id="total-badge" role="status" hidden></div>
     <div class="panel full-only">
       <div class="cardlist" id="cardlist" data-own-zoom></div>
     </div>
@@ -458,9 +454,6 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
   const $ = s => root.querySelector(s);
 
   function renderList(){
-    // Alleen een balk als de lijst niet op 60 uitkomt of meer dan één ACE SPEC heeft.
-    const warn = rows.length ? deckWarnings(entries) : [];
-    const tb = $("#total-badge"); tb.hidden = !warn.length; tb.textContent = warn.join("\n");
     let html = "";
     // De drie blokken staan er altijd, ook leeg; "Not recognized" alleen als er zulke regels zijn.
     for (const cat of ["pokemon","trainer","energy",null]){
@@ -612,6 +605,8 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
     root.host.classList.toggle("empty", !rows.length);
     $("#btn-export").hidden = !rows.length;
     TH = null; renderList(); renderAnalysis();
+    // The deck check (60 cards, at most 1 ACE SPEC) for the page to show in its save block: "lab-check".
+    root.host.dispatchEvent(new CustomEvent("lab-check", {detail: {empty: !rows.length, total: totalOf(entries), warnings: deckWarnings(entries)}}));
   }
   // Another list came in (open, Import, Clear): the page hears it as "lab-source" on the host (My lists in app.js).
   // It fires at once, so the page can set its own heading right after; the rows follow once the Card index is there

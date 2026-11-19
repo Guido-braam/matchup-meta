@@ -416,6 +416,12 @@ async function guessDeck() {
 }
 $("lab-host").addEventListener("lab-source", () => { labList = null; labVer = null; labSel = null; renderSaveBar(); labArch = null; renderLabArch(); renderLabSelect(); });
 // A list edited in Deck Lab itself (− / +, adding cards): guess its deck once there is something to go on.
+$("lab-host").addEventListener("lab-check", ({ detail: c }) => {
+  for (const el of document.querySelectorAll(".deck-check")) {
+    el.textContent = c.empty ? "" : c.warnings.length ? c.warnings.join("\n") : `✓ Valid deck: ${c.total} cards`;
+    el.className = `deck-check ${c.warnings.length ? "bad" : "good"}`;
+  }
+});
 $("lab-host").addEventListener("lab-edit", () => { if (!labList && !$("ml-deck").value) guessDeck(); updateChanges(); });
 
 // Deck Lab heading after Load a deck archetype: the deck, and which of its lists is loaded with the others to pick.
