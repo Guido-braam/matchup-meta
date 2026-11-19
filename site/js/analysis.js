@@ -61,7 +61,7 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, 
       <hr class="an-sep">
       <p class="an-advice"><button type="button" class="btn" id="an-advice"${ai() ? "" : " disabled"}>Turn into advice</button>
         ${ai() ? `<span class="hint">Claude reads these numbers, your cards and the ${Math.min(sel.length, 20)} newest games, and gives tips on how to play.</span>`
-          : `<span class="hint">Needs your Anthropic API key: add it under <a href="#advice" data-goto="advice">Ask Claude</a>.</span>`}</p>`;
+          : `<span class="hint">Needs your Anthropic API key: <a href="#key" data-goto="key">add it here</a>.</span>`}</p>`;
     current = { sel, list, v };
   }
   let current = null; // the selection on screen, for Turn into advice

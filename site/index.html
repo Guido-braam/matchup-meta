@@ -32,6 +32,7 @@
     <div class="tier-foot">
       <div class="legend tier-legend" id="tier-legend"></div>
     </div>
+    <p class="tier-ask"><button class="btn" type="button" data-goto="advice" aria-haspopup="dialog">Which deck should I play at locals?</button></p>
     <details class="how"><summary>How is this calculated?</summary>
     <p class="note">The tier follows from the expected winrate: the average of all matchups, weighted by how often you meet each deck (set this in <a href="#meta" data-goto="meta">My meta</a>). The cut-offs scale with your meta: the decks you meet are ranked (equal winrates share a place), the top 10% is S, the next 15% A, then 25% B, 25% C, 15% D and the bottom 10% E. Within a tier the highest winrate comes first. Matchups with few games are pulled towards 50%. Click a deck to see its matchups.</p>
     </details>
@@ -91,6 +92,25 @@
       <h2 id="advice-title">Ask Claude</h2>
       <button class="dlg-x" aria-label="Close">×</button>
     </form>
+    <div class="panel data-panel">
+      <h2>Which deck should I play at locals?</h2>
+      <p class="note">Claude looks at My meta (the frequency levels you set), all matchups, the Regionals results and the Recommended lists, and advises which deck and which list to play. This uses your own Anthropic API key and credit (<a href="#key" data-goto="key">API key settings</a>). An analysis usually takes half a minute to two minutes.</p>
+      <label for="advice-context" class="field-label">Extra context <span class="hint">(optional)</span></label>
+      <textarea id="advice-context" rows="3" placeholder="For example: best-of-3, 4 rounds. I own the cards for Dragapult and Basic Box. I'd rather not play control."></textarea>
+      <div class="upload-row">
+        <button class="btn primary" id="advice-run">Analyze My meta</button>
+        <button class="btn" id="advice-stop" hidden>Stop</button>
+        <span class="hint" id="advice-state"></span>
+      </div>
+    </div>
+    <div id="advice-result"></div>
+  </dialog>
+
+  <dialog class="modal" id="dialog-key" aria-labelledby="key-title">
+    <form method="dialog" class="modal-head">
+      <h2 id="key-title">API key</h2>
+      <button class="dlg-x" aria-label="Close">×</button>
+    </form>
     <div class="panel data-panel key-panel" id="ai-key">
       <div id="key-off">
         <h2>Advice and Deck chat are off</h2>
@@ -107,18 +127,6 @@
       </div>
       <span class="hint" id="key-state"></span>
     </div>
-    <div class="panel data-panel">
-      <h2>Which deck should I play at locals?</h2>
-      <p class="note">Claude looks at My meta (the frequency levels you set), all matchups, the Regionals results and the Recommended lists, and advises which deck and which list to play. This uses your own Anthropic API key and credit. An analysis usually takes half a minute to two minutes.</p>
-      <label for="advice-context" class="field-label">Extra context <span class="hint">(optional)</span></label>
-      <textarea id="advice-context" rows="3" placeholder="For example: best-of-3, 4 rounds. I own the cards for Dragapult and Basic Box. I'd rather not play control."></textarea>
-      <div class="upload-row">
-        <button class="btn primary" id="advice-run">Analyze My meta</button>
-        <button class="btn" id="advice-stop" hidden>Stop</button>
-        <span class="hint" id="advice-state"></span>
-      </div>
-    </div>
-    <div id="advice-result"></div>
   </dialog>
 
   <footer class="site-foot" id="site-foot">

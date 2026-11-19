@@ -1129,11 +1129,16 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await page.goto("/");
   await expect(page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" })).toBeVisible(); // the tier list still works
 
-  await page.goto("/#advice");
+  // The button under the tier list opens the locals advice; its key link opens the API key pop-up.
+  await page.getByRole("button", { name: "Which deck should I play at locals?" }).click();
+  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeVisible();
+  await expect(page.locator("#advice-run")).toBeDisabled();
+  await page.getByRole("link", { name: "API key settings" }).click();
+  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "API key" })).toBeVisible();
   await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
   await expect(page.getByLabel("Anthropic API key")).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove key" })).toBeHidden();
-  await expect(page.locator("#advice-run")).toBeDisabled();
   await page.keyboard.press("Escape");
 
   await openDeck(page, "Dragapult");
@@ -1142,7 +1147,7 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await expect(chat.getByRole("link", { name: "Add your API key" })).toBeVisible();
   await expect(chat.locator("#chat-input")).toHaveCount(0);
   await chat.getByRole("link", { name: "Add your API key" }).click();
-  await expect(page.getByRole("dialog", { name: "Ask Claude" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "API key" })).toBeVisible();
   await expect(page.getByLabel("Anthropic API key")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#page-deck")).toBeVisible(); // the dialog opened over the deck page
@@ -1154,12 +1159,13 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
 
 test("with an API key Advice runs, stays after a reload, and Remove key turns it off again", async ({ page, consoleErrors }) => {
   const requests = await stubMessagesApi(page, 200, message(ADVICE_ANSWER));
-  await page.goto("/#advice");
+  await page.goto("/#key");
 
   await page.getByLabel("Anthropic API key").fill(API_KEY);
   await page.getByRole("button", { name: "Save key" }).click();
   await expect(page.locator("#ai-key")).toContainText("stored only in this browser");
   expect(JSON.parse(await stored(page, "matchup-meta-api-key"))).toBe(API_KEY);
+  await page.goto("/#advice");
   await expect(page.locator("#advice-run")).toBeEnabled();
 
   await page.locator("#advice-run").click();
@@ -1196,6 +1202,7 @@ test("with an API key Advice runs, stays after a reload, and Remove key turns it
   const settings = await stored(page, "matchup-meta-settings");
   for (const text of [API_KEY, "Play Dragapult"]) expect(settings ?? "").not.toContain(text);
 
+  await page.goto("/#key");
   await page.getByRole("button", { name: "Remove key" }).click();
   expect(await stored(page, "matchup-meta-api-key")).toBeNull();
   await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
@@ -1215,6 +1222,7 @@ test("a rejected API key shows a readable error and leaves the page working", as
   await expect(page.locator("#advice-state")).toHaveText("Anthropic rejected your API key. Check that you pasted all of it, or remove it and enter a new one.");
   await expect(page.locator("#advice-state")).toHaveClass(/err/);
   await expect(page.locator("#advice-run")).toBeEnabled();
+  await page.goto("/#key");
   await expect(page.getByRole("button", { name: "Remove key" })).toBeVisible();
 });
 

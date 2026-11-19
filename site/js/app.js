@@ -720,7 +720,7 @@ function copyExport(btn) {
 
 // ---------- Navigatie ----------
 // Vier vaste tabs; het deck is een pagina via de hash, met een tijdelijke Deck-tab.
-// My meta en Ask Claude zijn popups (<dialog id="dialog-<naam>">) over de pagina.
+// My meta, Ask Claude en API key zijn popups (<dialog id="dialog-<naam>">) over de pagina.
 const TABS = ["tierlist", "lab", "games", "analysis"];
 const PAGES = [...TABS, "deck"];
 let current = "tierlist";
@@ -736,6 +736,7 @@ function show(page) {
 // Popup <dialog id="dialog-<naam>"> over de huidige pagina; sluit met ×, Done of Esc en geeft de focus terug.
 function openDialog(name) {
   const d = $("dialog-" + name);
+  document.querySelectorAll("dialog[open]").forEach(o => { if (o !== d) o.close(); }); // one popup at a time
   if (!d.open) d.showModal();
   renderDialogs();
 }
@@ -748,7 +749,7 @@ document.querySelectorAll("dialog").forEach(d => {
   d.addEventListener("close", () => { if (location.hash === "#" + d.id.replace("dialog-", "")) history.replaceState(null, "", "#tierlist"); });
 });
 // De hash bepaalt de pagina: #deck/<deck id>, #lab; zonder hash de onthouden tab.
-// #meta en #advice (ook oude bladwijzers) openen hun popup over de tier list.
+// #meta, #advice en #key (ook oude bladwijzers) openen hun popup over de tier list.
 // Een onbekend deck of een onbekende hash geeft de tier list.
 function route() {
   let h;
@@ -1090,7 +1091,7 @@ $("advice-result").addEventListener("change", e => {
 function renderKey() {
   $("key-off").hidden = !!apiKey;
   $("key-on").hidden = !apiKey;
-  $("key-on-text").textContent = apiKey ? `Advice and Deck chat use your Anthropic API key ending in …${apiKey.slice(-4)}. It is stored only in this browser.` : "";
+  $("key-on-text").textContent = apiKey ? `Advice, Deck chat and Turn into advice use your Anthropic API key ending in …${apiKey.slice(-4)}. It is stored only in this browser.` : "";
 }
 $("key-form").addEventListener("submit", e => {
   e.preventDefault();
@@ -1491,7 +1492,7 @@ function renderChat() {
   chatSig = sig;
   box.hidden = false;
   if (!chatOn()) {
-    box.innerHTML = `<div class="chat-head"><h2>Deck chat: ${esc(a.name)}</h2></div><p class="note">Deck chat is off: it uses Claude with your own Anthropic API key. <a href="#advice" data-goto="advice">Add your API key</a> in Ask Claude to turn it on.</p>`;
+    box.innerHTML = `<div class="chat-head"><h2>Deck chat: ${esc(a.name)}</h2></div><p class="note">Deck chat is off: it uses Claude with your own Anthropic API key. <a href="#key" data-goto="key">Add your API key</a> to turn it on.</p>`;
     return;
   }
   const c = chatOf(a.id), busy = chatRun?.id === a.id;
