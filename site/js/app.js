@@ -380,11 +380,18 @@ function renderSaveBar(msg = "") {
   mlState.textContent = msg || (l ? `In My lists as ${l.name} · v${labVer ?? latest(l).v}${l.archived ? " (archived)" : ""}.` : "");
   mlManage.hidden = !l;
   $("ml-save-box").hidden = !!l; // an own list saves through the changes block
+  if (l) { // its name and deck in the changes block
+    $("ml-dlg-name").value = l.name;
+    $("ml-dlg-deck").innerHTML = `<option value="">No deck</option>` + deckOpts(decks);
+    $("ml-dlg-deck").value = $("ml-dlg-deck").dataset.v0 = decks.some(a => a.id === l.deck) ? l.deck : "";
+  }
   $("ml-archive").textContent = l?.archived ? "Unarchive" : "Archive";
   disarmDelete();
   updateChanges();
 }
-// The changes block: only for an own list that differs from its latest version.
+// The changes block of an own list: its name and deck, and Save once the cards, the name or the deck differ.
+const chName = l => $("ml-dlg-name").value.trim() || l.name;
+const renamedOf = l => chName(l) !== l.name || $("ml-dlg-deck").value !== $("ml-dlg-deck").dataset.v0;
 let changesRun = 0;
 async function updateChanges() {
   const run = ++changesRun, l = labList && listById(labList);
@@ -392,7 +399,8 @@ async function updateChanges() {
   const d = cardDiff(latest(l).cards, (await DeckLab.current()).cards), changed = d.out.length + d.in.length > 0;
   const frozen = changed && await frozenNow(l);
   if (run !== changesRun) return;
-  $("ml-changes").hidden = !changed;
+  $("ml-changes").hidden = false;
+  $("ml-ch-act").hidden = !changed && !renamedOf(l);
   const old = labVer != null && labVer !== latest(l).v;
   $("ml-changes").querySelector(".note").textContent = old ? `This is v${labVer}; the latest is v${latest(l).v}.` : "You changed this list.";
   $("ml-changes-btn").textContent = frozen ? "Save new version" : "Save changes";
@@ -510,15 +518,12 @@ $("ml-save").addEventListener("click", async () => {
   if (!(await storeList(list, `Saved to My lists as ${listLabel(list)}.`))) renderSaveBar(NO_STORAGE);
 });
 // The changes of an own list: a pop-up to rename it or change its deck, with the cards taken out and put in.
-let dlg = null;            // {l, text, cards, frozen, deck0}
+let dlg = null;            // {l, text, cards, frozen}
 $("ml-changes-btn").addEventListener("click", async () => {
   const l = listById(labList);
   if (!l) return;
-  const { text, cards } = await DeckLab.current(), frozen = await frozenNow(l), decks = deckChoices();
-  $("ml-dlg-name").value = l.name;
-  $("ml-dlg-deck").innerHTML = `<option value="">No deck</option>` + deckOpts(decks);
-  $("ml-dlg-deck").value = decks.some(a => a.id === l.deck) ? l.deck : "";
-  dlg = { l, text, cards, frozen, deck0: $("ml-dlg-deck").value };
+  const { text, cards } = await DeckLab.current(), frozen = await frozenNow(l);
+  dlg = { l, text, cards, frozen };
   const d = cardDiff(latest(l).cards, cards);
   const li = xs => xs.map(([k, n]) => `<li><span class="num">${n}×</span> ${esc(k)}</li>`).join("") || `<li class="note">Nothing</li>`;
   $("ml-out").innerHTML = li(d.out); $("ml-in").innerHTML = li(d.in);
@@ -528,14 +533,14 @@ $("ml-changes-btn").addEventListener("click", async () => {
   document.querySelectorAll("dialog[open]").forEach(x => x.close());
   $("ml-dialog").showModal();
 });
-const dlgName = () => $("ml-dlg-name").value.trim() || dlg.l.name;
+const dlgName = () => chName(dlg.l);
 function dlgButtons() {
-  const renamed = dlgName() !== dlg.l.name || $("ml-dlg-deck").value !== dlg.deck0;
+  const renamed = renamedOf(dlg.l);
   $("ml-dlg-save").textContent = renamed ? "Rename list and save changes" : dlg.frozen ? "Save new version" : "Save changes";
   $("ml-dlg-new").hidden = !renamed;
 }
-$("ml-dlg-name").addEventListener("input", () => dlg && dlgButtons());
-$("ml-dlg-deck").addEventListener("change", () => dlg && dlgButtons());
+$("ml-dlg-name").addEventListener("input", () => updateChanges());
+$("ml-dlg-deck").addEventListener("change", () => updateChanges());
 $("ml-dlg-save").addEventListener("click", async () => {
   if (!dlg) return;
   const { l, text, cards, frozen } = dlg, v = latest(l).v, r = saveVersion(l, { text, cards }, frozen);
