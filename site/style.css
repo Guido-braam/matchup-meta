@@ -351,6 +351,7 @@ details.how .note { margin: 6px 0 0; }
 .pk-off { font-size: 0.62rem; font-weight: 600; color: var(--muted); }
 .pk-none { margin-bottom: 12px; }
 .pk-never { display: flex; align-items: center; gap: 10px; }
+#pk-close { order: -1; } /* Close helemaal links */
 .pk-never[hidden] { display: none; }
 .pk-never .note { margin: 0; font-size: 0.85rem; }
 .pk-none .current { border-color: var(--accent); }
