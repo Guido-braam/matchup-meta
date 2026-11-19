@@ -445,13 +445,6 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
   <div class="cz-n"><span class="num" id="cz-n"></span>in the deck</div>
   <div class="cz-pm"><button class="btn" type="button" data-cz="-1" aria-label="Remove one">−</button><button class="btn primary" type="button" data-cz="1" aria-label="Add one">+</button></div>
 </div></dialog>
-<dialog id="imp" aria-labelledby="imp-t"><form method="dialog" class="col">
-  <div class="row" style="justify-content:space-between"><h2 id="imp-t">Import deck</h2><button class="x" value="cancel" aria-label="Close">×</button></div>
-  <p class="hint">Paste a list from Pokémon TCG Live or Limitless. It replaces the list in Deck Lab.</p>
-  <textarea id="imp-text" spellcheck="false" aria-label="List to import"></textarea>
-  <p class="hint" id="imp-state" role="status"></p>
-  <div class="row"><button class="btn" type="button" id="btn-paste">Paste from clipboard</button><button class="btn primary" type="button" id="imp-go">Import</button></div>
-</form></dialog>
 <dialog id="add" aria-labelledby="add-t"><form method="dialog" class="col">
   <div class="row" style="justify-content:space-between"><h2 id="add-t">Add a card</h2><button class="x" value="cancel" aria-label="Close">×</button></div>
   <input id="add-q" type="search" autocomplete="off" spellcheck="false" placeholder="Search name, text or type" aria-label="Search cards">
@@ -682,17 +675,19 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
     if (root) return;
     root = host.attachShadow({mode: "open"});
     root.innerHTML = `<style>${CSS}</style>${MARKUP}`;
-    const imp = $("#imp"), impText = $("#imp-text"), impState = $("#imp-state");
-    $("#btn-import").onclick = () => {
-      document.querySelectorAll("dialog[open]").forEach(d => d.close()); // one pop-up at a time, as openDialog in app.js
-      impText.value = ""; impState.textContent = "";
-      imp.showModal(); impText.focus();
-    };
+    // Import deck pastes the clipboard at once. Reading it can be refused; then Ctrl+V on the page imports.
+    const ioState = $("#io-state");
+    let pasteArmed = false;
     const doImport = text => {
-      if (!rowsFrom(text, null).length) { impState.textContent = "No card lines found. A line looks like 4 Dreepy TWM 128."; return; }
-      imp.close(); return setList(text, "Imported list");
+      pasteArmed = false;
+      if (!rowsFrom(text, null).length) { ioState.textContent = "No card lines found on the clipboard. Copy a list from Pokémon TCG Live or Limitless (a line looks like 4 Dreepy TWM 128)."; return; }
+      return setList(text, "Imported list");
     };
-    $("#imp-go").onclick = () => doImport(impText.value);
+    $("#btn-import").onclick = async () => {
+      try { return await doImport(await navigator.clipboard.readText()); } catch {}
+      pasteArmed = true; ioState.textContent = "Could not read the clipboard. Press Ctrl+V to paste your list.";
+    };
+    document.addEventListener("paste", e => { if (pasteArmed) { e.preventDefault(); doImport(e.clipboardData.getData("text")); } });
     // − / + in the card list. The list is drawn again, so the focus goes back to the same button (or its partner).
     $("#cardlist").addEventListener("click", async e => {
       const a = e.target.closest("button[data-add]"); if (a) return openAdd(a.dataset.add);
@@ -704,11 +699,6 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
       const sel = d => root.querySelector(`button[data-key="${globalThis.CSS.escape(key)}"][data-pm="${d}"]:not(:disabled)`); // CSS here is the stylesheet
       (sel(pm) || sel(-pm))?.focus();
     });
-    // Reading the clipboard can be refused; then into the text box, so Ctrl+V works.
-    $("#btn-paste").onclick = async () => {
-      try { const t = await navigator.clipboard.readText(); if (t.trim()) { impText.value = t; return doImport(t); } } catch {}
-      impText.focus(); impState.textContent = "Press Ctrl+V to paste your list, then Import.";
-    };
     $("#btn-export").onclick = async () => {
       const b = $("#btn-export");
       try { await navigator.clipboard.writeText(serialize(rows)); }
