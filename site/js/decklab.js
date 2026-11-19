@@ -287,9 +287,9 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 .cl-row:has(.pm):is(:hover,:has(:focus-visible)) .ctile{box-shadow:0 8px 24px rgb(0 0 0/.5)}
 .cl-row .pm{position:absolute;inset:0;gap:0;justify-content:space-between;opacity:0;transition:opacity .15s}
 .cl-row:is(:hover,:has(:focus-visible)) .pm{opacity:1}
-.cl-row .pm button{flex:0 0 33.333%;min-height:0;border:0;border-radius:0;background:transparent;color:#fff;font-size:22px;font-weight:800;text-shadow:0 0 2px #000,0 0 5px #000;cursor:pointer}
+.cl-row .pm button{flex:0 0 33.333%;min-height:0;border:0;border-radius:0;background:transparent;color:rgb(255 255 255/.6);font-size:22px;font-weight:800;text-shadow:0 0 2px #000,0 0 5px #000;cursor:pointer}
 .cl-row .pm [data-pm="-1"]{border-radius:6px 0 0 6px}.cl-row .pm [data-pm="1"]{border-radius:0 6px 6px 0}
-.cl-row .pm button:hover:not(:disabled),.cl-row .pm button:focus-visible{background:rgb(255 255 255/.3);outline:none}
+.cl-row .pm button:hover:not(:disabled),.cl-row .pm button:focus-visible{background:rgb(0 0 0/.35);outline:none}
 .cl-row .pm button:disabled{opacity:.3;cursor:not-allowed}}
 /* Touch: no − and + in the overview; a tap on a card opens it with its count and big − and + (#cz). */
 @media (hover:none){.cl-row .pm{display:none}.cl-row .ctile{cursor:pointer}}
