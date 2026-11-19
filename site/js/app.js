@@ -370,6 +370,10 @@ async function refreshMyLists() {
 function renderSaveBar(msg = "") {
   const l = labList && listById(labList);
   $("ml-name").value = l ? l.name : "";
+  // The deck of the list: picked by hand, or found from its Pokémon when left on Automatic.
+  const decks = [...(L?.archetypes || [])].sort((a, b) => a.name.localeCompare(b.name));
+  $("ml-deck").innerHTML = `<option value="">Deck: automatic</option>` + decks.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("");
+  $("ml-deck").value = l?.deck && decks.some(a => a.id === l.deck) ? l.deck : "";
   $("ml-state").textContent = msg || (l ? `In My lists as ${listLabel(l)}${l.archived ? " (archived)" : ""}.` : "");
   $("ml-manage").hidden = !l;
   $("ml-archive").textContent = l?.archived ? "Unarchive" : "Archive";
@@ -388,7 +392,8 @@ $("ml-save").addEventListener("click", async () => {
   const { text, cards } = await DeckLab.current();
   if (!text.trim()) return;
   const index = await loadCardIndex().catch(() => null);
-  const deck = deckOf(cards, L, index), name = $("ml-name").value.trim();
+  const picked = L?.archetypes.find(a => a.id === $("ml-deck").value);
+  const deck = picked ? { id: picked.id, name: picked.name } : deckOf(cards, L, index), name = $("ml-name").value.trim();
   const old = labList && listById(labList);
   let list, msg;
   if (!old) {
@@ -399,7 +404,9 @@ $("ml-save").addEventListener("click", async () => {
     const r = saveVersion(old, { text, cards }, frozen);
     list = { ...r.list, name: name || old.name, deck: deck?.id ?? old.deck };
     msg = r.saved === "new-version" ? `Saved as v${v + 1}. Games played with v${v} stay on v${v}.`
-      : r.saved === "updated" ? `Saved ${listLabel(list)}.` : list.name !== old.name ? "Renamed." : "No changes to save.";
+      : r.saved === "updated" ? `Saved ${listLabel(list)}.` : list.name !== old.name ? "Renamed." : "";
+    if (list.deck !== old.deck) msg = `${msg} Deck set to ${deck?.name ?? "none"}.`.trim();
+    msg ||= "No changes to save.";
   }
   if (!(await gameStore.putList(list))) return renderSaveBar("Could not save: this browser does not allow storage for this site.");
   labList = list.id;

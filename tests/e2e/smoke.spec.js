@@ -517,6 +517,22 @@ test("a deck page shows My list for that deck, and Show in Analysis opens its an
   expect(consoleErrors).toEqual([]);
 });
 
+test("the deck of a saved list can be set by hand in Deck Lab", async ({ page, consoleErrors }) => {
+  const list = { id: "list-d", name: "Mine", deck: "dragapult-ex", archived: false, versions: [{ v: 1, text: "4 Dreepy TWM 128", cards: [{ name: "Dreepy", count: 4 }], created: "2026-11-18" }] };
+  await page.goto("/#meta");
+  await importFile(page, JSON.stringify({ version: 2, continent: "worldwide", localFrequencies: {}, lists: [list], games: [] }));
+  await expect(page.locator("#import-state")).toContainText("list");
+  await page.goto("/#lab");
+  await page.locator("#mylist-select").selectOption("list-d");
+  await expect(page.locator("#ml-deck")).toHaveValue("dragapult-ex");
+  await page.locator("#ml-deck").selectOption("n-zoroark");
+  await page.getByRole("button", { name: "Save to My lists" }).click();
+  await expect(page.locator("#ml-state")).toContainText("Deck set to N's Zoroark.");
+  await page.goto("/#deck/n-zoroark");
+  await expect(page.locator("#my-list summary")).toHaveText("Mine · v1");
+  expect(consoleErrors).toEqual([]);
+});
+
 test("the replay of a game steps through the board and jumps to the last turn", async ({ page, consoleErrors }) => {
   const raw = readFileSync(new URL("../fixtures/battle-logs/01-loss-prizes-no-codes.txt", import.meta.url), "utf8");
   await page.goto("/#games");
