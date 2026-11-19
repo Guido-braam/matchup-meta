@@ -351,8 +351,9 @@ details.how .note { margin: 6px 0 0; }
 .pk-off { font-size: 0.62rem; font-weight: 600; color: var(--muted); }
 .pk-none { margin-bottom: 12px; }
 .pk-never { display: flex; align-items: center; gap: 10px; }
-/* Rij 1 de titel, rij 2 Close en Show uncommon decks, rij 3 het zoekveld. */
-.pk-head h2 { flex-basis: 100%; order: -2; }
+/* Rij 1 de titel met Close rechts, rij 2 Show uncommon decks, rij 3 het zoekveld. */
+.pk-head h2 { flex: 1; order: -2; }
+.pk-head .pk-never { flex-basis: 100%; }
 #pk-close { order: -1; }
 .pk-head #pk-search { order: 1; flex-basis: 100%; }
 .pk-never[hidden] { display: none; }
