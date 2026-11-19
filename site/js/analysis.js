@@ -61,7 +61,7 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, 
       <hr class="an-sep">
       <p class="an-advice"><button type="button" class="btn" id="an-advice"${ai() ? "" : " disabled"}>Turn into advice</button>
         ${ai() ? `<span class="hint">Claude reads these numbers, your cards and the ${Math.min(sel.length, 20)} newest games, and gives tips on how to play.</span>`
-          : `<span class="hint">Needs your Anthropic API key: add it under <a href="#" data-ask>Ask Claude</a>.</span>`}</p>`;
+          : `<span class="hint">Needs your Anthropic API key: add it under <a href="#advice" data-goto="advice">Ask Claude</a>.</span>`}</p>`;
     current = { sel, list, v };
   }
   let current = null; // the selection on screen, for Turn into advice
@@ -114,7 +114,6 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, 
   $("an-opp").addEventListener("change", e => setOpp(e.target.value));
   $("an-body").addEventListener("click", e => {
     if (e.target.closest("#an-advice")) return advise();
-    if (e.target.closest("[data-ask]")) { e.preventDefault(); return document.getElementById("open-ask")?.click(); }
     const b = e.target.closest("[data-opp]");
     if (b) setOpp(b.dataset.opp === oppValue(opp) ? "" : b.dataset.opp); // a second click shows all opponents again
   });

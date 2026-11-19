@@ -68,7 +68,6 @@ h2 { font-size: 1.25rem; font-weight: 800; }
 .sub { color: var(--muted); font-size: 0.9rem; }
 /* Header: titel, de twee tabs en rechts My meta en Ask Claude; loopt door op een smal scherm. */
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; }
-.head-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
 .tier-basis { margin: 0 0 10px; }
 
 nav.tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }

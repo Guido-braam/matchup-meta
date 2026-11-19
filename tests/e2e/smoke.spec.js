@@ -8,8 +8,8 @@ const fixture = name => JSON.parse(readFileSync(`${FIXTURES}/${name}`, "utf8"));
 // "2026-10-16T15:04" -> "16 Oct 2026", written out here instead of reusing the page's formatter.
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const day = s => { const [y, m, d] = s.slice(0, 10).split("-").map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; };
-// The two tabs and the Ask Claude button in the header; My meta is a popup, not a view.
-const VIEWS = { tierlist: "#tab-tierlist", lab: "#tab-lab", analysis: "#tab-analysis", advice: "#open-ask" };
+// The tabs in the header; My meta (in the tab bar) and Ask Claude are popups, not views.
+const VIEWS = { tierlist: "#tab-tierlist", lab: "#tab-lab", analysis: "#tab-analysis" };
 const metaDialog = page => page.locator("#dialog-meta");
 // A deck page is reached only by clicking a deck; it has no tab.
 const openDeck = async (page, name) => {
@@ -189,17 +189,14 @@ test("an image that fails to load falls back to the placeholder", async ({ page,
   expect(consoleErrors.filter(e => !e.includes("Failed to load resource"))).toEqual([]);
 });
 
-test("the header has the tabs and two equal buttons for My meta and Ask Claude", async ({ page, consoleErrors }) => {
+test("the header has the tabs with My meta at the end, and no Ask Claude button", async ({ page, consoleErrors }) => {
   await page.goto("/");
   await expect(page.getByRole("tab")).toHaveText(["Tier list", "Deck Lab", "My games", "Analysis"]);
-  for (const name of ["My meta", "Ask Claude"]) {
-    const b = page.locator("header").getByRole("button", { name, exact: true });
-    await expect(b).toHaveClass("btn"); // same style, neither highlighted
-    await b.click();
-    await expect(b).toHaveClass("btn");
-    if (name === "My meta") await page.keyboard.press("Escape");
-  }
-  await expect(page.locator("#dialog-advice")).toBeVisible();
+  await expect(page.locator("nav.tabs > button:visible")).toHaveText(["Tier list", "Deck Lab", "My games", "Analysis", "My meta"]);
+  await expect(page.locator("header").getByRole("button", { name: "Ask Claude" })).toHaveCount(0);
+  await page.locator("#open-meta").click();
+  await expect(metaDialog(page)).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(page.locator("#deck-select, button[data-picker=deck-select]")).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });
@@ -316,21 +313,20 @@ test("#meta and #advice open their popup over the tier list", async ({ page, con
   expect(consoleErrors).toEqual([]);
 });
 
-test("Ask Claude is a modal dialog: × and Esc close it and focus returns to the button", async ({ page, consoleErrors }) => {
+test("Ask Claude is a modal dialog, opened by #advice: × and Esc close it", async ({ page, consoleErrors }) => {
   await page.goto("/");
-  const ask = page.locator("#open-ask"), dialog = page.getByRole("dialog", { name: "Ask Claude" });
+  const dialog = page.getByRole("dialog", { name: "Ask Claude" });
   await expect(page.locator("#page-advice")).toHaveCount(0); // no Advice page left
-  await ask.click();
+  await page.goto("/#advice");
   await expect(dialog).toBeVisible();
   expect(await dialog.evaluate(d => d.matches(":modal"))).toBe(true);
   await expect(dialog.getByRole("heading", { name: "Which deck should I play at locals?" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
-  await expect(ask).toBeFocused();
-  await ask.click();
+  await page.goto("/"); // the same hash again would not reopen it
+  await page.goto("/#advice");
   await dialog.getByRole("button", { name: "Close" }).click();
   await expect(dialog).toBeHidden();
-  await expect(ask).toBeFocused();
   await expect(page.locator("#tab-tierlist")).toHaveAttribute("aria-selected", "true");
   expect(consoleErrors).toEqual([]);
 });
@@ -655,7 +651,6 @@ test("every view shows the footer with sources, update dates and season", async 
   for (const [view, button] of Object.entries(VIEWS)) {
     await page.locator(button).click();
     await expect(foot).toBeVisible();
-    if (view === "advice") await page.keyboard.press("Escape"); // a dialog over the page
   }
   await openDeck(page, "Dragapult");
   await expect(foot).toBeVisible();
@@ -682,7 +677,6 @@ test.describe("at phone width", () => {
       await page.locator(button).click();
       if (view === "lab") await expect(page.locator("#lab-host").locator("#view")).not.toBeEmpty();
       expect(await overflow(), `sideways scroll on ${view}`).toBeLessThanOrEqual(0);
-      if (view === "advice") await page.keyboard.press("Escape");
     }
     await openDeck(page, "Dragapult");
     expect(await overflow(), "sideways scroll on a deck page").toBeLessThanOrEqual(0);
@@ -1135,7 +1129,7 @@ test("without an API key Advice and Deck chat are off and explain how to turn th
   await page.goto("/");
   await expect(page.locator("#tiers .tile[data-deck]", { hasText: "Dragapult" })).toBeVisible(); // the tier list still works
 
-  await page.locator("#open-ask").click();
+  await page.goto("/#advice");
   await expect(page.locator("#ai-key")).toContainText("Advice and Deck chat are off");
   await expect(page.getByLabel("Anthropic API key")).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove key" })).toBeHidden();
@@ -1196,7 +1190,7 @@ test("with an API key Advice runs, stays after a reload, and Remove key turns it
   // Advice history stays in the browser, outside Settings (the only thing an export carries).
   // Reload without #advice: that hash would open the popup by itself.
   await page.goto("/");
-  await page.locator("#open-ask").click();
+  await page.goto("/#advice");
   await expect(page.locator("#advice-result")).toContainText("Play Dragapult: it beats most of what you meet.");
   expect(JSON.parse(await stored(page, "matchup-meta-advice"))[0].result).toEqual(ADVICE_ANSWER);
   const settings = await stored(page, "matchup-meta-settings");
@@ -1234,7 +1228,7 @@ test("in the Ask Claude dialog Stop cancels a running analysis and Earlier Advic
     ]));
   }, [API_KEY, ADVICE_ANSWER]);
   await page.goto("/");
-  await page.locator("#open-ask").click();
+  await page.goto("/#advice");
   const dialog = page.getByRole("dialog", { name: "Ask Claude" });
   await expect(dialog.locator("#advice-result")).toContainText("Newest advice.");
   await dialog.getByLabel("Earlier Advice").selectOption("1");
