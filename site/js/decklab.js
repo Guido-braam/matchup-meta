@@ -622,8 +622,8 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
   }
   // After an edit in Deck Lab itself (− / + and adding cards): the label gets "(edited)" and the page hears "lab-edit".
   function edited(){
-    // Without a label (a list under the heading of its deck) an edit still shows: "Edited".
-    if (!srcLabel) srcLabel = "Edited"; else if (!/\(edited\)$|^Edited$/.test(srcLabel)) srcLabel += " (edited)";
+    // Without a label (a list under a heading) nothing shows; the changes block says it for an own list.
+    if (srcLabel && !/\(edited\)$/.test(srcLabel)) srcLabel += " (edited)";
     root.host.dispatchEvent(new CustomEvent("lab-edit"));
     return load();
   }
