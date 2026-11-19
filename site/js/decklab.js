@@ -2,11 +2,60 @@
 // Draait in een eigen shadow root, zodat de stijlen niet botsen met de rest van de pagina.
 import { findCard, loadCardIndex, cardTile } from "./cards.js";
 
+// ---------- Rows: de lijst zelf ----------
+// Deck Lab bewaart de lijst als rows {count, name, set, num, cat}, één per regel zoals hij binnenkwam,
+// zodat prints en niet-herkende regels blijven staan. serialize(rows) is de tekst (PTCG Live-formaat)
+// waar parse, de analyse en My lists op werken.
+const ENERGY_SYM = {G:"Grass",R:"Fire",W:"Water",L:"Lightning",P:"Psychic",F:"Fighting",D:"Darkness",M:"Metal",Y:"Fairy",N:"Dragon",C:"Colorless"};
+const CAT_OF = {Pokemon:"pokemon", Trainer:"trainer", Energy:"energy"};
+const SECTION = /^(pok[eé]mon|trainers?|energy)\b[^:]*:/i;
+const SEC_TITLE = {pokemon:"Pokémon", trainer:"Trainer", energy:"Energy"};
+
+// Eén lijstregel als {count, name, set, num}; null voor een kop, de Total-regel of iets anders.
+export function parseLine(raw){
+  const line = raw.trim();
+  if (!line || SECTION.test(line) || /^total/i.test(line)) return null;
+  const m = line.match(/^(\d+)x?\s+(.+)$/); if (!m) return null;
+  let name = m[2].trim(), set = "", num = "";
+  const s = name.match(/^(.*?)\s+([A-Z][A-Z0-9]{1,5}(?:-[A-Z0-9]{1,4})?)\s+([A-Za-z0-9]{1,6})$/);
+  if (s) { name = s[1]; set = s[2]; num = s[3]; }
+  return {count:+m[1], name, set, num};
+}
+// "Basic {D} Energy" -> "Basic Darkness Energy", om de kaart te vinden.
+const typedName = name => name.replace(/\{([A-Z])\}/g, (_, c) => ENERGY_SYM[c] || c).replace(/\s+/g, " ");
+
+// Tekst -> rows. cat komt uit de Card index; een onbekende regel houdt de sectie waar hij onder stond.
+export function rowsFrom(text, index){
+  const rows = []; let sec = null;
+  for (const raw of String(text).split(/\r?\n/)) {
+    const h = raw.trim().match(SECTION);
+    if (h) { sec = /^p/i.test(h[1]) ? "pokemon" : /^t/i.test(h[1]) ? "trainer" : "energy"; continue; }
+    const r = parseLine(raw); if (!r) continue;
+    const card = findCard(index, r.set, r.num, typedName(r.name));
+    rows.push({...r, cat: card ? CAT_OF[card.category] : sec});
+  }
+  return rows;
+}
+
+// Rows -> PTCG Live-tekst: per sectie een kop met het aantal, dan de regels zoals ze binnenkwamen.
+export function serialize(rows){
+  const sum = rs => rs.reduce((s, r) => s + r.count, 0);
+  const line = r => `${r.count} ${r.name}${r.set ? ` ${r.set} ${r.num}` : ""}`;
+  const out = [];
+  for (const cat of Object.keys(SEC_TITLE)) {
+    const rs = rows.filter(r => r.cat === cat);
+    if (rs.length) out.push(`${SEC_TITLE[cat]}: ${sum(rs)}`, ...rs.map(line), "");
+  }
+  const loose = rows.filter(r => !SEC_TITLE[r.cat]);
+  if (loose.length) out.push(...loose.map(line), "");
+  if (rows.length) out.push(`Total Cards: ${sum(rows)}`);
+  return out.join("\n");
+}
+
 export const DeckLab = (() => {
   // Items (en Artazon) waarmee je zonder Supporter Pokémon op je bank krijgt.
   // Dit is strategie, geen kaartdata: de Card index zegt niet welke Items Pokémon zoeken, dus deze lijst blijft.
   const SETUP_ITEMS = new Set(["buddy-buddy poffin","nest ball","ultra ball","poké pad","battle vip pass","level ball","hisuian heavy ball","great ball","quick ball","evolution incense","mysterious treasure","techno radar","poké ball","timer ball","capturing aroma","secret box","master ball","artazon","bug catching set"]);
-  const ENERGY_SYM = {G:"Grass",R:"Fire",W:"Water",L:"Lightning",P:"Psychic",F:"Fighting",D:"Darkness",M:"Metal",Y:"Fairy",N:"Dragon",C:"Colorless"};
   const CAT_LABEL = {pokemon:"Pokémon",trainer:"Trainer",energy:"Energy"};
   const SUB_LABEL = {item:"Item",supporter:"Supporter",tool:"Tool",stadium:"Stadium",basic:"Basic",special:"Special"};
   const STAGE_LABEL = ["Basic","Stage 1","Stage 2"];
@@ -18,23 +67,17 @@ export const DeckLab = (() => {
   // ---------- Lijst inlezen ----------
   // Categorie, stage, trainer type, energy type en ACE SPEC komen uit de Card index (findCard).
   // Een regel zonder kaart (cat null) telt mee voor de 60, maar voor geen enkele categorie.
-  const CAT_OF = {Pokemon:"pokemon", Trainer:"trainer", Energy:"energy"};
   function parse(text, index){
     const map = new Map();
     for (const raw of text.split(/\r?\n/)) {
-      const line = raw.trim(); if (!line) continue;
-      if (/^(pok[eé]mon|trainers?|energy)\b[^:]*:/i.test(line) || /^total/i.test(line)) continue;
-      const m = line.match(/^(\d+)x?\s+(.+)$/); if (!m) continue;
-      let rest = m[2].trim(), set = "", num = "";
-      const s = rest.match(/^(.*?)\s+([A-Z][A-Z0-9]{1,5}(?:-[A-Z0-9]{1,4})?)\s+([A-Za-z0-9]{1,6})$/);
-      if (s) { rest = s[1]; set = s[2]; num = s[3]; }
-      const typed = rest.replace(/\{([A-Z])\}/g, (_, c) => ENERGY_SYM[c] || c).replace(/\s+/g, " ");
+      const r = parseLine(raw); if (!r) continue;
+      const {set, num, count: n} = r, typed = typedName(r.name);
       const card = findCard(index, set, num, typed), name = card ? card.name : typed;
       const cat = card ? CAT_OF[card.category] : null;
       // Dezelfde kaartnaam uit verschillende sets is één regel (Boss's Orders ASC 256 + PR-SW 251).
       const key = cat + "|" + name.toLowerCase();
-      if (map.has(key)) { const e = map.get(key); e.count += +m[1]; if (set) e.prints.push(set + " " + num); continue; }
-      map.set(key, {name, set, num, count:+m[1], cat, card, prints: set ? [set + " " + num] : [],
+      if (map.has(key)) { const e = map.get(key); e.count += n; if (set) e.prints.push(set + " " + num); continue; }
+      map.set(key, {name, set, num, count:n, cat, card, prints: set ? [set + " " + num] : [],
         // Alleen "Basic" is een Basic; andere evoluties (BREAK, VMAX) tellen als Stage 1. Trainer zonder type: Item.
         stage: cat !== "pokemon" || card.stage === "Basic" ? 0 : card.stage === "Stage2" ? 2 : 1,
         sub: cat === "trainer" ? (card.trainerType || "Item").toLowerCase() :cat === "energy" ? (card.energyType === "Special" ? "special" : "basic") : null,
@@ -174,19 +217,20 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 @media (max-width:560px){.cl-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.cl-row .cnt{min-width:18px;height:18px;font-size:11px;line-height:18px}}
 /* Groot scherm: 4 per rij in de linkerkolom (ongeveer 62px; Test hand is 84px). */
 @media (min-width:901px){.cl-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.cl-row .nm{font-size:9px}.cl-row .art{font-size:18px}.cl-row .cnt{min-width:18px;height:18px;bottom:3px;font-size:11px;line-height:18px}}
-.field{position:relative}
-/* Tekst en knop midden in het veld; ernaast klikken gaat door naar het veld (typen of Ctrl+V). */
-.paste{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;pointer-events:none}
-.paste .hint{font-size:14px}
-.paste button{pointer-events:auto}
-textarea:focus+.paste,textarea:not(:placeholder-shown)+.paste{display:none}
-/* Zonder lijst: alleen het veld en de deckkeuze, midden op de pagina. */
+.btn:disabled{opacity:.5;cursor:default;border-color:var(--line)}
+.io{gap:6px}
+.io .btn{flex:1 1 auto;white-space:nowrap;padding:7px 10px}
+/* Zonder lijst: Import deck, de deckkeuze en de lege blokken, midden op de pagina. */
 :host(.empty) .layout{grid-template-columns:minmax(0,520px);justify-content:center;padding-top:8vh}
-:host(.empty) .side>.panel:last-child,:host(.empty) main,:host(.empty) .full-only{display:none}
-:host(.empty) .side>.panel{background:none;padding:0}
+:host(.empty) main,:host(.empty) .full-only{display:none}
+:host(.empty) .side>.panel:first-child{background:none;padding:0}
 .or{text-align:center;font-size:14px}
 :host(:not(.empty)) .or,:host(:not(.empty)) .empty-only{display:none}
-:host(.empty) textarea{min-height:120px;height:120px}
+/* Import deck: een eigen pop-up in de shadow root. */
+dialog{border:0;border-radius:var(--r);background:var(--surface);color:var(--ink);padding:16px;width:min(520px,calc(100vw - 32px))}
+dialog::backdrop{background:rgb(0 0 0/.5)}
+dialog h2{margin:0;font-size:18px}
+.x{border:0;background:none;font-size:22px;line-height:1;padding:4px 8px}
 .hint{font-size:12px;color:var(--muted);margin:0}
 .stack{display:flex;flex-direction:column;gap:18px}
 .tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -276,8 +320,8 @@ details[open]>summary.zone-t::before{content:"▾"}
   <aside class="side">
     <div class="panel col">
       <div class="count-bar full-only" id="total-badge" role="status" hidden></div>
-      <div class="row full-only" style="justify-content:space-between"><label class="label" for="deck">List (PTCG Live format)</label><button class="btn" type="button" id="btn-reset">Reset</button></div>
-      <div class="field"><textarea id="deck" spellcheck="false" placeholder=" "></textarea><div class="paste"><span class="hint">PTCGL list</span><button class="btn primary" type="button" id="btn-paste">Paste from clipboard</button></div></div>
+      <div class="row io"><button class="btn primary" type="button" id="btn-import">Import deck</button><button class="btn" type="button" id="btn-export">Export deck</button><button class="btn full-only" type="button" id="btn-clear">Clear</button></div>
+      <p class="hint" id="io-state" role="status"></p>
       <p class="hint or">or</p>
       <div class="empty-only"><slot name="load"></slot></div>
       <p class="hint" id="src"></p>
@@ -288,18 +332,26 @@ details[open]>summary.zone-t::before{content:"▾"}
     </div>
   </aside>
   <main><section id="view" class="stack"></section></main>
-</div>`;
+</div>
+<dialog id="imp" aria-labelledby="imp-t"><form method="dialog" class="col">
+  <div class="row" style="justify-content:space-between"><h2 id="imp-t">Import deck</h2><button class="x" value="cancel" aria-label="Close">×</button></div>
+  <p class="hint">Paste a list from Pokémon TCG Live or Limitless. It replaces the list in Deck Lab.</p>
+  <textarea id="imp-text" spellcheck="false" aria-label="List to import"></textarea>
+  <p class="hint" id="imp-state" role="status"></p>
+  <div class="row"><button class="btn" type="button" id="btn-paste">Paste from clipboard</button><button class="btn primary" type="button" id="imp-go">Import</button></div>
+</form></dialog>`;
 
-  let root = null, entries = [], TH = null, srcLabel = "";
+  let root = null, rows = [], rowsReady = Promise.resolve(), entries = [], TH = null, srcLabel = "";
   const $ = s => root.querySelector(s);
 
   function renderList(){
     const total = totalOf(entries);
     // Alleen een balk als de lijst niet op 60 uitkomt.
-    const tb = $("#total-badge"); tb.hidden = total === 60 || !$("#deck").value.trim(); tb.textContent = `${total} / 60 cards. A deck needs exactly 60.`;
+    const tb = $("#total-badge"); tb.hidden = total === 60 || !rows.length; tb.textContent = `${total} / 60 cards. A deck needs exactly 60.`;
     let html = "";
+    // De drie blokken staan er altijd, ook leeg; "Not recognized" alleen als er zulke regels zijn.
     for (const cat of ["pokemon","trainer","energy",null]){
-      const list = entries.filter(e => e.cat === cat); if (!list.length) continue;
+      const list = entries.filter(e => e.cat === cat); if (!cat && !list.length) continue;
       html += `<div class="cl-head"><span class="label" style="color:${cat ? catColor(cat) : "var(--bad)"}">${cat ? CAT_LABEL[cat] : "Not recognized"}</span><span class="num label">${count(list, () => true)}</span></div>`;
       // Kleine kaarttegels met het aantal; stage/type en ACE SPEC staan in de (verborgen) note.
       html += `<div class="cl-grid">${list.map(e => {
@@ -307,7 +359,7 @@ details[open]>summary.zone-t::before{content:"▾"}
         return `<div class="cl-row">${cardTile(e.card, {name: e.name, cat: cat || "pokemon", count: e.count, note})}</div>`;
       }).join("")}</div>`;
     }
-    $("#cardlist").innerHTML = html || '<p class="hint">No cards recognized yet. Paste a list with lines like <span class="num">4 Applin DRI 16</span>.</p>';
+    $("#cardlist").innerHTML = html;
   }
 
   function fsHTML(fs){
@@ -429,42 +481,69 @@ details[open]>summary.zone-t::before{content:"▾"}
   // ---------- Invoer ----------
   // Async: de Card index wordt bij het eerste gebruik geladen (één keer per pagina). Mislukt dat, dan is elke regel onbekend.
   async function load(){
-    const text = $("#deck").value;
-    if (!text.trim()) srcLabel = ""; // leeg = opnieuw beginnen
+    await rowsReady;
     $("#src").textContent = srcLabel;
     const index = await loadCardIndex();
-    entries = parse(text, index);
-    root.host.classList.toggle("empty", !text.trim());
+    entries = parse(serialize(rows), index);
+    root.host.classList.toggle("empty", !rows.length);
+    $("#btn-export").disabled = !rows.length;
     TH = null; renderList(); renderAnalysis();
+  }
+  // Another list came in (open, Import, Clear): the page hears it as "lab-source" on the host (My lists in app.js).
+  // It fires at once, so the page can set its own heading right after; the rows follow once the Card index is there
+  // (current() and load() wait for them).
+  const newSource = () => root.host.dispatchEvent(new CustomEvent("lab-source"));
+  function setList(text, label){
+    srcLabel = label; $("#io-state").textContent = "";
+    rowsReady = loadCardIndex().then(index => { rows = rowsFrom(text, index); });
+    newSource(); return load();
+  }
+  // After an edit in Deck Lab itself (− / + and adding cards): the label gets "(edited)" and the page hears "lab-edit".
+  function edited(){
+    if (srcLabel && !srcLabel.endsWith("(edited)")) srcLabel += " (edited)";
+    root.host.dispatchEvent(new CustomEvent("lab-edit"));
+    return load();
   }
   function mount(host, skipLoad = false){
     if (root) return;
     root = host.attachShadow({mode: "open"});
     root.innerHTML = `<style>${CSS}</style>${MARKUP}`;
-    // Het klembord lezen kan geweigerd worden; dan het veld in, zodat Ctrl+V werkt.
-    $("#btn-paste").onclick = async () => {
-      try { const t = await navigator.clipboard.readText(); if (t.trim()) { $("#deck").value = t; srcLabel = "Pasted list"; newSource(); return load(); } } catch {}
-      $("#deck").focus(); $("#src").textContent = "Press Ctrl+V to paste your list.";
+    const imp = $("#imp"), impText = $("#imp-text"), impState = $("#imp-state");
+    $("#btn-import").onclick = () => {
+      document.querySelectorAll("dialog[open]").forEach(d => d.close()); // one pop-up at a time, as openDialog in app.js
+      impText.value = ""; impState.textContent = "";
+      imp.showModal(); impText.focus();
     };
-    $("#btn-reset").onclick = () => { $("#deck").value = ""; newSource(); load(); };
-    let deb; $("#deck").addEventListener("input", () => {
-      if (srcLabel && !srcLabel.endsWith("(edited)")) srcLabel += " (edited)";
-      clearTimeout(deb); deb = setTimeout(load, 150); // na elke toetsaanslag; de korte wachttijd houdt snel typen vlot
-    });
+    const doImport = text => {
+      if (!rowsFrom(text, null).length) { impState.textContent = "No card lines found. A line looks like 4 Dreepy TWM 128."; return; }
+      imp.close(); return setList(text, "Imported list");
+    };
+    $("#imp-go").onclick = () => doImport(impText.value);
+    // Reading the clipboard can be refused; then into the text box, so Ctrl+V works.
+    $("#btn-paste").onclick = async () => {
+      try { const t = await navigator.clipboard.readText(); if (t.trim()) { impText.value = t; return doImport(t); } } catch {}
+      impText.focus(); impState.textContent = "Press Ctrl+V to paste your list, then Import.";
+    };
+    $("#btn-export").onclick = async () => {
+      const b = $("#btn-export");
+      try { await navigator.clipboard.writeText(serialize(rows)); }
+      catch { $("#io-state").textContent = "Could not copy to the clipboard. Allow clipboard access and try again."; return; }
+      $("#io-state").textContent = "";
+      b.textContent = "Copied"; setTimeout(() => { b.textContent = "Export deck"; }, 1500);
+    };
+    $("#btn-clear").onclick = () => setList("", "");
     // Deck Lab begint altijd leeg; er wordt geen lijst bewaard tussen bezoeken.
-    srcLabel = ""; $("#deck").value = "";
+    rows = []; srcLabel = "";
     if (!skipLoad) load();
   }
-  // Another list came in (paste, Reset, open): the page hears it as "lab-source" on the host (My lists in app.js).
-  const newSource = () => root.host.dispatchEvent(new CustomEvent("lab-source"));
   function open(host, text, label){
     mount(host, true);
-    srcLabel = label; $("#deck").value = text; newSource(); load();
+    setList(text, label);
   }
-  // The list in Deck Lab now: its text and cards ({id?, name, count}) for My lists. Read from the field itself,
-  // not from the last load(), which waits for typing to stop.
+  // The list in Deck Lab now: its text and cards ({id?, name, count}) for My lists.
   async function current(){
-    const text = root ? $("#deck").value : "", index = await loadCardIndex().catch(() => null);
+    await rowsReady;
+    const text = serialize(rows), index = await loadCardIndex().catch(() => null);
     return { text, cards: parse(text, index).map(e => e.card?.id ? { id: e.card.id, name: e.name, count: e.count } : { name: e.name, count: e.count }) };
   }
   const label = s => { srcLabel = s; if (root) $("#src").textContent = s; };

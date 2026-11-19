@@ -388,8 +388,8 @@ async function guessDeck() {
   if (run === guessRun && !labList && id) $("ml-deck").value = id;
 }
 $("lab-host").addEventListener("lab-source", () => { labList = null; labSel = null; renderSaveBar(); labArch = null; renderLabArch(); });
-// A list typed or pasted straight into the field: guess its deck once there is something to go on.
-$("lab-host").addEventListener("input", e => { if (e.composedPath()[0].id === "deck" && !labList && !$("ml-deck").value) guessDeck(); });
+// A list edited in Deck Lab itself (− / +, adding cards): guess its deck once there is something to go on.
+$("lab-host").addEventListener("lab-edit", () => { if (!labList && !$("ml-deck").value) guessDeck(); });
 
 // Deck Lab heading after Load a deck archetype: the deck, and which of its lists is loaded with the others to pick.
 let labArch = null;        // {i: deck index, k: list index in archLists} or null
