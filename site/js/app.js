@@ -383,6 +383,20 @@ async function refreshMyLists() {
   $("mylist-btn").hidden = !myLists.length;
   renderSaveBar(); renderLabArch();
 }
+// Two lists may not have the same name (case and spaces around it do not count).
+const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const nameTaken = (name, except = null) => myLists.some(l => l.id !== except && sameName(l.name, name));
+// A new list without a name gets the name of its deck, with a number when that name is taken.
+const freeName = base => { let n = base, k = 1; while (nameTaken(n)) n = `${base} ${++k}`; return n; };
+const TAKEN = name => `There is already a list called ${name.trim()}. Pick another name.`;
+function checkNewName() {
+  const typed = $("ml-name").value, taken = !labList && !!typed.trim() && nameTaken(typed);
+  $("ml-save").disabled = taken;
+  mlState.classList.toggle("bad", taken);
+  if (taken) mlState.textContent = TAKEN(typed); else if (mlState.classList.contains("was-taken")) mlState.textContent = "";
+  mlState.classList.toggle("was-taken", taken);
+}
+$("ml-name").addEventListener("input", checkNewName);
 function renderSaveBar(msg = "") {
   const l = labList && listById(labList);
   $("ml-name").value = l ? l.name : "";
@@ -403,6 +417,7 @@ function renderSaveBar(msg = "") {
   }
   mlArchive.textContent = l?.archived ? "Unarchive" : "Archive";
   disarmDelete();
+  checkNewName();
   updateChanges();
 }
 // The changes block of an own list: its name and deck, and Save once the cards, the name or the deck differ.
@@ -417,12 +432,15 @@ async function updateChanges() {
   const d = cardDiff(latest(l).cards, (await DeckLab.current()).cards), changed = d.out.length + d.in.length > 0;
   if (run !== changesRun) return;
   $("ml-changes").hidden = false;
+  const taken = chName(l) !== l.name && nameTaken(chName(l), l.id);
   $("ml-ch-act").hidden = !changed && !renamedOf(l);
+  $("ml-changes-btn").disabled = taken;
+  $("ml-name-sfx").classList.toggle("bad", taken);
   const old = labVer != null && labVer !== latest(l).v;
   $("ml-changes").querySelector(".note").textContent = old ? `This is v${labVer}; the latest is v${latest(l).v}.` : "";
   // After the name: the version this list gets when saved (a change in cards is always a new version), or New list.
   const top = latest(l).v;
-  $("ml-name-sfx").textContent = !typed.trim() ? "" : chName(l) !== l.name ? " · New list"
+  $("ml-name-sfx").textContent = !typed.trim() ? "" : taken ? " · Name already in My lists" : chName(l) !== l.name ? " · New list"
     : ` · v${changed ? top + 1 : labVer ?? top}`;
 }
 let guessRun = 0;
@@ -545,7 +563,8 @@ $("ml-save").addEventListener("click", async () => {
   if (!text.trim()) return;
   const picked = deckChoices().find(a => a.id === $("ml-deck").value);
   const deck = picked ? { id: picked.id, name: picked.name } : deckOf(cards, L, await loadCardIndex().catch(() => null));
-  const list = newList({ name: $("ml-name").value.trim() || deck?.name || "My list", deck: deck?.id ?? null, text, cards });
+  if (nameTaken($("ml-name").value) && $("ml-name").value.trim()) return checkNewName();
+  const list = newList({ name: $("ml-name").value.trim() || freeName(deck?.name || "My list"), deck: deck?.id ?? null, text, cards });
   if (!(await storeList(list, `Saved to My lists as ${listLabel(list)}.`))) renderSaveBar(NO_STORAGE);
 });
 // Save list: a pop-up with what it does (a new list for a new name, else a new version or the new deck),
@@ -573,6 +592,7 @@ $("ml-dlg-save").addEventListener("click", async () => {
   if (!dlg) return;
   const { l, text, cards, action } = dlg, v = latest(l).v, deck = $("ml-dlg-deck").value || null;
   let list, msg;
+  if (action === "new" && nameTaken(chName(l), l.id)) return void ($("ml-dlg-state").textContent = TAKEN(chName(l)));
   if (action === "new") { list = newList({ name: chName(l), deck, text, cards }); msg = `Saved to My lists as ${listLabel(list)}.`; }
   else if (action === "version") { list = { ...saveVersion(l, { text, cards }, true).list, deck }; msg = `Saved as v${v + 1}. v${v} stays as it was.`; }
   else { list = { ...l, deck }; msg = `Saved ${listLabel(list)}.`; }

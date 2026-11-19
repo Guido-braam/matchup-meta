@@ -184,6 +184,8 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
   font: 500 0.92rem var(--font-body); padding: 7px 10px; border: 1px solid transparent; }
 #ml-name-ghost { visibility: hidden; }
 #ml-name-sfx { color: var(--muted); opacity: 0.7; }
+#ml-name-sfx.bad { color: var(--bad); opacity: 1; }
+#ml-state.bad { color: var(--bad); font-weight: 600; }
 @media (max-width: 600px) { .lab-save-row .name-wrap { flex-basis: 100%; } }
 .lab-arch .note { flex-basis: 100%; margin: 0; }
 .lab-arch .note:empty { display: none; }
