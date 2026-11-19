@@ -308,7 +308,7 @@ textarea{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line
 /* Zonder lijst: Import deck, de deckkeuze en de lege blokken, midden op de pagina. */
 :host(.empty) .layout{grid-template-columns:minmax(0,520px);justify-content:center;padding-top:8vh}
 :host(.empty) main,:host(.empty) .full-only{display:none}
-:host(.empty) .side>.panel:first-child{background:none;padding:0}
+:host(.empty) .side>.io-panel{background:none;padding:0}
 .or{text-align:center;font-size:14px}
 :host(:not(.empty)) .or,:host(:not(.empty)) .empty-only{display:none}
 /* Import deck: een eigen pop-up in de shadow root. */
@@ -422,8 +422,8 @@ input[type=search]{width:100%;border:1px solid var(--line);border-radius:8px;bac
   const MARKUP = `
 <div class="layout">
   <aside class="side">
-    <div class="panel col">
-      <slot name="arch"></slot>
+    <slot name="arch"></slot>
+    <div class="panel col io-panel">
       <div class="row io"><button class="btn primary" type="button" id="btn-import">Import deck</button><button class="btn" type="button" id="btn-export">Export deck</button><button class="btn full-only" type="button" id="btn-clear">Clear</button></div>
       <p class="hint" id="io-state" role="status"></p>
       <p class="hint or">or</p>
