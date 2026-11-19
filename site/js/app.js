@@ -401,7 +401,7 @@ async function updateChanges() {
   $("ml-changes").hidden = false;
   $("ml-ch-act").hidden = !changed && !renamedOf(l);
   const old = labVer != null && labVer !== latest(l).v;
-  $("ml-changes").querySelector(".note").textContent = old ? `This is v${labVer}; the latest is v${latest(l).v}.` : "You changed this list.";
+  $("ml-changes").querySelector(".note").textContent = old ? `This is v${labVer}; the latest is v${latest(l).v}.` : "";
   // After the name: the version this list gets when saved (a change in cards is always a new version), or New list.
   const top = latest(l).v;
   $("ml-name-sfx").textContent = !typed.trim() ? "" : chName(l) !== l.name ? " · New list"

@@ -170,6 +170,7 @@ nav.tabs #tab-deck { background: color-mix(in oklab, var(--surface-2), #000 22%)
 .lab-save .note:empty { display: none; }
 .lab-save.panel { margin-top: 0; padding: 16px; }
 .lab-changes .note { flex: 1; }
+#ml-changes-btn { margin-left: auto; }
 .lab-changes { gap: 16px; }
 /* The version after the name, light grey, as if typed after it (#ml-name-sfx): the text before it is invisible. */
 .name-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
