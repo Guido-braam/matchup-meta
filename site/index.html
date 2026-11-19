@@ -82,14 +82,14 @@
         <button class="btn picker-btn" type="button" data-picker="lab-select" data-title="Load a deck archetype into Deck Lab" data-placeholder="Load a deck archetype…" aria-haspopup="dialog">Load a deck archetype…</button>
       </div>
       <div slot="save" class="panel lab-save" id="ml-save-box">
-        <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Deck Name (optional)" maxlength="60"><select id="ml-deck" aria-label="Deck of this list"></select><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>
+        <div class="lab-save-row"><input id="ml-name" type="text" aria-label="Name of this list" placeholder="Deck Name (optional)" maxlength="60"><select id="ml-deck" aria-label="Deck of this list" hidden></select><button class="btn picker-btn" type="button" data-picker="ml-deck" data-title="Deck of this list" data-placeholder="Deck…" aria-haspopup="dialog">Deck…</button><button class="btn primary" type="button" id="ml-save">Save to My lists</button></div>
         <p class="deck-check" role="status"></p>
         <p class="note" id="ml-state" role="status"></p>
         <div class="lab-save-row" id="ml-manage" hidden><button class="link-btn" type="button" id="ml-archive">Archive</button><button class="link-btn" type="button" id="ml-delete">Delete</button></div>
       </div>
       <!-- A list from My lists under its deck heading: only after a change, instead of the save block above. -->
       <div slot="save" class="panel lab-save lab-changes" id="ml-changes" hidden>
-        <div class="lab-save-row"><span class="name-wrap"><input id="ml-dlg-name" type="text" aria-label="Name of this list" placeholder="Deck Name" maxlength="60"><span class="name-sfx" aria-hidden="true"><span id="ml-name-ghost"></span><span id="ml-name-sfx"></span></span></span><select id="ml-dlg-deck" aria-label="Deck of this list"></select></div>
+        <div class="lab-save-row"><span class="name-wrap"><input id="ml-dlg-name" type="text" aria-label="Name of this list" placeholder="Deck Name" maxlength="60"><span class="name-sfx" aria-hidden="true"><span id="ml-name-ghost"></span><span id="ml-name-sfx"></span></span></span><select id="ml-dlg-deck" aria-label="Deck of this list" hidden></select><button class="btn picker-btn" type="button" data-picker="ml-dlg-deck" data-title="Deck of this list" data-placeholder="No deck" aria-haspopup="dialog">No deck</button></div>
         <div class="lab-save-row" id="ml-ch-act" hidden><p class="deck-check" role="status"></p><p class="note"></p><button class="btn primary" type="button" id="ml-changes-btn">Save list</button></div>
       </div>
     </div>

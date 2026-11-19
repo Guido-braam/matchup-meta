@@ -364,7 +364,7 @@ const mlState = $("ml-state"), mlManage = $("ml-manage"), mlArchive = $("ml-arch
 const mlGear = Object.assign(document.createElement("span"), { className: "ml-gear",
   innerHTML: `<button type="button" class="gear-btn" aria-label="List options" aria-haspopup="true" aria-expanded="false">⚙</button>` });
 mlGear.append(mlManage);
-$("ml-dlg-deck").after(mlGear); // in the save block, right of the deck
+$("ml-dlg-deck").nextElementSibling.after(mlGear); // in the save block, right of the deck
 const menuOpen = async open => {
   mlManage.hidden = !open; mlGear.firstChild.setAttribute("aria-expanded", String(open)); disarmDelete();
   // Delete only a list without games; with games, Archive it.
@@ -390,6 +390,7 @@ function renderSaveBar(msg = "") {
   const decks = deckChoices();
   $("ml-deck").innerHTML = `<option value="" hidden>Deck…</option>` + deckOpts(decks);
   $("ml-deck").value = l?.deck && decks.some(a => a.id === l.deck) ? l.deck : "";
+  syncPickBtn($("ml-deck"));
   if (!l) guessDeck();
   mlState.textContent = msg || (l ? `In My lists as ${l.name} · v${labVer ?? latest(l).v}${l.archived ? " (archived)" : ""}.` : "");
   mlManage.hidden = true; mlGear.firstChild.setAttribute("aria-expanded", "false");
@@ -398,6 +399,7 @@ function renderSaveBar(msg = "") {
     $("ml-dlg-name").value = l.name;
     $("ml-dlg-deck").innerHTML = `<option value="">No deck</option>` + deckOpts(decks);
     $("ml-dlg-deck").value = $("ml-dlg-deck").dataset.v0 = decks.some(a => a.id === l.deck) ? l.deck : "";
+    syncPickBtn($("ml-dlg-deck"));
   }
   mlArchive.textContent = l?.archived ? "Unarchive" : "Archive";
   disarmDelete();
@@ -428,7 +430,7 @@ async function guessDeck() {
   const run = ++guessRun;
   let id = labSel != null ? D?.archetypes[labSel]?.id : null;
   if (!id) { const { cards } = await DeckLab.current(); id = deckOf(cards, L, await loadCardIndex().catch(() => null))?.id; }
-  if (run === guessRun && !labList && id) $("ml-deck").value = id;
+  if (run === guessRun && !labList && id) { $("ml-deck").value = id; syncPickBtn($("ml-deck")); }
 }
 $("lab-host").addEventListener("lab-source", () => { labList = null; labVer = null; labSel = null; renderSaveBar(); labArch = null; renderLabArch(); renderLabSelect(); });
 // A list edited in Deck Lab itself (− / +, adding cards): guess its deck once there is something to go on.
@@ -615,7 +617,7 @@ function syncPickBtn(sel) {
 }
 function openPicker(sel, needLists, title) {
   if (!D) return;
-  pick = { sel, needLists, opener: document.activeElement };
+  pick = { sel, needLists, opener: document.activeElement, byId: sel.id !== "lab-select" };
   $("pk-title").textContent = title;
   $("pk-search").value = "";
   renderPicker();
@@ -634,17 +636,21 @@ function closePicker() {
 }
 function renderPicker() {
   const q = $("pk-search").value.trim().toLowerCase();
-  const cur = pick.sel.value;
+  const cur = pick.sel.value, key = (a, i) => pick.byId ? a.id : String(i);
+  // A list may have no deck: then a No deck choice on top.
+  const none = pick.byId && [...pick.sel.options].some(o => o.value === "" && !o.hidden)
+    ? `<div class="pk-inner pk-none"><button type="button" class="btn${cur === "" ? " current" : ""}" data-pick="">No deck</button></div>` : "";
   const groups = deckGroups().map(g => ({ ...g, xs: g.xs.filter(x => !q || x.a.name.toLowerCase().includes(q)) })).filter(g => g.xs.length);
-  $("pk-body").innerHTML = groups.length ? `<div class="pk-inner tiers">${groups.map(({ t, xs }) => `
+  $("pk-body").innerHTML = none + (groups.length ? `<div class="pk-inner tiers">${groups.map(({ t, xs }) => `
     <div class="tier ${t === "none" ? "tier-none" : `tier-${t}`}">
       <div class="tier-label">${t === "none" ? "–" : t}${t === "none" ? "<small>no tier</small>" : ""}</div>
       <div class="tiles">${xs.map(({ a, i }) => {
         const off = noList(a, pick.needLists);
-        return `<button type="button" class="tile${String(i) === cur ? " current" : ""}" data-pick="${i}"${off ? " disabled" : ""}${String(i) === cur ? ' aria-current="true"' : ""}>
+        const on = key(a, i) === cur;
+        return `<button type="button" class="tile${on ? " current" : ""}" data-pick="${esc(key(a, i))}"${off ? " disabled" : ""}${on ? ' aria-current="true"' : ""}>
           ${spritesHtml(a)}<span class="name">${esc(a.name)}</span>${off ? '<span class="pk-off">no list</span>' : ""}</button>`;
       }).join("")}</div>
-    </div>`).join("")}</div>` : `<div class="state">No decks found.</div>`;
+    </div>`).join("")}</div>` : `<div class="state">No decks found.</div>`);
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("button[data-picker]");
