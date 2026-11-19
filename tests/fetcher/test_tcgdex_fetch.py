@@ -153,3 +153,54 @@ def test_only_basic_energy_names_are_normal_energy():
     assert entry("Prism Energy", "Normal")["energyType"] == "Special"  # TCGdex says Normal
     assert entry("Growing Grass Energy", "Normal")["energyType"] == "Special"
     assert entry("Mist Energy", "Special")["energyType"] == "Special"
+
+
+def test_search_json_has_only_standard_legal_versions(tmp_path, calls):
+    run(tmp_path)
+    rows = json.loads((tmp_path / "search.json").read_text(encoding="utf-8"))
+    assert [r["id"] for r in rows] == ["30th-001"]  # only Pikachu is on the Standard list
+    assert rows[0]["name"] == "Pikachu" and rows[0]["category"] == "Pokemon" and "image" not in rows[0]
+
+
+def card(id, name, cat="Pokemon", text="", rarity="Common", standard=True):
+    c = {"id": id, "name": name, "category": cat, "rarity": rarity, "legal": {"standard": standard}}
+    c["attacks" if cat == "Pokemon" else "effect"] = [{"name": "Hit", "effect": text}] if cat == "Pokemon" else text
+    return c
+
+
+RELEASED = {"old": "2023-01-01", "new": "2025-01-01", "newer": "2026-01-01"}
+
+
+def ids(cards):
+    return [r["id"] for r in tcgdex.search_rows(cards, RELEASED)]
+
+
+def test_search_pokemon_one_row_per_name_and_text():
+    assert ids([card("old-001", "Pikachu", text="A"), card("new-001", "Pikachu", text="A"),
+                card("new-002", "Pikachu", text="B")]) == ["new-001", "new-002"]
+
+
+def test_search_trainer_one_row_per_name_with_text_of_newest_print():
+    rows = tcgdex.search_rows([card("old-001", "Ultra Ball", "Trainer", "Old wording."),
+                               card("new-001", "Ultra Ball", "Trainer", "New wording."),
+                               card("newer-001", "Ultra Ball", "Trainer", "")], RELEASED)
+    assert [(r["id"], r["text"]) for r in rows] == [("newer-001", "New wording.")]
+
+
+def test_search_legal_by_name_and_illegal_left_out():
+    # the old print is not on the Standard list, its reprint is: one row, the newest print
+    assert ids([card("old-001", "Pokégear 3.0", "Trainer", "X", standard=False),
+                card("new-001", "Pokégear 3.0", "Trainer", "X")]) == ["new-001"]
+    assert ids([card("new-001", "Iono", "Trainer", "X", standard=False)]) == []
+
+
+def test_search_newest_regular_print_over_fancy_lowest_id_on_tie():
+    assert ids([card("new-001", "Boss's Orders", "Trainer", "X"),
+                card("newer-200", "Boss's Orders", "Trainer", "X", rarity="Hyper rare"),
+                card("newer-150", "Boss's Orders", "Trainer", "X", rarity="Ultra Rare")]) == ["new-001"]
+    assert ids([card("new-002", "Nest Ball", "Trainer", "X"), card("new-001", "Nest Ball", "Trainer", "X")]) == ["new-001"]
+
+
+def test_search_basic_energy_is_one_card():
+    rows = tcgdex.search_rows([card("old-001", "Basic Fire Energy", "Energy"), card("new-001", "Fire Energy", "Energy")], RELEASED)
+    assert [(r["id"], r["name"], r["energyType"]) for r in rows] == [("new-001", "Fire Energy", "Normal")]
