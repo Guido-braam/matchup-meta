@@ -103,7 +103,7 @@ export function initAnalysis({ $, esc, store, storage, loadCardIndex, labs, ai, 
   function insightsHtml(sel, s, p, index) {
     const d1 = x => x.toFixed(1), list = playInsights(sel, { replay: replayOf, deckName });
     const fixed = `<ul class="an-ins"><li><span>Going first ${record(s.first)} · going second ${record(s.second)}</span></li>
-      <li><span>Prize cards per game: you ${d1(p.me)} · opponent ${d1(p.opp)} · close games ${p.close} of ${sel.length}</span></li>`;
+      <li><span>Prize cards per game: you ${d1(p.me)} · opponent ${d1(p.opp)}</span></li>`;
     if (!list.length) return `${fixed}</ul><p class="an-warn" role="status">Insights show up from ${MIN} games in each group, for example ${MIN} wins and ${MIN} losses. This selection has ${sel.length} game${sel.length === 1 ? "" : "s"} (${record(s)}).</p>`;
     const img = name => { const c = findCard(index, null, null, name); return c?.image ? `<img class="an-card" loading="lazy" src="${cardImagePath(c.imageId ?? c.id)}" alt="${esc(name)}" onerror="this.remove()">` : ""; };
     return `${fixed}${list.map(r => `<li>${r.card ? img(r.card) : ""}<span>${esc(r.text)}${r.early ? ` <span class="an-early">early sign</span>` : ""}</span></li>`).join("")}</ul>`;
